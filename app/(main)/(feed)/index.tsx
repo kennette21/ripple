@@ -7,7 +7,6 @@ import {
   RefreshControl,
   ActivityIndicator,
   Pressable,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,20 +34,12 @@ export default function FeedScreen() {
 
   const posts = data?.pages.flatMap((page) => page.posts) ?? [];
 
-  const handleRipple = useCallback((post: FeedPost) => {
-    Alert.alert(
-      'Coming Soon',
-      'Ripple messaging will let you connect directly with this person. Stay tuned!'
-    );
-  }, []);
-
   const renderPost = useCallback(({ item }: { item: FeedPost }) => (
     <PostCard
       post={item}
       currentUserId={user?.id}
-      onRipple={() => handleRipple(item)}
     />
-  ), [user?.id, handleRipple]);
+  ), [user?.id]);
 
   const renderFooter = useCallback(() => {
     if (isFetchingNextPage) {

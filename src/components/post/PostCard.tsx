@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
+import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@/components/ui/Avatar';
 import { ImageGallery } from './ImageGallery';
 import { colors, spacing } from '@/constants/theme';
@@ -10,13 +10,11 @@ import type { FeedPost } from '@/hooks/feed/useFeed';
 
 interface PostCardProps {
   post: FeedPost;
-  onRipple?: () => void;
   currentUserId?: string;
 }
 
 export function PostCard({
   post,
-  onRipple,
   currentUserId,
 }: PostCardProps) {
   const router = useRouter();
@@ -24,24 +22,33 @@ export function PostCard({
 
   const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
   const postAuthorId = (post as any).author_id;
-  const isOwnPost = postAuthorId === currentUserId;
+  const isOwnPost = currentUserId === postAuthorId;
+  const isPrivateReflection = post.is_private && post.content_type === 'reflection';
 
   const handleProfilePress = () => {
     router.push(`/user/${postAuthorId}`);
   };
 
-  const handlePostPress = () => {
-    router.push(`/post/${post.id}`);
-  };
-
   const renderContent = () => {
     if (post.content_type === 'caption') {
+      if (!post.caption) return null;
       return (
         <Text style={styles.caption}>{post.caption}</Text>
       );
     }
 
-    // Reflection type
+    // Reflection type - check if private and not own post
+    if (isPrivateReflection && !isOwnPost) {
+      return (
+        <View style={styles.privateReflection}>
+          <Ionicons name="lock-closed" size={20} color={colors.gray[400]} />
+          <Text style={styles.privateReflectionText}>
+            This reflection is private
+          </Text>
+        </View>
+      );
+    }
+
     const reflection = post.reflection || '';
     const isLong = reflection.length > 500;
     const displayText = isLong && !showFullReflection
@@ -65,8 +72,14 @@ export function PostCard({
     );
   };
 
+  // For private reflections from others, we still show content (the "private" message)
+  const hasContent = post.content_type === 'caption'
+    ? !!post.caption
+    : (!!post.reflection || isPrivateReflection);
+  const hasImages = post.images && post.images.length > 0;
+
   return (
-    <Pressable style={styles.container} onPress={handlePostPress}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable style={styles.authorInfo} onPress={handleProfilePress}>
@@ -82,27 +95,26 @@ export function PostCard({
             <Text style={styles.username}>@{post.author.username}</Text>
           </View>
         </Pressable>
-        <Text style={styles.time}>{timeAgo}</Text>
+        <View style={styles.headerRight}>
+          {post.is_private && (
+            <Ionicons name="lock-closed" size={14} color={colors.gray[400]} style={styles.lockIcon} />
+          )}
+          <Text style={styles.time}>{timeAgo}</Text>
+        </View>
       </View>
 
-      {/* Content */}
-      <View style={styles.content}>
-        {renderContent()}
-      </View>
-
-      {/* Images */}
-      {post.images && post.images.length > 0 && (
-        <ImageGallery images={post.images} />
+      {/* Images - carousel is scrollable */}
+      {hasImages && (
+        <ImageGallery images={post.images!} />
       )}
 
-      {/* Actions - Simplified for beta */}
-      <View style={styles.actions}>
-        <Pressable style={styles.actionButton} onPress={onRipple}>
-          <Ionicons name="water-outline" size={22} color={colors.primary[500]} />
-          <Text style={styles.rippleText}>Ripple</Text>
-        </Pressable>
-      </View>
-    </Pressable>
+      {/* Content below images */}
+      {hasContent && (
+        <View style={styles.content}>
+          {renderContent()}
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -137,13 +149,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.gray[500],
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  lockIcon: {
+    marginRight: 2,
+  },
   time: {
     fontSize: 13,
     color: colors.gray[500],
   },
   content: {
     paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
+    marginTop: spacing.xs,
   },
   caption: {
     fontSize: 16,
@@ -167,21 +187,18 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     fontWeight: '500',
   },
-  actions: {
+  privateReflection: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.gray[100],
+    borderRadius: 8,
   },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    padding: spacing.xs,
-  },
-  rippleText: {
+  privateReflectionText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: colors.primary[500],
+    color: colors.gray[500],
+    fontStyle: 'italic',
   },
 });

@@ -11,6 +11,7 @@ export interface FeedPost extends Post {
   comment_count: number;
   repost_count: number;
   is_bookmarked: boolean;
+  is_private: boolean;
 }
 
 interface FeedPage {

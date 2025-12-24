@@ -60,6 +60,7 @@ export default function AvatarSetupScreen() {
         }
       }
 
+      // Update profile with avatar (onboarding completed on discover screen)
       if (avatarUrl) {
         const { error } = await (supabase
           .from('profiles') as any)
@@ -72,7 +73,7 @@ export default function AvatarSetupScreen() {
       }
 
       await refreshProfile();
-      router.push('/(auth)/onboarding/daily-goal');
+      router.push('/(auth)/onboarding/discover');
     } catch (err) {
       console.error('Error:', err);
     } finally {
@@ -81,7 +82,8 @@ export default function AvatarSetupScreen() {
   };
 
   const handleSkip = () => {
-    router.push('/(auth)/onboarding/daily-goal');
+    // Skip avatar, onboarding will be completed on discover screen
+    router.push('/(auth)/onboarding/discover');
   };
 
   return (
@@ -90,7 +92,6 @@ export default function AvatarSetupScreen() {
         <View style={styles.progress}>
           <View style={[styles.progressDot, styles.progressActive]} />
           <View style={[styles.progressDot, styles.progressActive]} />
-          <View style={styles.progressDot} />
         </View>
 
         <View style={styles.header}>
@@ -124,7 +125,7 @@ export default function AvatarSetupScreen() {
           style={styles.skipButton}
         />
         <Button
-          title={avatarUri ? 'Continue' : 'Skip'}
+          title={avatarUri ? 'Get Started' : 'Skip'}
           onPress={handleContinue}
           loading={isLoading}
         />

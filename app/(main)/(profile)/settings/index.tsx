@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
+import { useSignOut } from '@hooks/auth';
 
 interface SettingsItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -26,6 +27,23 @@ function SettingsItem({ icon, title, onPress, showBorder = true }: SettingsItemP
 }
 
 export default function SettingsScreen() {
+  const { signOut, isLoading: signOutLoading } = useSignOut();
+
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign Out', style: 'destructive', onPress: signOut },
+      ]
+    );
+  };
+
+  const handleComingSoon = (feature: string) => {
+    Alert.alert('Coming Soon', `${feature} will be available in a future update.`);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -43,63 +61,51 @@ export default function SettingsScreen() {
             <SettingsItem
               icon="person-outline"
               title="Edit Profile"
-              onPress={() => {}}
+              onPress={() => router.push('/(main)/(profile)/settings/edit-profile')}
             />
             <SettingsItem
-              icon="lock-closed-outline"
-              title="Privacy"
-              onPress={() => {}}
+              icon="people-outline"
+              title="Find People"
+              onPress={() => router.push('/(main)/(profile)/settings/find-people')}
+            />
+            <SettingsItem
+              icon="log-out-outline"
+              title="Sign Out"
+              onPress={handleSignOut}
               showBorder={false}
             />
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Wellness</Text>
+          <Text style={styles.sectionTitle}>About</Text>
           <View style={styles.sectionContent}>
             <SettingsItem
-              icon="time-outline"
-              title="Daily Usage Goal"
-              onPress={() => {}}
+              icon="water-outline"
+              title="About Ripple"
+              onPress={() => router.push('/(main)/(profile)/settings/about')}
             />
-            <SettingsItem
-              icon="bar-chart-outline"
-              title="Usage Insights"
-              onPress={() => {}}
-              showBorder={false}
-            />
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
-          <View style={styles.sectionContent}>
-            <SettingsItem
-              icon="notifications-outline"
-              title="Notification Preferences"
-              onPress={() => {}}
-              showBorder={false}
-            />
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Support</Text>
-          <View style={styles.sectionContent}>
             <SettingsItem
               icon="help-circle-outline"
               title="Help & Support"
-              onPress={() => {}}
+              onPress={() => handleComingSoon('Help & Support')}
+              showBorder={false}
             />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Legal</Text>
+          <View style={styles.sectionContent}>
             <SettingsItem
               icon="document-text-outline"
               title="Terms of Service"
-              onPress={() => {}}
+              onPress={() => handleComingSoon('Terms of Service')}
             />
             <SettingsItem
               icon="shield-outline"
               title="Privacy Policy"
-              onPress={() => {}}
+              onPress={() => handleComingSoon('Privacy Policy')}
               showBorder={false}
             />
           </View>

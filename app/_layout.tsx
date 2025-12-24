@@ -30,7 +30,8 @@ function RootLayoutNav() {
       router.replace('/(auth)/login');
     } else if (isAuthenticated && needsOnboarding && !inOnboarding) {
       // User is signed in but hasn't completed onboarding
-      router.replace('/(auth)/onboarding/profile-setup');
+      // Start with manifesto for new users, profile-setup for returning users
+      router.replace('/(auth)/onboarding/manifesto');
     } else if (isAuthenticated && !needsOnboarding && inAuthGroup) {
       // User is signed in and has completed onboarding, go to main app
       router.replace('/(main)/(feed)');

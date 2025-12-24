@@ -16,6 +16,7 @@ interface CreatePostInput {
   reflection?: string;
   contentType: ContentType;
   images?: ImageToUpload[];
+  isPrivate?: boolean;
 }
 
 async function createPost(input: CreatePostInput, userId: string) {
@@ -27,6 +28,7 @@ async function createPost(input: CreatePostInput, userId: string) {
       caption: input.caption || null,
       reflection: input.reflection || null,
       content_type: input.contentType,
+      is_private: input.isPrivate || false,
     })
     .select()
     .single();

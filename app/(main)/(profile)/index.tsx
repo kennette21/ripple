@@ -7,16 +7,14 @@ import {
   TouchableOpacity,
   Pressable,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, Button } from '@components/ui';
+import { Avatar } from '@components/ui';
 import { EmptyState } from '@components/common';
 import { PostCard } from '@/components/post/PostCard';
 import { useAuth } from '@providers/AuthProvider';
-import { useSignOut } from '@hooks/auth';
 import { useUserPosts } from '@/hooks/profile/useUserPosts';
 import { useFollowStatus } from '@/hooks/social/useFollow';
 import { colors, spacing, typography } from '@constants/theme';
@@ -24,7 +22,6 @@ import type { FeedPost } from '@/hooks/feed/useFeed';
 
 export default function ProfileScreen() {
   const { profile, user } = useAuth();
-  const { signOut, isLoading: signOutLoading } = useSignOut();
 
   const { data: followStatus } = useFollowStatus(user?.id, user?.id);
   const {
@@ -36,13 +33,6 @@ export default function ProfileScreen() {
   } = useUserPosts(user?.id, user?.id);
 
   const posts = postsData?.pages.flatMap((page) => page.posts) ?? [];
-
-  const handleRipple = useCallback((post: FeedPost) => {
-    Alert.alert(
-      'Coming Soon',
-      'Ripple messaging will let you connect directly with this person. Stay tuned!'
-    );
-  }, []);
 
   const renderHeader = () => (
     <>
@@ -74,22 +64,6 @@ export default function ProfileScreen() {
           <Text style={styles.username}>@{profile?.username}</Text>
           {profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
         </View>
-
-        <View style={styles.actions}>
-          <Button
-            title="Edit Profile"
-            variant="outline"
-            onPress={() => router.push('/(main)/(profile)/settings')}
-            style={styles.editButton}
-          />
-          <Button
-            title="Sign Out"
-            variant="ghost"
-            onPress={signOut}
-            loading={signOutLoading}
-            style={styles.signOutButton}
-          />
-        </View>
       </View>
 
       <View style={styles.divider} />
@@ -101,9 +75,8 @@ export default function ProfileScreen() {
     <PostCard
       post={item}
       currentUserId={user?.id}
-      onRipple={() => handleRipple(item)}
     />
-  ), [user?.id, handleRipple]);
+  ), [user?.id]);
 
   const renderFooter = () => {
     if (isFetchingNextPage) {
@@ -223,17 +196,6 @@ const styles = StyleSheet.create({
     color: colors.gray[700],
     marginTop: spacing.xs,
     lineHeight: 22,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
-  editButton: {
-    flex: 1,
-  },
-  signOutButton: {
-    flex: 1,
   },
   divider: {
     height: 1,

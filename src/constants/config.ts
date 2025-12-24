@@ -20,7 +20,7 @@ export const LIMITS = {
   // Posts
   captionMaxLength: 280,
   reflectionMaxLength: 10000,
-  maxImagesPerPost: 4,
+  maxImagesPerPost: 10,
 
   // Comments
   commentMaxLength: 1000,

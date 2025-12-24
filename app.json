@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "ripple",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -15,14 +15,20 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ripple.app"
+      "bundleIdentifier": "com.proxy.ripple",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.ripple.app"
+      "package": "com.proxy.ripple",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -54,8 +60,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "your-project-id"
+        "projectId": "a1cb460d-2325-44b5-b8f4-e66678ac4779"
       }
-    }
+    },
+    "owner": "kennette21"
   }
 }

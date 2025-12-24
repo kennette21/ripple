@@ -6,7 +6,6 @@ import {
   FlatList,
   Pressable,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -49,13 +48,6 @@ export default function UserProfileScreen() {
       isFollowing: followStatus.isFollowing,
     });
   };
-
-  const handleRipple = useCallback((post: FeedPost) => {
-    Alert.alert(
-      'Coming Soon',
-      'Ripple messaging will let you connect directly with this person. Stay tuned!'
-    );
-  }, []);
 
   const renderHeader = () => (
     <View style={styles.header}>
@@ -124,9 +116,8 @@ export default function UserProfileScreen() {
     <PostCard
       post={item}
       currentUserId={user?.id}
-      onRipple={() => handleRipple(item)}
     />
-  ), [user?.id, handleRipple]);
+  ), [user?.id]);
 
   const renderFooter = () => {
     if (isFetchingNextPage) {

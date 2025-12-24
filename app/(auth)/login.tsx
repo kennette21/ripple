@@ -41,7 +41,7 @@ export default function LoginScreen() {
           <View style={styles.header}>
             <Text style={styles.logo}>Ripple</Text>
             <Text style={styles.tagline}>
-              Social media that respects your time
+              Connect &lt;&lt;&lt;+&gt;&gt;&gt; Reflect
             </Text>
           </View>
 

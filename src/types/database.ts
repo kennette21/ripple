@@ -58,6 +58,7 @@ export interface Database {
           content_type: PostContentType;
           caption: string | null;
           reflection: string | null;
+          is_private: boolean;
           created_at: string;
         };
         Insert: {
@@ -66,6 +67,7 @@ export interface Database {
           content_type: PostContentType;
           caption?: string | null;
           reflection?: string | null;
+          is_private?: boolean;
           created_at?: string;
         };
         Update: {
@@ -74,6 +76,7 @@ export interface Database {
           content_type?: PostContentType;
           caption?: string | null;
           reflection?: string | null;
+          is_private?: boolean;
           created_at?: string;
         };
       };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   ScrollView,
   Alert,
   Pressable,
+  KeyboardAvoidingView,
+  Platform,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -31,11 +34,14 @@ interface SelectedImage {
 export default function ComposeScreen() {
   const { profile, user } = useAuth();
   const createPost = useCreatePost();
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const [contentType, setContentType] = useState<ContentType>('caption');
   const [caption, setCaption] = useState('');
   const [reflection, setReflection] = useState('');
   const [images, setImages] = useState<SelectedImage[]>([]);
+  const [inputHeight, setInputHeight] = useState(100);
+  const [isPrivate, setIsPrivate] = useState(false);
 
   const content = contentType === 'caption' ? caption : reflection;
   const maxLength = contentType === 'caption' ? LIMITS.captionMaxLength : LIMITS.reflectionMaxLength;
@@ -75,6 +81,7 @@ export default function ComposeScreen() {
     setReflection('');
     setImages([]);
     setContentType('caption');
+    setIsPrivate(false);
   };
 
   const handlePost = async () => {
@@ -87,6 +94,7 @@ export default function ComposeScreen() {
           reflection: contentType === 'reflection' ? reflection : undefined,
           contentType,
           images,
+          isPrivate: contentType === 'reflection' ? isPrivate : false,
         },
         userId: user.id,
       });
@@ -164,46 +172,68 @@ export default function ComposeScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.authorRow}>
-          <Avatar
-            uri={profile?.avatar_url}
-            name={profile?.display_name}
-            size="md"
-          />
-          <View style={styles.authorInfo}>
-            <Text style={styles.authorName}>{profile?.display_name}</Text>
-            <Text style={styles.authorUsername}>@{profile?.username}</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+        keyboardVerticalOffset={100}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.authorRow}>
+            <Avatar
+              uri={profile?.avatar_url}
+              name={profile?.display_name}
+              size="md"
+            />
+            <View style={styles.authorInfo}>
+              <Text style={styles.authorName}>{profile?.display_name}</Text>
+              <Text style={styles.authorUsername}>@{profile?.username}</Text>
+            </View>
           </View>
-        </View>
 
-        {contentType === 'reflection' && (
+          {contentType === 'reflection' && (
+            <TextInput
+              style={styles.titleInput}
+              placeholder="Title (optional)"
+              placeholderTextColor={colors.gray[400]}
+              value={caption}
+              onChangeText={setCaption}
+              maxLength={100}
+            />
+          )}
+
           <TextInput
-            style={styles.titleInput}
-            placeholder="Title (optional)"
+            style={[
+              styles.input,
+              contentType === 'reflection' && styles.inputReflection,
+              { minHeight: contentType === 'reflection' ? Math.max(200, inputHeight) : 100 },
+            ]}
+            placeholder={
+              contentType === 'caption'
+                ? 'Write a caption (optional)'
+                : 'Share your thoughts in detail...'
+            }
             placeholderTextColor={colors.gray[400]}
-            value={caption}
-            onChangeText={setCaption}
-            maxLength={100}
+            value={contentType === 'caption' ? caption : reflection}
+            onChangeText={contentType === 'caption' ? setCaption : setReflection}
+            multiline
+            autoFocus
+            scrollEnabled={false}
+            onContentSizeChange={(e) => {
+              const newHeight = e.nativeEvent.contentSize.height;
+              setInputHeight(newHeight);
+              // Auto-scroll when content grows
+              if (contentType === 'reflection' && newHeight > 200) {
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+              }
+            }}
           />
-        )}
-
-        <TextInput
-          style={[
-            styles.input,
-            contentType === 'reflection' && styles.inputReflection,
-          ]}
-          placeholder={
-            contentType === 'caption'
-              ? "What's on your mind?"
-              : 'Share your thoughts in detail...'
-          }
-          placeholderTextColor={colors.gray[400]}
-          value={contentType === 'caption' ? caption : reflection}
-          onChangeText={contentType === 'caption' ? setCaption : setReflection}
-          multiline
-          autoFocus
-        />
 
         <Text style={[styles.charCount, content.length > maxLength && styles.charCountOver]}>
           {content.length}/{maxLength}
@@ -221,8 +251,9 @@ export default function ComposeScreen() {
               </View>
             ))}
           </ScrollView>
-        )}
-      </ScrollView>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Bottom toolbar */}
       <View style={styles.toolbar}>
@@ -232,6 +263,33 @@ export default function ComposeScreen() {
             <Text style={styles.imageCount}>{images.length}/{LIMITS.maxImagesPerPost}</Text>
           )}
         </Pressable>
+
+        {/* Private toggle - only for reflections */}
+        {contentType === 'reflection' && (
+          <Pressable
+            style={styles.privateToggle}
+            onPress={() => setIsPrivate(!isPrivate)}
+          >
+            <Ionicons
+              name={isPrivate ? 'lock-closed' : 'globe-outline'}
+              size={18}
+              color={isPrivate ? colors.primary[500] : colors.gray[500]}
+            />
+            <Text style={[
+              styles.privateText,
+              isPrivate && styles.privateTextActive,
+            ]}>
+              {isPrivate ? 'Private reflection' : 'Public'}
+            </Text>
+            <Switch
+              value={isPrivate}
+              onValueChange={setIsPrivate}
+              trackColor={{ false: colors.gray[200], true: colors.primary[200] }}
+              thumbColor={isPrivate ? colors.primary[500] : colors.gray[400]}
+              style={styles.switch}
+            />
+          </Pressable>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -241,6 +299,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+  },
+  keyboardView: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -372,5 +433,24 @@ const styles = StyleSheet.create({
   imageCount: {
     fontSize: typography.fontSizes.sm,
     color: colors.gray[500],
+  },
+  privateToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    gap: spacing.xs,
+  },
+  privateText: {
+    fontSize: typography.fontSizes.sm,
+    color: colors.gray[500],
+    fontWeight: typography.fontWeights.medium,
+  },
+  privateTextActive: {
+    color: colors.primary[500],
+  },
+  switch: {
+    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
   },
 });

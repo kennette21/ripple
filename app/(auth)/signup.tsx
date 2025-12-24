@@ -7,7 +7,6 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,11 +42,8 @@ export default function SignupScreen() {
     const success = await signUp(email, password);
 
     if (success) {
-      Alert.alert(
-        'Check your email',
-        'We sent you a confirmation email. Please verify your email to continue.',
-        [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
-      );
+      // Navigate to onboarding - manifesto will be shown first
+      router.replace('/(auth)/onboarding/manifesto');
     }
   };
 

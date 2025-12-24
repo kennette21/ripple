@@ -100,7 +100,6 @@ export default function ProfileSetupScreen() {
           <View style={styles.progress}>
             <View style={[styles.progressDot, styles.progressActive]} />
             <View style={styles.progressDot} />
-            <View style={styles.progressDot} />
           </View>
 
           <View style={styles.header}>
@@ -142,12 +141,12 @@ export default function ProfileSetupScreen() {
             />
 
             <Input
-              label="Bio (optional)"
-              placeholder="Tell us about yourself"
+              label="Profile Byline (optional)"
+              placeholder="A short tagline about you"
               value={bio}
               onChangeText={setBio}
               multiline
-              numberOfLines={3}
+              numberOfLines={2}
               maxLength={LIMITS.bioMaxLength}
               hint={`${bio.length}/${LIMITS.bioMaxLength}`}
             />
