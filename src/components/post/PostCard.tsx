@@ -19,6 +19,7 @@ export function PostCard({
 }: PostCardProps) {
   const router = useRouter();
   const [showFullReflection, setShowFullReflection] = useState(false);
+  const [isTextTruncated, setIsTextTruncated] = useState(false);
 
   const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
   const postAuthorId = (post as any).author_id;
@@ -26,7 +27,11 @@ export function PostCard({
   const isPrivateReflection = post.is_private && post.content_type === 'reflection';
 
   const handleProfilePress = () => {
-    router.push(`/user/${postAuthorId}`);
+    if (isOwnPost) {
+      router.push('/(main)/(profile)');
+    } else {
+      router.push(`/user/${postAuthorId}`);
+    }
   };
 
   const renderContent = () => {
@@ -37,46 +42,55 @@ export function PostCard({
       );
     }
 
-    // Reflection type - check if private and not own post
+    // Private reflection from another user - show nothing
     if (isPrivateReflection && !isOwnPost) {
-      return (
-        <View style={styles.privateReflection}>
-          <Ionicons name="lock-closed" size={20} color={colors.gray[400]} />
-          <Text style={styles.privateReflectionText}>
-            This reflection is private
-          </Text>
-        </View>
-      );
+      return null;
     }
 
     const reflection = post.reflection || '';
-    const isLong = reflection.length > 500;
-    const displayText = isLong && !showFullReflection
-      ? reflection.slice(0, 500) + '...'
-      : reflection;
+
+    const handleTextLayout = (e: any) => {
+      // Check if text was truncated by comparing line count
+      if (!showFullReflection && e.nativeEvent.lines.length >= 3) {
+        // If we're showing 3 lines and the text could have more, it's truncated
+        const lastLine = e.nativeEvent.lines[2];
+        if (lastLine && reflection.length > lastLine.text.length * 3) {
+          setIsTextTruncated(true);
+        }
+      }
+    };
 
     return (
-      <View>
+      <Pressable onPress={() => isTextTruncated && setShowFullReflection(!showFullReflection)}>
         {post.caption && (
           <Text style={styles.reflectionTitle}>{post.caption}</Text>
         )}
-        <Text style={styles.reflection}>{displayText}</Text>
-        {isLong && (
+        <Text
+          style={styles.reflection}
+          numberOfLines={showFullReflection ? undefined : 3}
+          onTextLayout={handleTextLayout}
+        >
+          {reflection}
+        </Text>
+        {(isTextTruncated || showFullReflection) && (
           <Pressable onPress={() => setShowFullReflection(!showFullReflection)}>
             <Text style={styles.readMore}>
               {showFullReflection ? 'Show less' : 'Read more'}
             </Text>
           </Pressable>
         )}
-      </View>
+      </Pressable>
     );
   };
 
-  // For private reflections from others, we still show content (the "private" message)
+  // For private reflections from others, there's no content to show
   const hasContent = post.content_type === 'caption'
     ? !!post.caption
-    : (!!post.reflection || isPrivateReflection);
+    : (!!post.reflection && (!isPrivateReflection || isOwnPost));
   const hasImages = post.images && post.images.length > 0;
+
+  // Only show lock icon to the post owner
+  const showLockIcon = post.is_private && isOwnPost;
 
   return (
     <View style={styles.container}>
@@ -96,7 +110,7 @@ export function PostCard({
           </View>
         </Pressable>
         <View style={styles.headerRight}>
-          {post.is_private && (
+          {showLockIcon && (
             <Ionicons name="lock-closed" size={14} color={colors.gray[400]} style={styles.lockIcon} />
           )}
           <Text style={styles.time}>{timeAgo}</Text>
@@ -186,19 +200,5 @@ const styles = StyleSheet.create({
     color: colors.primary[500],
     marginTop: spacing.xs,
     fontWeight: '500',
-  },
-  privateReflection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    backgroundColor: colors.gray[100],
-    borderRadius: 8,
-  },
-  privateReflectionText: {
-    fontSize: 14,
-    color: colors.gray[500],
-    fontStyle: 'italic',
   },
 });

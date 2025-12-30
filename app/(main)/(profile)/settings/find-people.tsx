@@ -11,9 +11,11 @@ import {
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { Avatar } from '@components/ui';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@providers/AuthProvider';
+import { queryKeys } from '@/lib/query/keys';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
 import type { Profile } from '@/types/database';
 
@@ -23,6 +25,7 @@ interface UserWithFollowStatus extends Profile {
 
 export default function FindPeopleScreen() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [users, setUsers] = useState<UserWithFollowStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
@@ -103,6 +106,9 @@ export default function FindPeopleScreen() {
             following_id: targetUserId,
           });
       }
+
+      // Invalidate feed query so it refreshes with new followed user's posts
+      queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
     } catch (error) {
       console.error('Error toggling follow:', error);
       // Revert on error

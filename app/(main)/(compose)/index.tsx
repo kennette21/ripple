@@ -175,7 +175,7 @@ export default function ComposeScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
-        keyboardVerticalOffset={100}
+        keyboardVerticalOffset={60}
       >
         <ScrollView
           ref={scrollViewRef}
@@ -253,44 +253,44 @@ export default function ComposeScreen() {
           </ScrollView>
           )}
         </ScrollView>
-      </KeyboardAvoidingView>
 
-      {/* Bottom toolbar */}
-      <View style={styles.toolbar}>
-        <Pressable style={styles.toolButton} onPress={pickImages}>
-          <Ionicons name="image-outline" size={24} color={colors.primary[500]} />
-          {images.length > 0 && (
-            <Text style={styles.imageCount}>{images.length}/{LIMITS.maxImagesPerPost}</Text>
-          )}
-        </Pressable>
-
-        {/* Private toggle - only for reflections */}
-        {contentType === 'reflection' && (
-          <Pressable
-            style={styles.privateToggle}
-            onPress={() => setIsPrivate(!isPrivate)}
-          >
-            <Ionicons
-              name={isPrivate ? 'lock-closed' : 'globe-outline'}
-              size={18}
-              color={isPrivate ? colors.primary[500] : colors.gray[500]}
-            />
-            <Text style={[
-              styles.privateText,
-              isPrivate && styles.privateTextActive,
-            ]}>
-              {isPrivate ? 'Private reflection' : 'Public'}
-            </Text>
-            <Switch
-              value={isPrivate}
-              onValueChange={setIsPrivate}
-              trackColor={{ false: colors.gray[200], true: colors.primary[200] }}
-              thumbColor={isPrivate ? colors.primary[500] : colors.gray[400]}
-              style={styles.switch}
-            />
+        {/* Bottom toolbar - inside KeyboardAvoidingView so it stays visible */}
+        <View style={styles.toolbar}>
+          <Pressable style={styles.toolButton} onPress={pickImages}>
+            <Ionicons name="image-outline" size={24} color={colors.primary[500]} />
+            {images.length > 0 && (
+              <Text style={styles.imageCount}>{images.length}/{LIMITS.maxImagesPerPost}</Text>
+            )}
           </Pressable>
-        )}
-      </View>
+
+          {/* Private toggle - only for reflections */}
+          {contentType === 'reflection' && (
+            <Pressable
+              style={styles.privateToggle}
+              onPress={() => setIsPrivate(!isPrivate)}
+            >
+              <Ionicons
+                name={isPrivate ? 'lock-closed' : 'globe-outline'}
+                size={18}
+                color={isPrivate ? colors.primary[500] : colors.gray[500]}
+              />
+              <Text style={[
+                styles.privateText,
+                isPrivate && styles.privateTextActive,
+              ]}>
+                {isPrivate ? 'Private reflection' : 'Public'}
+              </Text>
+              <Switch
+                value={isPrivate}
+                onValueChange={setIsPrivate}
+                trackColor={{ false: colors.gray[200], true: colors.primary[200] }}
+                thumbColor={isPrivate ? colors.primary[500] : colors.gray[400]}
+                style={styles.switch}
+              />
+            </Pressable>
+          )}
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

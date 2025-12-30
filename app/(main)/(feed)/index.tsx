@@ -7,12 +7,13 @@ import {
   RefreshControl,
   ActivityIndicator,
   Pressable,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@providers/AuthProvider';
 import { useFeed, type FeedPost } from '@/hooks/feed/useFeed';
-import { useCaughtUp } from '@/hooks/feed/useCaughtUp';
 import { PostCard } from '@/components/post/PostCard';
 import { EmptyState } from '@components/common';
 import { Skeleton } from '@components/ui';
@@ -29,8 +30,6 @@ export default function FeedScreen() {
     isRefetching,
     refetch,
   } = useFeed(user?.id);
-
-  const { data: caughtUpStatus } = useCaughtUp(user?.id);
 
   const posts = data?.pages.flatMap((page) => page.posts) ?? [];
 
@@ -101,14 +100,14 @@ export default function FeedScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
+        <View style={styles.headerSpacer} />
         <Text style={styles.logo}>Ripple</Text>
-        {caughtUpStatus?.newPostsCount && caughtUpStatus.newPostsCount > 0 ? (
-          <Pressable style={styles.newPostsBadge} onPress={() => refetch()}>
-            <Text style={styles.newPostsText}>
-              {caughtUpStatus.newPostsCount} new posts
-            </Text>
-          </Pressable>
-        ) : null}
+        <TouchableOpacity
+          style={styles.findFriendsButton}
+          onPress={() => router.push('/(main)/(profile)/settings/find-people')}
+        >
+          <Ionicons name="people-outline" size={24} color={colors.gray[600]} />
+        </TouchableOpacity>
       </View>
 
       {posts.length === 0 ? (
@@ -147,29 +146,22 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
+  },
+  headerSpacer: {
+    width: 24,
   },
   logo: {
     fontSize: typography.fontSizes.xl,
     fontWeight: typography.fontWeights.bold,
     color: colors.primary[500],
   },
-  newPostsBadge: {
-    position: 'absolute',
-    right: spacing.md,
-    backgroundColor: colors.primary[500],
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: 12,
-  },
-  newPostsText: {
-    color: colors.white,
-    fontSize: typography.fontSizes.xs,
-    fontWeight: typography.fontWeights.semibold,
+  findFriendsButton: {
+    padding: spacing.xs,
   },
   loadingContainer: {
     padding: spacing.md,
