@@ -1,4 +1,4 @@
-package com.ripple
+package com.proxy.ripple
 
 import android.app.Application
 import android.content.res.Configuration
