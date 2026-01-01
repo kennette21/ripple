@@ -6,7 +6,7 @@ import { colors, borderRadius } from '@constants/theme';
 interface AvatarProps {
   uri?: string | null;
   name?: string;
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl';
   style?: StyleProp<ViewStyle>;
 }
 
@@ -16,6 +16,7 @@ const SIZES = {
   md: 40,
   lg: 56,
   xl: 80,
+  xxl: 120,
 } as const;
 
 const FONT_SIZES = {
@@ -24,6 +25,7 @@ const FONT_SIZES = {
   md: 16,
   lg: 22,
   xl: 32,
+  xxl: 44,
 } as const;
 
 export function Avatar({ uri, name, size = 'md', style }: AvatarProps) {

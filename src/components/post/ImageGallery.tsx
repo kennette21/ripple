@@ -6,8 +6,10 @@ import {
   Dimensions,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Pressable,
 } from 'react-native';
 import { Image } from 'expo-image';
+import ImageViewing from 'react-native-image-viewing';
 import { spacing, borderRadius, colors } from '@/constants/theme';
 import { supabase } from '@/lib/supabase/client';
 
@@ -36,12 +38,24 @@ function getImageUrl(storagePath: string): string {
 
 export function ImageGallery({ images }: ImageGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [lightboxVisible, setLightboxVisible] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
 
   const sortedImages = useMemo(() =>
     [...images].sort((a, b) => a.position - b.position),
     [images]
   );
+
+  const lightboxImages = useMemo(() =>
+    sortedImages.map((img) => ({ uri: getImageUrl(img.storage_path) })),
+    [sortedImages]
+  );
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    setLightboxVisible(true);
+  };
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
@@ -55,7 +69,7 @@ export function ImageGallery({ images }: ImageGalleryProps) {
   if (sortedImages.length === 1) {
     return (
       <View style={styles.container}>
-        <View style={styles.singleImage}>
+        <Pressable onPress={() => openLightbox(0)} style={styles.singleImage}>
           <Image
             source={{ uri: getImageUrl(sortedImages[0].storage_path) }}
             style={styles.image}
@@ -63,7 +77,13 @@ export function ImageGallery({ images }: ImageGalleryProps) {
             contentFit="cover"
             transition={200}
           />
-        </View>
+        </Pressable>
+        <ImageViewing
+          images={lightboxImages}
+          imageIndex={lightboxIndex}
+          visible={lightboxVisible}
+          onRequestClose={() => setLightboxVisible(false)}
+        />
       </View>
     );
   }
@@ -83,8 +103,8 @@ export function ImageGallery({ images }: ImageGalleryProps) {
         snapToAlignment="start"
         contentContainerStyle={styles.scrollContent}
       >
-        {sortedImages.map((img) => (
-          <View key={img.id} style={styles.carouselImage}>
+        {sortedImages.map((img, index) => (
+          <Pressable key={img.id} onPress={() => openLightbox(index)} style={styles.carouselImage}>
             <Image
               source={{ uri: getImageUrl(img.storage_path) }}
               style={styles.image}
@@ -92,7 +112,7 @@ export function ImageGallery({ images }: ImageGalleryProps) {
               contentFit="cover"
               transition={200}
             />
-          </View>
+          </Pressable>
         ))}
       </ScrollView>
 
@@ -108,6 +128,13 @@ export function ImageGallery({ images }: ImageGalleryProps) {
           />
         ))}
       </View>
+
+      <ImageViewing
+        images={lightboxImages}
+        imageIndex={lightboxIndex}
+        visible={lightboxVisible}
+        onRequestClose={() => setLightboxVisible(false)}
+      />
     </View>
   );
 }

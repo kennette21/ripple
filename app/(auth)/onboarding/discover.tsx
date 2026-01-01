@@ -54,7 +54,7 @@ export default function DiscoverScreen() {
 
       if (followsError) throw followsError;
 
-      const followingSet = new Set(follows?.map((f: any) => f.following_id) || []);
+      const followingSet = new Set<string>(follows?.map((f: any) => f.following_id) || []);
       setFollowingIds(followingSet);
 
       const usersWithStatus = (profiles || []).map((profile: Profile) => ({

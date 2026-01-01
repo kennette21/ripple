@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,10 @@ import {
   TouchableOpacity,
   Pressable,
   ActivityIndicator,
+  Modal,
+  Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,14 +19,15 @@ import { EmptyState } from '@components/common';
 import { PostCard } from '@/components/post/PostCard';
 import { useAuth } from '@providers/AuthProvider';
 import { useUserPosts } from '@/hooks/profile/useUserPosts';
-import { useFollowStatus } from '@/hooks/social/useFollow';
 import { colors, spacing, typography } from '@constants/theme';
 import type { FeedPost } from '@/hooks/feed/useFeed';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 export default function ProfileScreen() {
   const { profile, user } = useAuth();
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
 
-  const { data: followStatus } = useFollowStatus(user?.id, user?.id);
   const {
     data: postsData,
     fetchNextPage,
@@ -37,32 +41,19 @@ export default function ProfileScreen() {
   const renderHeader = () => (
     <>
       <View style={styles.profileSection}>
-        <View style={styles.avatarRow}>
-          <Avatar
-            uri={profile?.avatar_url}
-            name={profile?.display_name}
-            size="xl"
-          />
-          <View style={styles.stats}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{posts.length}</Text>
-              <Text style={styles.statLabel}>Posts</Text>
-            </View>
-            <Pressable style={styles.statItem}>
-              <Text style={styles.statNumber}>{followStatus?.followersCount || 0}</Text>
-              <Text style={styles.statLabel}>Followers</Text>
-            </Pressable>
-            <Pressable style={styles.statItem}>
-              <Text style={styles.statNumber}>{followStatus?.followingCount || 0}</Text>
-              <Text style={styles.statLabel}>Following</Text>
-            </Pressable>
+        <View style={styles.profileHeader}>
+          <Pressable onPress={() => profile?.avatar_url && setShowAvatarModal(true)}>
+            <Avatar
+              uri={profile?.avatar_url}
+              name={profile?.display_name}
+              size="xxl"
+            />
+          </Pressable>
+          <View style={styles.profileInfo}>
+            <Text style={styles.displayName}>{profile?.display_name}</Text>
+            <Text style={styles.username}>@{profile?.username}</Text>
+            {profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
           </View>
-        </View>
-
-        <View style={styles.info}>
-          <Text style={styles.displayName}>{profile?.display_name}</Text>
-          <Text style={styles.username}>@{profile?.username}</Text>
-          {profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
         </View>
       </View>
 
@@ -128,6 +119,35 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
       />
+
+      {/* Avatar fullscreen modal */}
+      <Modal
+        visible={showAvatarModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAvatarModal(false)}
+      >
+        <Pressable
+          style={styles.avatarModalOverlay}
+          onPress={() => setShowAvatarModal(false)}
+        >
+          <View style={styles.avatarModalContent}>
+            {profile?.avatar_url && (
+              <Image
+                source={{ uri: profile.avatar_url }}
+                style={styles.avatarModalImage}
+                contentFit="cover"
+              />
+            )}
+          </View>
+          <TouchableOpacity
+            style={styles.avatarModalClose}
+            onPress={() => setShowAvatarModal(false)}
+          >
+            <Ionicons name="close" size={28} color={colors.white} />
+          </TouchableOpacity>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -155,32 +175,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   profileSection: {
-    padding: spacing.md,
+    padding: spacing.lg,
   },
-  avatarRow: {
+  profileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  stats: {
+  profileInfo: {
     flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginLeft: spacing.md,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.bold,
-    color: colors.gray[900],
-  },
-  statLabel: {
-    fontSize: typography.fontSizes.sm,
-    color: colors.gray[500],
-  },
-  info: {
-    marginTop: spacing.md,
+    marginLeft: spacing.lg,
   },
   displayName: {
     fontSize: typography.fontSizes.lg,
@@ -212,5 +215,27 @@ const styles = StyleSheet.create({
   footer: {
     padding: spacing.lg,
     alignItems: 'center',
+  },
+  avatarModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarModalContent: {
+    width: SCREEN_WIDTH * 0.85,
+    height: SCREEN_WIDTH * 0.85,
+    borderRadius: SCREEN_WIDTH * 0.425,
+    overflow: 'hidden',
+  },
+  avatarModalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarModalClose: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    padding: spacing.sm,
   },
 });

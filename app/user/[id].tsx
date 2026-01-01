@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,11 @@ import {
   FlatList,
   Pressable,
   ActivityIndicator,
+  Modal,
+  Dimensions,
+  TouchableOpacity,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,10 +24,13 @@ import { EmptyState, LoadingScreen } from '@components/common';
 import { colors, spacing, typography } from '@constants/theme';
 import type { FeedPost } from '@/hooks/feed/useFeed';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 export default function UserProfileScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
 
   const { data: profile, isLoading: profileLoading } = useProfile(id);
   const { data: followStatus, isLoading: statusLoading } = useFollowStatus(user?.id, id);
@@ -51,61 +58,34 @@ export default function UserProfileScreen() {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <View style={styles.avatarRow}>
-        <Avatar
-          uri={profile?.avatar_url}
-          name={profile?.display_name || profile?.username}
-          size="xl"
-        />
-        <View style={styles.stats}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{posts.length}</Text>
-            <Text style={styles.statLabel}>Posts</Text>
-          </View>
-          <Pressable style={styles.statItem}>
-            <Text style={styles.statNumber}>{followStatus?.followersCount || 0}</Text>
-            <Text style={styles.statLabel}>Followers</Text>
-          </Pressable>
-          <Pressable style={styles.statItem}>
-            <Text style={styles.statNumber}>{followStatus?.followingCount || 0}</Text>
-            <Text style={styles.statLabel}>Following</Text>
-          </Pressable>
+      <View style={styles.profileHeader}>
+        <Pressable onPress={() => profile?.avatar_url && setShowAvatarModal(true)}>
+          <Avatar
+            uri={profile?.avatar_url}
+            name={profile?.display_name || profile?.username}
+            size="xxl"
+          />
+        </Pressable>
+        <View style={styles.profileInfo}>
+          <Text style={styles.displayName}>
+            {profile?.display_name || profile?.username}
+          </Text>
+          <Text style={styles.username}>@{profile?.username}</Text>
+          {profile?.bio && (
+            <Text style={styles.bio}>{profile.bio}</Text>
+          )}
+          {!isOwnProfile && (
+            <Button
+              title={followStatus?.isFollowing ? 'Following' : 'Follow'}
+              variant={followStatus?.isFollowing ? 'outline' : 'primary'}
+              onPress={handleFollow}
+              loading={followMutation.isPending}
+              disabled={statusLoading}
+              style={styles.followButton}
+            />
+          )}
         </View>
       </View>
-
-      <View style={styles.info}>
-        <Text style={styles.displayName}>
-          {profile?.display_name || profile?.username}
-        </Text>
-        <Text style={styles.username}>@{profile?.username}</Text>
-        {profile?.bio && (
-          <Text style={styles.bio}>{profile.bio}</Text>
-        )}
-      </View>
-
-      {!isOwnProfile && (
-        <View style={styles.actions}>
-          <Button
-            title={followStatus?.isFollowing ? 'Following' : 'Follow'}
-            variant={followStatus?.isFollowing ? 'outline' : 'primary'}
-            onPress={handleFollow}
-            loading={followMutation.isPending}
-            disabled={statusLoading}
-            style={styles.followButton}
-          />
-        </View>
-      )}
-
-      {isOwnProfile && (
-        <View style={styles.actions}>
-          <Button
-            title="Edit Profile"
-            variant="outline"
-            onPress={() => router.push('/(main)/(profile)/settings')}
-            style={styles.followButton}
-          />
-        </View>
-      )}
 
       <View style={styles.divider} />
       <Text style={styles.postsTitle}>Posts</Text>
@@ -184,6 +164,35 @@ export default function UserProfileScreen() {
         onEndReachedThreshold={0.5}
         showsVerticalScrollIndicator={false}
       />
+
+      {/* Avatar fullscreen modal */}
+      <Modal
+        visible={showAvatarModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAvatarModal(false)}
+      >
+        <Pressable
+          style={styles.avatarModalOverlay}
+          onPress={() => setShowAvatarModal(false)}
+        >
+          <View style={styles.avatarModalContent}>
+            {profile?.avatar_url && (
+              <Image
+                source={{ uri: profile.avatar_url }}
+                style={styles.avatarModalImage}
+                contentFit="cover"
+              />
+            )}
+          </View>
+          <TouchableOpacity
+            style={styles.avatarModalClose}
+            onPress={() => setShowAvatarModal(false)}
+          >
+            <Ionicons name="close" size={28} color={colors.white} />
+          </TouchableOpacity>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -214,32 +223,15 @@ const styles = StyleSheet.create({
     width: 32,
   },
   header: {
-    padding: spacing.md,
+    padding: spacing.lg,
   },
-  avatarRow: {
+  profileHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
-  stats: {
+  profileInfo: {
     flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginLeft: spacing.md,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.bold,
-    color: colors.gray[900],
-  },
-  statLabel: {
-    fontSize: typography.fontSizes.sm,
-    color: colors.gray[500],
-  },
-  info: {
-    marginTop: spacing.md,
+    marginLeft: spacing.lg,
   },
   displayName: {
     fontSize: typography.fontSizes.lg,
@@ -256,11 +248,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     lineHeight: 22,
   },
-  actions: {
-    marginTop: spacing.md,
-  },
   followButton: {
-    width: '100%',
+    marginTop: spacing.sm,
   },
   divider: {
     height: 1,
@@ -276,5 +265,27 @@ const styles = StyleSheet.create({
   footer: {
     padding: spacing.lg,
     alignItems: 'center',
+  },
+  avatarModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarModalContent: {
+    width: SCREEN_WIDTH * 0.85,
+    height: SCREEN_WIDTH * 0.85,
+    borderRadius: SCREEN_WIDTH * 0.425,
+    overflow: 'hidden',
+  },
+  avatarModalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarModalClose: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    padding: spacing.sm,
   },
 });
