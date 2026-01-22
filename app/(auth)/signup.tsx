@@ -8,7 +8,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Input } from '@components/ui';
 import { useSignUp } from '@hooks/auth';
@@ -39,18 +39,16 @@ export default function SignupScreen() {
   const handleSignup = async () => {
     if (!canSubmit) return;
 
-    const success = await signUp(email, password);
-
-    if (success) {
-      // Navigate to onboarding - manifesto will be shown first
-      router.replace('/(auth)/onboarding/manifesto');
-    }
+    // After successful signup, RootLayoutNav in _layout.tsx will automatically
+    // navigate to manifesto when it detects isAuthenticated && needsOnboarding
+    await signUp(email, password);
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         style={styles.keyboardView}
       >
         <ScrollView
