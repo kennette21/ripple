@@ -50,13 +50,14 @@ export function PostCard({
     const reflection = post.reflection || '';
 
     const handleTextLayout = (e: any) => {
-      // Check if text was truncated by comparing line count
-      if (!showFullReflection && e.nativeEvent.lines.length >= 3) {
-        // If we're showing 3 lines and the text could have more, it's truncated
-        const lastLine = e.nativeEvent.lines[2];
-        if (lastLine && reflection.length > lastLine.text.length * 3) {
-          setIsTextTruncated(true);
-        }
+      if (!showFullReflection) {
+        const { lines } = e.nativeEvent;
+        // Compare rendered text length to full text length to detect truncation
+        const renderedLength = lines.reduce(
+          (sum: number, line: any) => sum + line.text.length,
+          0,
+        );
+        setIsTextTruncated(renderedLength < reflection.trim().length);
       }
     };
 
