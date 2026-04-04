@@ -18,6 +18,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Avatar } from '@components/ui';
+import ImageCropModal from '@components/compose/ImageCropModal';
 import { useAuth } from '@providers/AuthProvider';
 import { useCreatePost } from '@/hooks/posts/useCreatePost';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
@@ -43,9 +44,29 @@ export default function ComposeScreen() {
   const [inputHeight, setInputHeight] = useState(100);
   const [isPrivate, setIsPrivate] = useState(false);
 
+  const [cropIndex, setCropIndex] = useState<number | null>(null);
+
   const content = contentType === 'caption' ? caption : reflection;
   const maxLength = contentType === 'caption' ? LIMITS.captionMaxLength : LIMITS.reflectionMaxLength;
   const canPost = content.trim().length > 0 && content.length <= maxLength;
+
+  const moveImage = (fromIndex: number, direction: 'left' | 'right') => {
+    const toIndex = direction === 'left' ? fromIndex - 1 : fromIndex + 1;
+    if (toIndex < 0 || toIndex >= images.length) return;
+    setImages((prev) => {
+      const next = [...prev];
+      [next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]];
+      return next;
+    });
+  };
+
+  const handleCrop = (uri: string, width: number, height: number) => {
+    if (cropIndex === null) return;
+    setImages((prev) =>
+      prev.map((img, i) => (i === cropIndex ? { uri, width, height } : img))
+    );
+    setCropIndex(null);
+  };
 
   const pickImages = async () => {
     if (images.length >= LIMITS.maxImagesPerPost) {
@@ -243,15 +264,57 @@ export default function ComposeScreen() {
         {images.length > 0 && (
           <ScrollView horizontal style={styles.imagePreview} showsHorizontalScrollIndicator={false}>
             {images.map((img, index) => (
-              <View key={index} style={styles.imageContainer}>
-                <Image source={{ uri: img.uri }} style={styles.previewImage} />
+              <View key={`${img.uri}-${index}`} style={styles.imageContainer}>
+                <Pressable onPress={() => setCropIndex(index)}>
+                  <Image source={{ uri: img.uri }} style={styles.previewImage} />
+                  <View style={styles.cropBadge}>
+                    <Ionicons name="crop" size={14} color={colors.white} />
+                  </View>
+                </Pressable>
                 <Pressable style={styles.removeImage} onPress={() => removeImage(index)}>
                   <Ionicons name="close-circle" size={24} color="#fff" />
                 </Pressable>
+                {/* Position indicator */}
+                <View style={styles.positionBadge}>
+                  <Text style={styles.positionText}>{index + 1}</Text>
+                </View>
+                {/* Reorder buttons */}
+                {images.length > 1 && (
+                  <View style={styles.reorderButtons}>
+                    {index > 0 && (
+                      <Pressable
+                        style={styles.reorderButton}
+                        onPress={() => moveImage(index, 'left')}
+                      >
+                        <Ionicons name="chevron-back" size={14} color={colors.white} />
+                      </Pressable>
+                    )}
+                    {index < images.length - 1 && (
+                      <Pressable
+                        style={styles.reorderButton}
+                        onPress={() => moveImage(index, 'right')}
+                      >
+                        <Ionicons name="chevron-forward" size={14} color={colors.white} />
+                      </Pressable>
+                    )}
+                  </View>
+                )}
               </View>
             ))}
           </ScrollView>
           )}
+
+        {/* Crop modal */}
+        {cropIndex !== null && (
+          <ImageCropModal
+            visible
+            imageUri={images[cropIndex].uri}
+            imageWidth={images[cropIndex].width}
+            imageHeight={images[cropIndex].height}
+            onCrop={handleCrop}
+            onCancel={() => setCropIndex(null)}
+          />
+        )}
         </ScrollView>
 
         {/* Bottom toolbar - inside KeyboardAvoidingView so it stays visible */}
@@ -398,6 +461,7 @@ const styles = StyleSheet.create({
   },
   imagePreview: {
     marginTop: spacing.md,
+    marginBottom: spacing.lg,
   },
   imageContainer: {
     marginRight: spacing.sm,
@@ -414,6 +478,47 @@ const styles = StyleSheet.create({
     right: -8,
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 12,
+  },
+  cropBadge: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: borderRadius.sm,
+    padding: 2,
+  },
+  positionBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: borderRadius.full,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  positionText: {
+    color: colors.white,
+    fontSize: typography.fontSizes.xs,
+    fontWeight: typography.fontWeights.bold,
+  },
+  reorderButtons: {
+    position: 'absolute',
+    bottom: -24,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  reorderButton: {
+    backgroundColor: colors.gray[600],
+    borderRadius: borderRadius.full,
+    width: 22,
+    height: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   toolbar: {
     flexDirection: 'row',

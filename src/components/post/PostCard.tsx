@@ -11,11 +11,13 @@ import type { FeedPost } from '@/hooks/feed/useFeed';
 interface PostCardProps {
   post: FeedPost;
   currentUserId?: string;
+  onCommentPress?: (postId: string) => void;
 }
 
 export function PostCard({
   post,
   currentUserId,
+  onCommentPress,
 }: PostCardProps) {
   const router = useRouter();
   const [showFullReflection, setShowFullReflection] = useState(false);
@@ -128,6 +130,19 @@ export function PostCard({
           {renderContent()}
         </View>
       )}
+
+      {/* Actions bar */}
+      <View style={styles.actions}>
+        <Pressable
+          style={styles.actionButton}
+          onPress={() => onCommentPress?.(post.id)}
+        >
+          <Ionicons name="chatbubble-outline" size={20} color={colors.gray[500]} />
+          {post.comment_count > 0 && (
+            <Text style={styles.actionCount}>{post.comment_count}</Text>
+          )}
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -200,5 +215,22 @@ const styles = StyleSheet.create({
     color: colors.primary[500],
     marginTop: spacing.xs,
     fontWeight: '500',
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    gap: spacing.lg,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    padding: spacing.xs,
+  },
+  actionCount: {
+    fontSize: 13,
+    color: colors.gray[500],
   },
 });

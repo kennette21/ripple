@@ -19,6 +19,14 @@ export const queryKeys = {
     followStatus: (userId: string, targetId: string) =>
       ['social', 'followStatus', userId, targetId] as const,
   },
+  friends: {
+    all: ['friends'] as const,
+    list: (userId: string) => ['friends', 'list', userId] as const,
+    requests: (userId: string) => ['friends', 'requests', userId] as const,
+    status: (userId: string, targetId: string) =>
+      ['friends', 'status', userId, targetId] as const,
+    contacts: (userId: string) => ['friends', 'contacts', userId] as const,
+  },
   search: {
     users: (query: string) => ['search', 'users', query] as const,
   },

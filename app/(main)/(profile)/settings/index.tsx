@@ -64,8 +64,13 @@ export default function SettingsScreen() {
               onPress={() => router.push('/(main)/(profile)/settings/edit-profile')}
             />
             <SettingsItem
+              icon="call-outline"
+              title="Phone Number"
+              onPress={() => router.push('/(main)/(profile)/settings/phone-number' as any)}
+            />
+            <SettingsItem
               icon="people-outline"
-              title="Find People"
+              title="Find Friends"
               onPress={() => router.push('/(main)/(profile)/settings/find-people')}
             />
             <SettingsItem

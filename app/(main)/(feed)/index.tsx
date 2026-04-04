@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,15 +12,19 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import BottomSheet from '@gorhom/bottom-sheet';
 import { useAuth } from '@providers/AuthProvider';
 import { useFeed, type FeedPost } from '@/hooks/feed/useFeed';
 import { PostCard } from '@/components/post/PostCard';
+import { CommentsBottomSheet } from '@/components/comments/CommentsBottomSheet';
 import { EmptyState } from '@components/common';
 import { Skeleton } from '@components/ui';
 import { colors, spacing, typography } from '@constants/theme';
 
 export default function FeedScreen() {
   const { user } = useAuth();
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  const [activePostId, setActivePostId] = useState<string | null>(null);
   const {
     data,
     fetchNextPage,
@@ -33,12 +37,18 @@ export default function FeedScreen() {
 
   const posts = data?.pages.flatMap((page) => page.posts) ?? [];
 
+  const handleCommentPress = useCallback((postId: string) => {
+    setActivePostId(postId);
+    bottomSheetRef.current?.snapToIndex(0);
+  }, []);
+
   const renderPost = useCallback(({ item }: { item: FeedPost }) => (
     <PostCard
       post={item}
       currentUserId={user?.id}
+      onCommentPress={handleCommentPress}
     />
-  ), [user?.id]);
+  ), [user?.id, handleCommentPress]);
 
   const renderFooter = useCallback(() => {
     if (isFetchingNextPage) {
@@ -132,6 +142,15 @@ export default function FeedScreen() {
           onEndReachedThreshold={0.5}
           ListFooterComponent={renderFooter}
           showsVerticalScrollIndicator={false}
+        />
+      )}
+
+      {/* Comments bottom sheet */}
+      {activePostId && (
+        <CommentsBottomSheet
+          postId={activePostId}
+          currentUserId={user?.id}
+          bottomSheetRef={bottomSheetRef}
         />
       )}
     </SafeAreaView>
