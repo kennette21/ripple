@@ -49,6 +49,8 @@
     </dict>
     <key>NSCameraUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your camera</string>
+    <key>NSContactsUsageDescription</key>
+    <string>Allow Ripple to access your contacts to help you find friends.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
     <key>NSMicrophoneUsageDescription</key>
