@@ -55,14 +55,11 @@ The backend is a hosted Supabase project. The schema lives in `supabase/migratio
 
 | Migration | Contents |
 |---|---|
-| `00001_initial_schema.sql` | Core tables (profiles, posts, follows, friends, etc.) |
-| `00002_rls_policies.sql` | Row Level Security policies |
-| `00002_storage_buckets.sql` | Storage buckets: `avatars` and `post-images` (both public) |
-| `00003_triggers_functions.sql` | Triggers and database functions |
-| `00004_private_posts.sql` | ⚠️ **Empty** — change was applied via dashboard, never captured |
-| `00005_allow_10_images.sql` | ⚠️ **Empty** — change was applied via dashboard, never captured |
+| `20260713193010_remote_schema.sql` | Baseline: full production schema (tables, RLS policies, triggers, functions), pulled from prod on 2026-07-13 |
+| `20260713193011_storage_buckets.sql` | Storage buckets (`avatars`, `post-images`) and their `storage.objects` policies — maintained by hand since `db pull` doesn't capture them |
+| `20260713193012_storage_delete_policies.sql` | Adds the missing delete-own-object policies so `supabase.storage.remove()` works |
 
-> **Known gap:** the two empty migrations mean `supabase db push` against a fresh project will **not** reproduce the production schema. Before spinning up a new environment, dump the real schema from production (`supabase db pull`) or backfill those migration files.
+> **History note:** the original hand-written migrations (visible in git history before 2026-07-13) were never actually run against production — the live schema was built via the dashboard and had drifted (e.g. `friend_requests` existed only in prod; `usage_sessions`, `push_tokens` and friends existed only in the files). The baseline above replaced them with the real production schema, and the remote migration history table was repaired to match. From here on, all schema changes must go through migration files.
 
 ### Working against the hosted project
 
@@ -84,7 +81,7 @@ supabase db reset      # applies all migrations + seeds
 supabase status        # prints the local URL and anon key
 ```
 
-Point `.env` at the local stack (`EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321` and the anon key from `supabase status`). Local auth emails are caught by Inbucket at http://localhost:54324. Local Studio is at http://localhost:54323. Remember the empty-migrations caveat above: the local schema will be missing the private-posts and 10-images changes until those files are backfilled.
+Point `.env` at the local stack (`EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321` and the anon key from `supabase status`). Local auth emails are caught by Inbucket at http://localhost:54324. Local Studio is at http://localhost:54323.
 
 ### Dashboard configuration (not in migrations)
 
