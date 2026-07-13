@@ -22,7 +22,8 @@ export function PostCard({
   const router = useRouter();
   const [showFullReflection, setShowFullReflection] = useState(false);
 
-  const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
+  // created_at is nullable in the schema but always set by the DB default
+  const timeAgo = formatDistanceToNow(new Date(post.created_at!), { addSuffix: true });
   const postAuthorId = (post as any).author_id;
   const isOwnPost = currentUserId === postAuthorId;
   const isPrivateReflection = post.is_private && post.content_type === 'reflection';

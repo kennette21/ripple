@@ -25,7 +25,8 @@ export function CommentItem({
   const router = useRouter();
   const [showReplies, setShowReplies] = useState(true);
 
-  const timeAgo = formatDistanceToNow(new Date(comment.created_at), { addSuffix: true });
+  // created_at is nullable in the schema but always set by the DB default
+  const timeAgo = formatDistanceToNow(new Date(comment.created_at!), { addSuffix: true });
   const commentAuthorId = (comment as any).author_id;
   const isOwnComment = commentAuthorId === currentUserId;
   const hasReplies = comment.replies && comment.replies.length > 0;
