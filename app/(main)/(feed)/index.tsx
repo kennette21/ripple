@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -39,8 +39,18 @@ export default function FeedScreen() {
 
   const handleCommentPress = useCallback((postId: string) => {
     setActivePostId(postId);
-    bottomSheetRef.current?.snapToIndex(0);
   }, []);
+
+  // Snap bottom sheet open once the component mounts with activePostId
+  useEffect(() => {
+    if (activePostId) {
+      // Small delay to let the BottomSheet mount before snapping
+      const timeout = setTimeout(() => {
+        bottomSheetRef.current?.snapToIndex(0);
+      }, 100);
+      return () => clearTimeout(timeout);
+    }
+  }, [activePostId]);
 
   const renderPost = useCallback(({ item }: { item: FeedPost }) => (
     <PostCard
@@ -114,7 +124,7 @@ export default function FeedScreen() {
         <Text style={styles.logo}>Ripple</Text>
         <TouchableOpacity
           style={styles.findFriendsButton}
-          onPress={() => router.push('/(main)/(profile)/settings/find-people')}
+          onPress={() => router.push('/friends' as any)}
         >
           <Ionicons name="people-outline" size={24} color={colors.gray[600]} />
         </TouchableOpacity>

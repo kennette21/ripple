@@ -21,7 +21,6 @@ export function PostCard({
 }: PostCardProps) {
   const router = useRouter();
   const [showFullReflection, setShowFullReflection] = useState(false);
-  const [isTextTruncated, setIsTextTruncated] = useState(false);
 
   const timeAgo = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
   const postAuthorId = (post as any).author_id;
@@ -36,11 +35,27 @@ export function PostCard({
     }
   };
 
+  const TEXT_LIMIT = 160;
+
   const renderContent = () => {
     if (post.content_type === 'caption') {
       if (!post.caption) return null;
+      const isTruncated = post.caption.length > TEXT_LIMIT;
+      const displayText = !showFullReflection && isTruncated
+        ? post.caption.slice(0, TEXT_LIMIT) + '...'
+        : post.caption;
+
       return (
-        <Text style={styles.caption}>{post.caption}</Text>
+        <View>
+          <Text style={styles.caption}>{displayText}</Text>
+          {isTruncated && (
+            <Pressable onPress={() => setShowFullReflection(!showFullReflection)}>
+              <Text style={styles.readMore}>
+                {showFullReflection ? 'Show less' : 'Read more'}
+              </Text>
+            </Pressable>
+          )}
+        </View>
       );
     }
 
@@ -50,38 +65,25 @@ export function PostCard({
     }
 
     const reflection = post.reflection || '';
-
-    const handleTextLayout = (e: any) => {
-      // Check if text was truncated by comparing line count
-      if (!showFullReflection && e.nativeEvent.lines.length >= 3) {
-        // If we're showing 3 lines and the text could have more, it's truncated
-        const lastLine = e.nativeEvent.lines[2];
-        if (lastLine && reflection.length > lastLine.text.length * 3) {
-          setIsTextTruncated(true);
-        }
-      }
-    };
+    const isTruncated = reflection.length > TEXT_LIMIT;
+    const displayText = !showFullReflection && isTruncated
+      ? reflection.slice(0, TEXT_LIMIT) + '...'
+      : reflection;
 
     return (
-      <Pressable onPress={() => isTextTruncated && setShowFullReflection(!showFullReflection)}>
+      <View>
         {post.caption && (
           <Text style={styles.reflectionTitle}>{post.caption}</Text>
         )}
-        <Text
-          style={styles.reflection}
-          numberOfLines={showFullReflection ? undefined : 3}
-          onTextLayout={handleTextLayout}
-        >
-          {reflection}
-        </Text>
-        {(isTextTruncated || showFullReflection) && (
+        <Text style={styles.reflection}>{displayText}</Text>
+        {isTruncated && (
           <Pressable onPress={() => setShowFullReflection(!showFullReflection)}>
             <Text style={styles.readMore}>
               {showFullReflection ? 'Show less' : 'Read more'}
             </Text>
           </Pressable>
         )}
-      </Pressable>
+      </View>
     );
   };
 

@@ -71,7 +71,7 @@ export default function SettingsScreen() {
             <SettingsItem
               icon="people-outline"
               title="Find Friends"
-              onPress={() => router.push('/(main)/(profile)/settings/find-people')}
+              onPress={() => router.push('/friends' as any)}
             />
             <SettingsItem
               icon="lock-closed-outline"

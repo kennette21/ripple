@@ -86,6 +86,7 @@ function RootLayoutNav() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(main)" />
+        <Stack.Screen name="friends" />
         <Stack.Screen
           name="(shared)"
           options={{
