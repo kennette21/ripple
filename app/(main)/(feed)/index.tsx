@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,15 +12,19 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import BottomSheet from '@gorhom/bottom-sheet';
 import { useAuth } from '@providers/AuthProvider';
 import { useFeed, type FeedPost } from '@/hooks/feed/useFeed';
 import { PostCard } from '@/components/post/PostCard';
+import { CommentsBottomSheet } from '@/components/comments/CommentsBottomSheet';
 import { EmptyState } from '@components/common';
 import { Skeleton } from '@components/ui';
 import { colors, spacing, typography } from '@constants/theme';
 
 export default function FeedScreen() {
   const { user } = useAuth();
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  const [activePostId, setActivePostId] = useState<string | null>(null);
   const {
     data,
     fetchNextPage,
@@ -33,12 +37,28 @@ export default function FeedScreen() {
 
   const posts = data?.pages.flatMap((page) => page.posts) ?? [];
 
+  const handleCommentPress = useCallback((postId: string) => {
+    setActivePostId(postId);
+  }, []);
+
+  // Snap bottom sheet open once the component mounts with activePostId
+  useEffect(() => {
+    if (activePostId) {
+      // Small delay to let the BottomSheet mount before snapping
+      const timeout = setTimeout(() => {
+        bottomSheetRef.current?.snapToIndex(0);
+      }, 100);
+      return () => clearTimeout(timeout);
+    }
+  }, [activePostId]);
+
   const renderPost = useCallback(({ item }: { item: FeedPost }) => (
     <PostCard
       post={item}
       currentUserId={user?.id}
+      onCommentPress={handleCommentPress}
     />
-  ), [user?.id]);
+  ), [user?.id, handleCommentPress]);
 
   const renderFooter = useCallback(() => {
     if (isFetchingNextPage) {
@@ -104,7 +124,7 @@ export default function FeedScreen() {
         <Text style={styles.logo}>Ripple</Text>
         <TouchableOpacity
           style={styles.findFriendsButton}
-          onPress={() => router.push('/(main)/(profile)/settings/find-people')}
+          onPress={() => router.push('/friends' as any)}
         >
           <Ionicons name="people-outline" size={24} color={colors.gray[600]} />
         </TouchableOpacity>
@@ -132,6 +152,15 @@ export default function FeedScreen() {
           onEndReachedThreshold={0.5}
           ListFooterComponent={renderFooter}
           showsVerticalScrollIndicator={false}
+        />
+      )}
+
+      {/* Comments bottom sheet */}
+      {activePostId && (
+        <CommentsBottomSheet
+          postId={activePostId}
+          currentUserId={user?.id}
+          bottomSheetRef={bottomSheetRef}
         />
       )}
     </SafeAreaView>

@@ -64,9 +64,24 @@ export default function SettingsScreen() {
               onPress={() => router.push('/(main)/(profile)/settings/edit-profile')}
             />
             <SettingsItem
+              icon="call-outline"
+              title="Phone Number"
+              onPress={() => router.push('/(main)/(profile)/settings/phone-number' as any)}
+            />
+            <SettingsItem
               icon="people-outline"
-              title="Find People"
-              onPress={() => router.push('/(main)/(profile)/settings/find-people')}
+              title="Find Friends"
+              onPress={() => router.push('/friends' as any)}
+            />
+            <SettingsItem
+              icon="lock-closed-outline"
+              title="Change Password"
+              onPress={() => router.push('/(main)/(profile)/settings/change-password')}
+            />
+            <SettingsItem
+              icon="mail-outline"
+              title="Change Email"
+              onPress={() => router.push('/(main)/(profile)/settings/change-email')}
             />
             <SettingsItem
               icon="log-out-outline"

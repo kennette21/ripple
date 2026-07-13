@@ -11,7 +11,8 @@ export type Json =
 
 export type PostContentType = 'caption' | 'reflection' | 'both';
 export type ContentType = PostContentType; // Alias for convenience
-export type NotificationType = 'follow' | 'comment' | 'comment_reply' | 'repost' | 'mention';
+export type NotificationType = 'follow' | 'comment' | 'comment_reply' | 'repost' | 'mention' | 'friend_request' | 'friend_accept';
+export type FriendRequestStatus = 'pending' | 'accepted' | 'declined';
 
 export interface Database {
   public: {
@@ -23,6 +24,7 @@ export interface Database {
           display_name: string;
           bio: string | null;
           avatar_url: string | null;
+          phone_number: string | null;
           daily_usage_goal_minutes: number;
           onboarding_completed: boolean;
           created_at: string;
@@ -34,6 +36,7 @@ export interface Database {
           display_name: string;
           bio?: string | null;
           avatar_url?: string | null;
+          phone_number?: string | null;
           daily_usage_goal_minutes?: number;
           onboarding_completed?: boolean;
           created_at?: string;
@@ -45,6 +48,7 @@ export interface Database {
           display_name?: string;
           bio?: string | null;
           avatar_url?: string | null;
+          phone_number?: string | null;
           daily_usage_goal_minutes?: number;
           onboarding_completed?: boolean;
           created_at?: string;
@@ -133,6 +137,32 @@ export interface Database {
           follower_id?: string;
           following_id?: string;
           created_at?: string;
+        };
+      };
+      friend_requests: {
+        Row: {
+          id: string;
+          sender_id: string;
+          receiver_id: string;
+          status: FriendRequestStatus;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          sender_id: string;
+          receiver_id: string;
+          status?: FriendRequestStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          sender_id?: string;
+          receiver_id?: string;
+          status?: FriendRequestStatus;
+          created_at?: string;
+          updated_at?: string;
         };
       };
       blocks: {
@@ -509,6 +539,7 @@ export type PostImage = Database['public']['Tables']['post_images']['Row'];
 export type PostImageInsert = Database['public']['Tables']['post_images']['Insert'];
 
 export type Follow = Database['public']['Tables']['follows']['Row'];
+export type FriendRequest = Database['public']['Tables']['friend_requests']['Row'];
 export type Comment = Database['public']['Tables']['comments']['Row'];
 export type Repost = Database['public']['Tables']['reposts']['Row'];
 export type Bookmark = Database['public']['Tables']['bookmarks']['Row'];

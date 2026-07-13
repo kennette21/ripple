@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useCallback } from 'react';
+import { useRouter } from 'expo-router';
 import { supabase } from '@lib/supabase';
 import { useAuthStore } from '@stores/authStore';
 import type { Session, User } from '@supabase/supabase-js';
@@ -17,6 +18,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const {
     session,
     user,
@@ -93,7 +95,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('Auth event:', event);
         setSession(newSession);
 
-        if (event === 'SIGNED_IN' && newSession?.user) {
+        if (event === 'PASSWORD_RECOVERY' && newSession?.user) {
+          // User clicked a password reset link — navigate to reset screen
+          router.replace('/(auth)/reset-password');
+        } else if (event === 'SIGNED_IN' && newSession?.user) {
           await fetchProfile(newSession.user.id);
         } else if (event === 'SIGNED_OUT') {
           setProfile(null);

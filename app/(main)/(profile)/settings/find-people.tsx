@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,118 +7,133 @@ import {
   Pressable,
   ActivityIndicator,
   TouchableOpacity,
+  Alert,
+  SectionList,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
-import { Avatar } from '@components/ui';
-import { supabase } from '@/lib/supabase/client';
+import { Avatar, Button } from '@components/ui';
 import { useAuth } from '@providers/AuthProvider';
-import { queryKeys } from '@/lib/query/keys';
+import { useContactsOnRipple, useRequestContactsPermission, type ContactMatch } from '@/hooks/social/useContacts';
+import {
+  useFriends,
+  useIncomingFriendRequests,
+  useSendFriendRequest,
+  useRespondToFriendRequest,
+  type FriendRequestWithProfile,
+} from '@/hooks/social/useFriends';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
 import type { Profile } from '@/types/database';
 
-interface UserWithFollowStatus extends Profile {
-  isFollowing: boolean;
-}
+type SectionData = {
+  title: string;
+  data: any[];
+  type: 'requests' | 'contacts' | 'friends';
+};
 
 export default function FindPeopleScreen() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [users, setUsers] = useState<UserWithFollowStatus[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
+  const { user, profile } = useAuth();
+  const { hasPermission, requestPermission, checkPermission } = useRequestContactsPermission();
+
+  const { data: contactMatches, isLoading: contactsLoading, refetch: refetchContacts } = useContactsOnRipple(user?.id);
+  const { data: friends, isLoading: friendsLoading } = useFriends(user?.id);
+  const { data: incomingRequests, isLoading: requestsLoading } = useIncomingFriendRequests(user?.id);
+  const sendRequest = useSendFriendRequest();
+  const respondToRequest = useRespondToFriendRequest();
+
+  const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    loadUsers();
-  }, [user?.id]);
+    checkPermission();
+  }, []);
 
-  const loadUsers = async () => {
+  const friendIds = new Set(friends?.map((f) => f.id) || []);
+  const pendingReceiverIds = new Set(incomingRequests?.map((r) => r.sender.id) || []);
+
+  // Filter contact matches to only show people who aren't already friends
+  const contactsToShow = (contactMatches || []).filter(
+    (c) => !friendIds.has(c.id) && !pendingReceiverIds.has(c.id)
+  );
+
+  const handleSendRequest = async (receiverId: string) => {
     if (!user?.id) return;
-
     try {
-      // Get all users except current user
-      const { data: profiles, error: profilesError } = await (supabase
-        .from('profiles') as any)
-        .select('*')
-        .neq('id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (profilesError) throw profilesError;
-
-      // Get who the current user is following
-      const { data: follows, error: followsError } = await (supabase
-        .from('follows') as any)
-        .select('following_id')
-        .eq('follower_id', user.id);
-
-      if (followsError) throw followsError;
-
-      const followingSet = new Set<string>(follows?.map((f: any) => f.following_id) || []);
-      setFollowingIds(followingSet);
-
-      const usersWithStatus = (profiles || []).map((profile: Profile) => ({
-        ...profile,
-        isFollowing: followingSet.has(profile.id),
-      }));
-
-      setUsers(usersWithStatus);
-    } catch (error) {
-      console.error('Error loading users:', error);
-    } finally {
-      setIsLoading(false);
+      await sendRequest.mutateAsync({ senderId: user.id, receiverId });
+      setSentRequests((prev) => new Set(prev).add(receiverId));
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to send friend request');
     }
   };
 
-  const handleToggleFollow = async (targetUserId: string) => {
-    if (!user?.id) return;
+  const handleAcceptRequest = (requestId: string) => {
+    respondToRequest.mutate({ requestId, status: 'accepted' });
+  };
 
-    const isCurrentlyFollowing = followingIds.has(targetUserId);
+  const handleDeclineRequest = (requestId: string) => {
+    respondToRequest.mutate({ requestId, status: 'declined' });
+  };
 
-    // Optimistic update
-    setFollowingIds((prev) => {
-      const newSet = new Set(prev);
-      if (isCurrentlyFollowing) {
-        newSet.delete(targetUserId);
-      } else {
-        newSet.add(targetUserId);
-      }
-      return newSet;
+  const sections: SectionData[] = [];
+
+  if (incomingRequests && incomingRequests.length > 0) {
+    sections.push({
+      title: 'Friend Requests',
+      data: incomingRequests,
+      type: 'requests',
     });
+  }
 
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === targetUserId ? { ...u, isFollowing: !isCurrentlyFollowing } : u
-      )
-    );
+  if (contactsToShow.length > 0) {
+    sections.push({
+      title: 'Your Contacts on Ripple',
+      data: contactsToShow,
+      type: 'contacts',
+    });
+  }
 
-    try {
-      if (isCurrentlyFollowing) {
-        await (supabase.from('follows') as any)
-          .delete()
-          .eq('follower_id', user.id)
-          .eq('following_id', targetUserId);
-      } else {
-        await (supabase.from('follows') as any)
-          .insert({
-            follower_id: user.id,
-            following_id: targetUserId,
-          });
-      }
+  if (friends && friends.length > 0) {
+    sections.push({
+      title: 'Friends',
+      data: friends,
+      type: 'friends',
+    });
+  }
 
-      // Invalidate feed query so it refreshes with new followed user's posts
-      queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
-    } catch (error) {
-      console.error('Error toggling follow:', error);
-      // Revert on error
-      loadUsers();
-    }
-  };
+  const isLoading = contactsLoading || friendsLoading || requestsLoading;
 
-  const renderUser = ({ item }: { item: UserWithFollowStatus }) => {
-    const isFollowing = followingIds.has(item.id);
+  const renderRequest = (item: FriendRequestWithProfile) => (
+    <View style={styles.userRow}>
+      <Avatar
+        uri={item.sender.avatar_url}
+        name={item.sender.display_name || item.sender.username}
+        size="md"
+      />
+      <View style={styles.userInfo}>
+        <Text style={styles.displayName}>
+          {item.sender.display_name || item.sender.username}
+        </Text>
+        <Text style={styles.username}>@{item.sender.username}</Text>
+      </View>
+      <View style={styles.requestActions}>
+        <Pressable
+          style={styles.acceptButton}
+          onPress={() => handleAcceptRequest(item.id)}
+        >
+          <Ionicons name="checkmark" size={18} color={colors.white} />
+        </Pressable>
+        <Pressable
+          style={styles.declineButton}
+          onPress={() => handleDeclineRequest(item.id)}
+        >
+          <Ionicons name="close" size={18} color={colors.gray[600]} />
+        </Pressable>
+      </View>
+    </View>
+  );
 
+  const renderContact = (item: ContactMatch) => {
+    const isSent = sentRequests.has(item.id);
     return (
       <View style={styles.userRow}>
         <Avatar
@@ -131,28 +146,88 @@ export default function FindPeopleScreen() {
             {item.display_name || item.username}
           </Text>
           <Text style={styles.username}>@{item.username}</Text>
+          <Text style={styles.contactName}>
+            {item.contactName} in your contacts
+          </Text>
         </View>
         <Pressable
-          style={[
-            styles.followButton,
-            isFollowing && styles.followingButton,
-          ]}
-          onPress={() => handleToggleFollow(item.id)}
+          style={[styles.addButton, isSent && styles.sentButton]}
+          onPress={() => !isSent && handleSendRequest(item.id)}
+          disabled={isSent}
         >
-          <Text
-            style={[
-              styles.followButtonText,
-              isFollowing && styles.followingButtonText,
-            ]}
-          >
-            {isFollowing ? 'Following' : 'Follow'}
+          <Text style={[styles.addButtonText, isSent && styles.sentButtonText]}>
+            {isSent ? 'Sent' : 'Add Friend'}
           </Text>
         </Pressable>
       </View>
     );
   };
 
-  const followingCount = followingIds.size;
+  const renderFriend = (item: Profile) => (
+    <Pressable
+      style={styles.userRow}
+      onPress={() => router.push(`/user/${item.id}`)}
+    >
+      <Avatar
+        uri={item.avatar_url}
+        name={item.display_name || item.username}
+        size="md"
+      />
+      <View style={styles.userInfo}>
+        <Text style={styles.displayName}>
+          {item.display_name || item.username}
+        </Text>
+        <Text style={styles.username}>@{item.username}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
+    </Pressable>
+  );
+
+  const renderItem = ({ item, section }: { item: any; section: SectionData }) => {
+    switch (section.type) {
+      case 'requests':
+        return renderRequest(item);
+      case 'contacts':
+        return renderContact(item);
+      case 'friends':
+        return renderFriend(item);
+      default:
+        return null;
+    }
+  };
+
+  const renderNoPhoneNumber = () => (
+    <View style={styles.promptContainer}>
+      <Ionicons name="call-outline" size={48} color={colors.gray[300]} />
+      <Text style={styles.promptTitle}>Add your phone number</Text>
+      <Text style={styles.promptText}>
+        Add your phone number so your friends can find you on Ripple.
+      </Text>
+      <Button
+        title="Add Phone Number"
+        onPress={() => router.push('/(main)/(profile)/settings/phone-number' as any)}
+        style={styles.promptButton}
+      />
+    </View>
+  );
+
+  const renderNoPermission = () => (
+    <View style={styles.promptContainer}>
+      <Ionicons name="people-outline" size={48} color={colors.gray[300]} />
+      <Text style={styles.promptTitle}>Find your friends</Text>
+      <Text style={styles.promptText}>
+        Allow access to your contacts to see which of your friends are already on Ripple.
+      </Text>
+      <Button
+        title="Allow Contacts Access"
+        onPress={async () => {
+          const granted = await requestPermission();
+          if (granted) refetchContacts();
+        }}
+        style={styles.promptButton}
+      />
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -160,37 +235,44 @@ export default function FindPeopleScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.gray[600]} />
         </TouchableOpacity>
-        <Text style={styles.title}>Find People</Text>
+        <Text style={styles.title}>Find Friends</Text>
         <View style={{ width: 24 }} />
       </View>
-
-      {followingCount > 0 && (
-        <View style={styles.statsBar}>
-          <Text style={styles.followingCount}>
-            Following {followingCount} {followingCount === 1 ? 'person' : 'people'}
-          </Text>
-        </View>
-      )}
 
       {isLoading ? (
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={colors.primary[500]} />
         </View>
-      ) : users.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="people-outline" size={48} color={colors.gray[300]} />
-          <Text style={styles.emptyText}>No other users yet</Text>
-          <Text style={styles.emptySubtext}>
-            Invite your friends to join Ripple!
+      ) : !profile?.phone_number ? (
+        renderNoPhoneNumber()
+      ) : hasPermission === false ? (
+        renderNoPermission()
+      ) : sections.length === 0 ? (
+        <View style={styles.promptContainer}>
+          <Ionicons name="search-outline" size={48} color={colors.gray[300]} />
+          <Text style={styles.promptTitle}>No contacts found on Ripple</Text>
+          <Text style={styles.promptText}>
+            Invite your friends to join Ripple so you can connect!
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={users}
-          renderItem={renderUser}
+        <SectionList
+          sections={sections}
           keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              {section.type === 'requests' && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{section.data.length}</Text>
+                </View>
+              )}
+            </View>
+          )}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
         />
       )}
     </SafeAreaView>
@@ -216,49 +298,46 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeights.semibold,
     color: colors.gray[900],
   },
-  statsBar: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.primary[50],
-    borderBottomWidth: 1,
-    borderBottomColor: colors.primary[100],
-  },
-  followingCount: {
-    fontSize: typography.fontSizes.sm,
-    color: colors.primary[600],
-    textAlign: 'center',
-    fontWeight: typography.fontWeights.medium,
-  },
   loading: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  empty: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-  emptyText: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[700],
-    marginTop: spacing.md,
-  },
-  emptySubtext: {
-    fontSize: typography.fontSizes.md,
-    color: colors.gray[500],
-    marginTop: spacing.xs,
-    textAlign: 'center',
-  },
   list: {
-    padding: spacing.md,
+    paddingBottom: spacing.xl,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.white,
+    gap: spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: typography.fontSizes.md,
+    fontWeight: typography.fontWeights.semibold,
+    color: colors.gray[900],
+  },
+  badge: {
+    backgroundColor: colors.error.main,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    minWidth: 22,
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: colors.white,
+    fontSize: typography.fontSizes.xs,
+    fontWeight: typography.fontWeights.bold,
   },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
   },
@@ -275,23 +354,71 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSizes.sm,
     color: colors.gray[500],
   },
-  followButton: {
+  contactName: {
+    fontSize: typography.fontSizes.xs,
+    color: colors.primary[500],
+    marginTop: 2,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  acceptButton: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primary[500],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  declineButton: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.gray[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
     backgroundColor: colors.primary[500],
   },
-  followingButton: {
+  sentButton: {
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.gray[300],
   },
-  followButtonText: {
+  addButtonText: {
     fontSize: typography.fontSizes.sm,
     fontWeight: typography.fontWeights.semibold,
     color: colors.white,
   },
-  followingButtonText: {
+  sentButtonText: {
+    color: colors.gray[500],
+  },
+  promptContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    gap: spacing.sm,
+  },
+  promptTitle: {
+    fontSize: typography.fontSizes.lg,
+    fontWeight: typography.fontWeights.semibold,
     color: colors.gray[700],
+    marginTop: spacing.md,
+  },
+  promptText: {
+    fontSize: typography.fontSizes.md,
+    color: colors.gray[500],
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  promptButton: {
+    marginTop: spacing.md,
+    minWidth: 200,
   },
 });

@@ -3,18 +3,56 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Linking from 'expo-linking';
 import { AuthProvider, useAuth } from '@providers/AuthProvider';
 import { QueryProvider } from '@providers/QueryProvider';
 import { ThemeProvider } from '@providers/ThemeProvider';
 import { LoadingScreen } from '@components/common';
+import { supabase } from '@lib/supabase';
 
 // Keep splash screen visible while we load resources
 SplashScreen.preventAutoHideAsync();
+
+function extractSessionFromUrl(url: string) {
+  const fragment = url.split('#')[1];
+  if (!fragment) return null;
+
+  const params = new URLSearchParams(fragment);
+  const accessToken = params.get('access_token');
+  const refreshToken = params.get('refresh_token');
+
+  if (accessToken && refreshToken) {
+    return { accessToken, refreshToken };
+  }
+  return null;
+}
 
 function RootLayoutNav() {
   const { isLoading, isAuthenticated, needsOnboarding } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // Handle deep links with auth tokens
+  useEffect(() => {
+    function handleDeepLink(event: { url: string }) {
+      const tokens = extractSessionFromUrl(event.url);
+      if (tokens) {
+        supabase.auth.setSession({
+          access_token: tokens.accessToken,
+          refresh_token: tokens.refreshToken,
+        });
+      }
+    }
+
+    // Handle URL that opened the app
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink({ url });
+    });
+
+    // Listen for incoming links while app is open
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     if (isLoading) return;
@@ -48,6 +86,7 @@ function RootLayoutNav() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(main)" />
+        <Stack.Screen name="friends" />
         <Stack.Screen
           name="(shared)"
           options={{

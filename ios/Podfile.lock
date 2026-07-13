@@ -35,6 +35,8 @@ PODS:
     - Yoga
   - ExpoAsset (12.0.12):
     - ExpoModulesCore
+  - ExpoContacts (15.0.11):
+    - ExpoModulesCore
   - ExpoDevice (8.0.10):
     - ExpoModulesCore
   - ExpoFileSystem (19.0.21):
@@ -2043,6 +2045,7 @@ DEPENDENCIES:
   - EXNotifications (from `../node_modules/expo-notifications/ios`)
   - Expo (from `../node_modules/expo`)
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
+  - ExpoContacts (from `../node_modules/expo-contacts/ios`)
   - ExpoDevice (from `../node_modules/expo-device/ios`)
   - ExpoFileSystem (from `../node_modules/expo-file-system/ios`)
   - ExpoFont (from `../node_modules/expo-font/ios`)
@@ -2153,6 +2156,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo"
   ExpoAsset:
     :path: "../node_modules/expo-asset/ios"
+  ExpoContacts:
+    :path: "../node_modules/expo-contacts/ios"
   ExpoDevice:
     :path: "../node_modules/expo-device/ios"
   ExpoFileSystem:
@@ -2332,6 +2337,7 @@ SPEC CHECKSUMS:
   EXNotifications: 66e91bc2cde4123b371773fd479bacd3cd699e79
   Expo: 2cf54b756f8988bb3a4e6f7e78a2442c715b272a
   ExpoAsset: d999f3bbd998a750f3b74cb913229848901b926b
+  ExpoContacts: d1f4aa128f7f3a6daa628f17bec09a51b367f8b3
   ExpoDevice: 0773c782b055558ca9b40b74aa4a8133a66cd0d2
   ExpoFileSystem: aefcd337b94b874f88752ebefc52813b84992fad
   ExpoFont: 26bbea90749b8dd0b69effc9fab54248e684f290

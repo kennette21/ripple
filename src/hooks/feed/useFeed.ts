@@ -20,15 +20,35 @@ interface FeedPage {
 }
 
 async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
-  // Get users the current user follows
+  // Get friends (accepted friend requests in either direction)
+  const [{ data: sentAccepted }, { data: receivedAccepted }] = await Promise.all([
+    (supabase.from('friend_requests') as any)
+      .select('receiver_id')
+      .eq('sender_id', userId)
+      .eq('status', 'accepted'),
+    (supabase.from('friend_requests') as any)
+      .select('sender_id')
+      .eq('receiver_id', userId)
+      .eq('status', 'accepted'),
+  ]);
+
+  const friendIds = [
+    ...(sentAccepted || []).map((r: any) => r.receiver_id),
+    ...(receivedAccepted || []).map((r: any) => r.sender_id),
+  ];
+  // Include own posts in feed
+  friendIds.push(userId);
+
+  // Also include follows for backwards compatibility during transition
   const { data: follows } = await (supabase
     .from('follows') as any)
     .select('following_id')
     .eq('follower_id', userId);
 
   const followingIds = follows?.map((f: any) => f.following_id) || [];
-  // Include own posts in feed
-  followingIds.push(userId);
+
+  // Merge friends and follows, dedupe
+  const allIds = [...new Set([...friendIds, ...followingIds])];
 
   // Get blocked users to exclude
   const { data: blocks } = await (supabase
@@ -46,7 +66,7 @@ async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
       author:profiles!posts_author_id_fkey(*),
       images:post_images(*)
     `)
-    .in('author_id', followingIds)
+    .in('author_id', allIds)
     .order('created_at', { ascending: false })
     .limit(POSTS_PER_PAGE);
 

@@ -69,6 +69,15 @@ export async function updatePassword(newPassword: string): Promise<{ error: Auth
   return { error };
 }
 
+// Update email
+export async function updateEmail(newEmail: string): Promise<{ error: AuthError | null }> {
+  const { error } = await supabase.auth.updateUser({
+    email: newEmail,
+  });
+
+  return { error };
+}
+
 // Verify OTP (for magic link callback)
 export async function verifyOtp(
   email: string,
