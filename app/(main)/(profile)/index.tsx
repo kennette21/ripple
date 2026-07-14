@@ -19,6 +19,7 @@ import { EmptyState } from '@components/common';
 import { PostCard } from '@/components/post/PostCard';
 import { useAuth } from '@providers/AuthProvider';
 import { useUserPosts } from '@/hooks/profile/useUserPosts';
+import { getAvatarUrl } from '@/lib/supabase/storage';
 import { colors, spacing, typography } from '@constants/theme';
 import type { FeedPost } from '@/hooks/feed/useFeed';
 
@@ -134,7 +135,7 @@ export default function ProfileScreen() {
           <View style={styles.avatarModalContent}>
             {profile?.avatar_url && (
               <Image
-                source={{ uri: profile.avatar_url }}
+                source={{ uri: getAvatarUrl(profile.avatar_url)! }}
                 style={styles.avatarModalImage}
                 contentFit="cover"
               />

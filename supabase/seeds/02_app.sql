@@ -18,7 +18,7 @@ values
     'admin',
     'Ripple Dev',
     'The primary local development account.',
-    'http://127.0.0.1:54321/storage/v1/object/public/avatars/avatar.png',
+    'avatar.png',
     30,
     true,
     null
@@ -28,7 +28,7 @@ values
     'maya',
     'Maya Chen',
     'Designer, reader, and enthusiastic walker.',
-    'http://127.0.0.1:54321/storage/v1/object/public/avatars/avatar.png',
+    'avatar.png',
     20,
     true,
     null
@@ -38,7 +38,7 @@ values
     'alex',
     'Alex Rivera',
     'Trying to spend more time making things.',
-    'http://127.0.0.1:54321/storage/v1/object/public/avatars/avatar.png',
+    'avatar.png',
     45,
     true,
     null
@@ -48,7 +48,7 @@ values
     'jordan',
     'Jordan Kim',
     'Coffee, cameras, and long train rides.',
-    'http://127.0.0.1:54321/storage/v1/object/public/avatars/avatar.png',
+    'avatar.png',
     25,
     true,
     null
@@ -58,7 +58,7 @@ values
     'sam',
     'Sam Okafor',
     'Finding a little more quiet in every day.',
-    'http://127.0.0.1:54321/storage/v1/object/public/avatars/avatar.png',
+    'avatar.png',
     15,
     true,
     null

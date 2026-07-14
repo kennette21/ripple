@@ -71,6 +71,11 @@ export function getPublicUrl(bucket: string, path: string): string {
   return data.publicUrl;
 }
 
+export function getAvatarUrl(value?: string | null): string | null {
+  if (!value || /^[a-z][a-z\d+.-]*:/i.test(value)) return value ?? null;
+  return getPublicUrl(BUCKETS.AVATARS, value);
+}
+
 // Delete an image from a bucket
 export async function deleteImage(
   bucket: string,
@@ -84,8 +89,8 @@ export async function deleteImage(
 export async function uploadAvatar(
   userId: string,
   uri: string
-): Promise<{ url: string | null; error: Error | null }> {
-  const path = `${userId}/avatar.jpg`;
+): Promise<{ path: string | null; error: Error | null }> {
+  const path = `${userId}/avatar-${Date.now()}.jpg`;
   const { path: uploadedPath, error } = await uploadImage(
     BUCKETS.AVATARS,
     path,
@@ -93,11 +98,10 @@ export async function uploadAvatar(
   );
 
   if (error || !uploadedPath) {
-    return { url: null, error };
+    return { path: null, error };
   }
 
-  const url = getPublicUrl(BUCKETS.AVATARS, uploadedPath);
-  return { url, error: null };
+  return { path: uploadedPath, error: null };
 }
 
 // Upload post image
