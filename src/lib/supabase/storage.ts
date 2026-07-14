@@ -71,6 +71,9 @@ export function getPublicUrl(bucket: string, path: string): string {
   return data.publicUrl;
 }
 
+// // TODO: deprecated; remove URL passthrough once all environments complete
+// migration `20260714120000_store_avatar_paths.sql` and `profiles.avatar_url`
+// only stores object paths.
 export function getAvatarUrl(value?: string | null): string | null {
   if (!value || /^[a-z][a-z\d+.-]*:/i.test(value)) return value ?? null;
   return getPublicUrl(BUCKETS.AVATARS, value);
