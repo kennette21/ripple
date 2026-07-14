@@ -42,6 +42,10 @@ if (!APP_CONFIG.supabaseUrl || !APP_CONFIG.supabaseAnonKey) {
   );
 }
 
+if (__DEV__) {
+  console.log('[supabase] URL:', APP_CONFIG.supabaseUrl);
+}
+
 // Create the Supabase client
 export const supabase = createClient<Database>(
   APP_CONFIG.supabaseUrl,

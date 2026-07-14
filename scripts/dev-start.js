@@ -34,7 +34,7 @@ if (resetDatabase) {
 run(npmCommand, ["run", "start"], {
   env: {
     ...process.env,
-    EXPO_PUBLIC_SUPABASE_URL: localSupabaseUrl,
-    EXPO_PUBLIC_SUPABASE_ANON_KEY: localSupabaseAnonKey,
+    EXPO_PUBLIC_LOCAL_SUPABASE_URL: localSupabaseUrl,
+    EXPO_PUBLIC_LOCAL_SUPABASE_ANON_KEY: localSupabaseAnonKey,
   },
 });
