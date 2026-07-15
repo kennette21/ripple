@@ -13,17 +13,29 @@ port = 54322
 shadow_port = 54320
 major_version = 15
 
+[db.seed]
+enabled = true
+sql_paths = ["./seeds/01_auth.sql", "./seeds/02_app.sql"]
+
 [studio]
 enabled = true
 port = 54323
 
-[inbucket]
+[local_smtp]
 enabled = true
 port = 54324
 
 [storage]
 enabled = true
 file_size_limit = "5MB"
+
+[storage.buckets.avatars]
+public = true
+objects_path = "./seed-assets/avatars"
+
+[storage.buckets."post-images"]
+public = true
+objects_path = "./seed-assets/post-images"
 
 [auth]
 enabled = true

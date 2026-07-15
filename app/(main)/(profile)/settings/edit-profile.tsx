@@ -15,7 +15,7 @@ import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Button } from '@components/ui';
-import { supabase, uploadAvatar } from '@lib/supabase';
+import { BUCKETS, deleteImage, supabase, uploadAvatar } from '@lib/supabase';
 import { useAuth } from '@providers/AuthProvider';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
 
@@ -68,11 +68,13 @@ export default function EditProfileScreen() {
     setIsLoading(true);
 
     try {
-      let avatarUrl = profile?.avatar_url;
+      const previousAvatarPath = profile?.avatar_url;
+      let avatarPath = previousAvatarPath;
+      let uploadedAvatarPath: string | null = null;
 
       // Upload new avatar if selected
       if (avatarUri) {
-        const { url, error: uploadError } = await uploadAvatar(
+        const { path, error: uploadError } = await uploadAvatar(
           user.id,
           avatarUri
         );
@@ -81,7 +83,8 @@ export default function EditProfileScreen() {
           console.error('Error uploading avatar:', uploadError);
           Alert.alert('Upload Error', 'Failed to upload avatar. Other changes will be saved.');
         } else {
-          avatarUrl = url;
+          avatarPath = path;
+          uploadedAvatarPath = path;
         }
       }
 
@@ -91,12 +94,27 @@ export default function EditProfileScreen() {
         .update({
           display_name: displayName.trim(),
           bio: bio.trim() || null,
-          avatar_url: avatarUrl,
+          avatar_url: avatarPath,
         })
         .eq('id', user.id);
 
       if (error) {
+        if (uploadedAvatarPath) {
+          await deleteImage(BUCKETS.AVATARS, uploadedAvatarPath);
+        }
         throw error;
+      }
+
+      if (
+        uploadedAvatarPath &&
+        previousAvatarPath &&
+        previousAvatarPath !== uploadedAvatarPath &&
+        previousAvatarPath.startsWith(`${user.id}/`)
+      ) {
+        const { error: deleteError } = await deleteImage(BUCKETS.AVATARS, previousAvatarPath);
+        if (deleteError) {
+          console.warn('Failed to delete previous avatar:', deleteError);
+        }
       }
 
       await refreshProfile();
@@ -111,7 +129,7 @@ export default function EditProfileScreen() {
     }
   };
 
-  const currentAvatarUri = avatarUri || profile?.avatar_url;
+  const hasAvatar = avatarUri || profile?.avatar_url;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -130,8 +148,12 @@ export default function EditProfileScreen() {
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.avatarSection}>
             <TouchableOpacity style={styles.avatarContainer} onPress={pickImage}>
-              {currentAvatarUri ? (
-                <Avatar uri={currentAvatarUri} size="xl" style={styles.avatar} />
+              {hasAvatar ? (
+                <Avatar
+                  uri={avatarUri || profile?.avatar_url}
+                  size="xl"
+                  style={styles.avatar}
+                />
               ) : (
                 <Avatar name={displayName || profile?.display_name} size="xl" />
               )}

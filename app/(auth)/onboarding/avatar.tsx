@@ -44,10 +44,10 @@ export default function AvatarSetupScreen() {
     setIsLoading(true);
 
     try {
-      let avatarUrl = null;
+      let avatarPath = null;
 
       if (avatarUri) {
-        const { url, error: uploadError } = await uploadAvatar(
+        const { path, error: uploadError } = await uploadAvatar(
           user.id,
           avatarUri
         );
@@ -56,15 +56,15 @@ export default function AvatarSetupScreen() {
           console.error('Error uploading avatar:', uploadError);
           Alert.alert('Upload Error', 'Failed to upload avatar. Continuing without it.');
         } else {
-          avatarUrl = url;
+          avatarPath = path;
         }
       }
 
       // Update profile with avatar (onboarding completed on discover screen)
-      if (avatarUrl) {
+      if (avatarPath) {
         const { error } = await (supabase
           .from('profiles') as any)
-          .update({ avatar_url: avatarUrl })
+          .update({ avatar_url: avatarPath })
           .eq('id', user.id);
 
         if (error) {

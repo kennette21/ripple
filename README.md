@@ -40,6 +40,27 @@ The app uses native modules (contacts, notifications, secure store), so it does 
 
 After the first native build, day-to-day JS changes only need Metro running; you don't need to rebuild unless native dependencies or `app.json` plugins change.
 
+### with seeded data
+
+Spin up the app + a local postgres container with migrations applied + seeding by running:
+
+```bash
+npm run dev-start
+```
+
+if you'd like to re-apply the migrations, run with `:reset`
+
+```bash
+npm run dev-start:reset
+```
+
+the admin user of the dev db is
+
+```
+admin@ripple.local
+12345678
+```
+
 ### Checks
 
 There is no test suite yet. Before committing, run:

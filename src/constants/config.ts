@@ -1,11 +1,19 @@
 // App configuration constants
+const localSupabaseUrl = process.env.EXPO_PUBLIC_LOCAL_SUPABASE_URL;
+const localSupabaseAnonKey = process.env.EXPO_PUBLIC_LOCAL_SUPABASE_ANON_KEY;
+const useLocalSupabase = Boolean(localSupabaseUrl && localSupabaseAnonKey);
+
 export const APP_CONFIG = {
   name: 'Ripple',
   version: '1.0.0',
 
   // API
-  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
-  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
+  supabaseUrl: useLocalSupabase
+    ? localSupabaseUrl!
+    : process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
+  supabaseAnonKey: useLocalSupabase
+    ? localSupabaseAnonKey!
+    : process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
 
   // Feature flags
   features: {

@@ -19,6 +19,7 @@ import { useAuth } from '@providers/AuthProvider';
 import { useProfile } from '@/hooks/profile/useProfile';
 import { useUserPosts } from '@/hooks/profile/useUserPosts';
 import { useFollowStatus, useFollow } from '@/hooks/social/useFollow';
+import { getAvatarUrl } from '@/lib/supabase/storage';
 import { PostCard } from '@/components/post/PostCard';
 import { EmptyState, LoadingScreen } from '@components/common';
 import { colors, spacing, typography } from '@constants/theme';
@@ -179,7 +180,7 @@ export default function UserProfileScreen() {
           <View style={styles.avatarModalContent}>
             {profile?.avatar_url && (
               <Image
-                source={{ uri: profile.avatar_url }}
+                source={{ uri: getAvatarUrl(profile.avatar_url)! }}
                 style={styles.avatarModalImage}
                 contentFit="cover"
               />
