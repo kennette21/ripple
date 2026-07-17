@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
   TouchableOpacity,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -21,7 +23,6 @@ import { useUserPosts } from '@/hooks/profile/useUserPosts';
 import { useFollowStatus, useFollow } from '@/hooks/social/useFollow';
 import { getAvatarUrl } from '@/lib/supabase/storage';
 import { PostCard } from '@/components/post/PostCard';
-import { CommentsBottomSheet } from '@/components/comments/CommentsBottomSheet';
 import { EmptyState, LoadingScreen } from '@components/common';
 import { colors, spacing, typography } from '@constants/theme';
 import type { FeedPost } from '@/hooks/feed/useFeed';
@@ -33,7 +34,6 @@ export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
-  const [activePostId, setActivePostId] = useState<string | null>(null);
 
   const { data: profile, isLoading: profileLoading } = useProfile(id);
   const { data: followStatus, isLoading: statusLoading } = useFollowStatus(user?.id, id);
@@ -49,10 +49,6 @@ export default function UserProfileScreen() {
 
   const posts = postsData?.pages.flatMap((page) => page.posts) ?? [];
   const isOwnProfile = user?.id === id;
-
-  const handleCommentPress = useCallback((postId: string) => {
-    setActivePostId(postId);
-  }, []);
 
   const handleFollow = () => {
     if (!user || !followStatus) return;
@@ -103,9 +99,8 @@ export default function UserProfileScreen() {
     <PostCard
       post={item}
       currentUserId={user?.id}
-      onCommentPress={handleCommentPress}
     />
-  ), [user?.id, handleCommentPress]);
+  ), [user?.id]);
 
   const renderFooter = () => {
     if (isFetchingNextPage) {
@@ -150,28 +145,35 @@ export default function UserProfileScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      <FlatList
-        data={posts}
-        renderItem={renderPost}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={renderHeader}
-        ListFooterComponent={renderFooter}
-        ListEmptyComponent={
-          !postsLoading ? (
-            <EmptyState
-              icon="document-text-outline"
-              title="No posts yet"
-              description={isOwnProfile
-                ? "You haven't posted anything yet. Share your first post!"
-                : "This user hasn't posted anything yet."
-              }
-            />
-          ) : null
-        }
-        onEndReached={handleEndReached}
-        onEndReachedThreshold={0.5}
-        showsVerticalScrollIndicator={false}
-      />
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <FlatList
+          data={posts}
+          renderItem={renderPost}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderHeader}
+          ListFooterComponent={renderFooter}
+          ListEmptyComponent={
+            !postsLoading ? (
+              <EmptyState
+                icon="document-text-outline"
+                title="No posts yet"
+                description={isOwnProfile
+                  ? "You haven't posted anything yet. Share your first post!"
+                  : "This user hasn't posted anything yet."
+                }
+              />
+            ) : null
+          }
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.5}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        />
+      </KeyboardAvoidingView>
 
       {/* Avatar fullscreen modal */}
       <Modal
@@ -201,14 +203,6 @@ export default function UserProfileScreen() {
           </TouchableOpacity>
         </Pressable>
       </Modal>
-
-      {activePostId && (
-        <CommentsBottomSheet
-          postId={activePostId}
-          currentUserId={user?.id}
-          onClose={() => setActivePostId(null)}
-        />
-      )}
     </SafeAreaView>
   );
 }
@@ -217,6 +211,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+  },
+  content: {
+    flex: 1,
   },
   navbar: {
     flexDirection: 'row',

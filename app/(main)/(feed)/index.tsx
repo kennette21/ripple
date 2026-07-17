@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,8 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
-  Pressable,
+  KeyboardAvoidingView,
+  Platform,
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,14 +16,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@providers/AuthProvider';
 import { useFeed, type FeedPost } from '@/hooks/feed/useFeed';
 import { PostCard } from '@/components/post/PostCard';
-import { CommentsBottomSheet } from '@/components/comments/CommentsBottomSheet';
 import { EmptyState } from '@components/common';
 import { Skeleton } from '@components/ui';
 import { colors, spacing, typography } from '@constants/theme';
 
 export default function FeedScreen() {
   const { user } = useAuth();
-  const [activePostId, setActivePostId] = useState<string | null>(null);
   const {
     data,
     fetchNextPage,
@@ -35,17 +34,12 @@ export default function FeedScreen() {
 
   const posts = data?.pages.flatMap((page) => page.posts) ?? [];
 
-  const handleCommentPress = useCallback((postId: string) => {
-    setActivePostId(postId);
-  }, []);
-
   const renderPost = useCallback(({ item }: { item: FeedPost }) => (
     <PostCard
       post={item}
       currentUserId={user?.id}
-      onCommentPress={handleCommentPress}
     />
-  ), [user?.id, handleCommentPress]);
+  ), [user?.id]);
 
   const renderFooter = useCallback(() => {
     if (isFetchingNextPage) {
@@ -117,39 +111,37 @@ export default function FeedScreen() {
         </TouchableOpacity>
       </View>
 
-      {posts.length === 0 ? (
-        <EmptyState
-          icon="newspaper-outline"
-          title="Your feed is empty"
-          description="Follow some people to see their posts here. Or create your first post!"
-        />
-      ) : (
-        <FlatList
-          data={posts}
-          renderItem={renderPost}
-          keyExtractor={(item) => item.id}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              tintColor={colors.primary[500]}
-            />
-          }
-          onEndReached={handleEndReached}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={renderFooter}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-
-      {/* Comments bottom sheet */}
-      {activePostId && (
-        <CommentsBottomSheet
-          postId={activePostId}
-          currentUserId={user?.id}
-          onClose={() => setActivePostId(null)}
-        />
-      )}
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        {posts.length === 0 ? (
+          <EmptyState
+            icon="newspaper-outline"
+            title="Your feed is empty"
+            description="Follow some people to see their posts here. Or create your first post!"
+          />
+        ) : (
+          <FlatList
+            data={posts}
+            renderItem={renderPost}
+            keyExtractor={(item) => item.id}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefetching}
+                onRefresh={refetch}
+                tintColor={colors.primary[500]}
+              />
+            }
+            onEndReached={handleEndReached}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={renderFooter}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="always"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          />
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -158,6 +150,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+  },
+  content: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',

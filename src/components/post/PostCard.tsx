@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Keyboard } from 'react-native';
 import { useRouter } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@/components/ui/Avatar';
+import { InlineComments } from '@/components/comments/InlineComments';
 import { ImageGallery } from './ImageGallery';
 import { colors, spacing } from '@/constants/theme';
 import type { FeedPost } from '@/hooks/feed/useFeed';
@@ -11,16 +12,15 @@ import type { FeedPost } from '@/hooks/feed/useFeed';
 interface PostCardProps {
   post: FeedPost;
   currentUserId?: string;
-  onCommentPress: (postId: string) => void;
 }
 
 export function PostCard({
   post,
   currentUserId,
-  onCommentPress,
 }: PostCardProps) {
   const router = useRouter();
   const [showFullReflection, setShowFullReflection] = useState(false);
+  const [showComments, setShowComments] = useState(false);
 
   // created_at is nullable in the schema but always set by the DB default
   const timeAgo = formatDistanceToNow(new Date(post.created_at!), { addSuffix: true });
@@ -34,6 +34,13 @@ export function PostCard({
     } else {
       router.push(`/user/${postAuthorId}`);
     }
+  };
+
+  const handleCommentsToggle = () => {
+    if (showComments) {
+      Keyboard.dismiss();
+    }
+    setShowComments((value) => !value);
   };
 
   const TEXT_LIMIT = 160;
@@ -137,21 +144,41 @@ export function PostCard({
       {/* Actions bar */}
       <View style={styles.actions}>
         <Pressable
-          style={styles.actionButton}
-          onPress={() => onCommentPress(post.id)}
+          style={({ pressed }) => [
+            styles.actionButton,
+            showComments && styles.actionButtonActive,
+            pressed && styles.actionButtonPressed,
+          ]}
+          onPress={handleCommentsToggle}
           accessibilityRole="button"
-          accessibilityLabel={post.comment_count > 0
-            ? `View ${post.comment_count} comments`
-            : 'Add a comment'
+          accessibilityLabel={showComments
+            ? 'Hide comments'
+            : post.comment_count > 0
+              ? `View ${post.comment_count} comments`
+              : 'Add a comment'
           }
+          accessibilityState={{ expanded: showComments }}
           hitSlop={8}
         >
-          <Ionicons name="chatbubble-outline" size={20} color={colors.gray[500]} />
+          <Ionicons
+            name={showComments ? 'chatbubble' : 'chatbubble-outline'}
+            size={20}
+            color={showComments ? colors.primary[500] : colors.gray[500]}
+          />
           {post.comment_count > 0 && (
-            <Text style={styles.actionCount}>{post.comment_count}</Text>
+            <Text style={[
+              styles.actionCount,
+              showComments && styles.actionCountActive,
+            ]}>
+              {post.comment_count}
+            </Text>
           )}
         </Pressable>
       </View>
+
+      {showComments && (
+        <InlineComments postId={post.id} currentUserId={currentUserId} />
+      )}
     </View>
   );
 }
@@ -237,9 +264,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     padding: spacing.xs,
+    borderRadius: 999,
+  },
+  actionButtonActive: {
+    backgroundColor: colors.primary[50],
+  },
+  actionButtonPressed: {
+    opacity: 0.65,
   },
   actionCount: {
     fontSize: 13,
     color: colors.gray[500],
+  },
+  actionCountActive: {
+    color: colors.primary[600],
+    fontWeight: '600',
   },
 });

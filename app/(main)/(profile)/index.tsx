@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +19,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@components/ui';
 import { EmptyState } from '@components/common';
 import { PostCard } from '@/components/post/PostCard';
-import { CommentsBottomSheet } from '@/components/comments/CommentsBottomSheet';
 import { useAuth } from '@providers/AuthProvider';
 import { useUserPosts } from '@/hooks/profile/useUserPosts';
 import { getAvatarUrl } from '@/lib/supabase/storage';
@@ -29,7 +30,6 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function ProfileScreen() {
   const { profile, user } = useAuth();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
-  const [activePostId, setActivePostId] = useState<string | null>(null);
 
   const {
     data: postsData,
@@ -40,10 +40,6 @@ export default function ProfileScreen() {
   } = useUserPosts(user?.id, user?.id);
 
   const posts = postsData?.pages.flatMap((page) => page.posts) ?? [];
-
-  const handleCommentPress = useCallback((postId: string) => {
-    setActivePostId(postId);
-  }, []);
 
   const renderHeader = () => (
     <>
@@ -73,9 +69,8 @@ export default function ProfileScreen() {
     <PostCard
       post={item}
       currentUserId={user?.id}
-      onCommentPress={handleCommentPress}
     />
-  ), [user?.id, handleCommentPress]);
+  ), [user?.id]);
 
   const renderFooter = () => {
     if (isFetchingNextPage) {
@@ -103,30 +98,37 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={posts}
-        renderItem={renderPost}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={renderHeader}
-        ListFooterComponent={renderFooter}
-        ListEmptyComponent={
-          !postsLoading ? (
-            <EmptyState
-              icon="document-text-outline"
-              title="No posts yet"
-              description="Share your first post!"
-            />
-          ) : (
-            <View style={styles.footer}>
-              <ActivityIndicator color={colors.primary[500]} />
-            </View>
-          )
-        }
-        onEndReached={handleEndReached}
-        onEndReachedThreshold={0.5}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-      />
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <FlatList
+          data={posts}
+          renderItem={renderPost}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderHeader}
+          ListFooterComponent={renderFooter}
+          ListEmptyComponent={
+            !postsLoading ? (
+              <EmptyState
+                icon="document-text-outline"
+                title="No posts yet"
+                description="Share your first post!"
+              />
+            ) : (
+              <View style={styles.footer}>
+                <ActivityIndicator color={colors.primary[500]} />
+              </View>
+            )
+          }
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.5}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        />
+      </KeyboardAvoidingView>
 
       {/* Avatar fullscreen modal */}
       <Modal
@@ -156,14 +158,6 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </Pressable>
       </Modal>
-
-      {activePostId && (
-        <CommentsBottomSheet
-          postId={activePostId}
-          currentUserId={user?.id}
-          onClose={() => setActivePostId(null)}
-        />
-      )}
     </SafeAreaView>
   );
 }
@@ -172,6 +166,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+  },
+  content: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',

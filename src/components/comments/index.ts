@@ -1,2 +1,2 @@
 export { CommentItem } from './CommentItem';
-export { CommentsBottomSheet } from './CommentsBottomSheet';
+export { InlineComments } from './InlineComments';
