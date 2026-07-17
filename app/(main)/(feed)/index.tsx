@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,25 +6,22 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
-  Pressable,
+  KeyboardAvoidingView,
+  Platform,
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import BottomSheet from '@gorhom/bottom-sheet';
 import { useAuth } from '@providers/AuthProvider';
 import { useFeed, type FeedPost } from '@/hooks/feed/useFeed';
 import { PostCard } from '@/components/post/PostCard';
-import { CommentsBottomSheet } from '@/components/comments/CommentsBottomSheet';
 import { EmptyState } from '@components/common';
 import { Skeleton } from '@components/ui';
 import { colors, spacing, typography } from '@constants/theme';
 
 export default function FeedScreen() {
   const { user } = useAuth();
-  const bottomSheetRef = useRef<BottomSheet>(null);
-  const [activePostId, setActivePostId] = useState<string | null>(null);
   const {
     data,
     fetchNextPage,
@@ -37,28 +34,12 @@ export default function FeedScreen() {
 
   const posts = data?.pages.flatMap((page) => page.posts) ?? [];
 
-  const handleCommentPress = useCallback((postId: string) => {
-    setActivePostId(postId);
-  }, []);
-
-  // Snap bottom sheet open once the component mounts with activePostId
-  useEffect(() => {
-    if (activePostId) {
-      // Small delay to let the BottomSheet mount before snapping
-      const timeout = setTimeout(() => {
-        bottomSheetRef.current?.snapToIndex(0);
-      }, 100);
-      return () => clearTimeout(timeout);
-    }
-  }, [activePostId]);
-
   const renderPost = useCallback(({ item }: { item: FeedPost }) => (
     <PostCard
       post={item}
       currentUserId={user?.id}
-      onCommentPress={handleCommentPress}
     />
-  ), [user?.id, handleCommentPress]);
+  ), [user?.id]);
 
   const renderFooter = useCallback(() => {
     if (isFetchingNextPage) {
@@ -130,39 +111,37 @@ export default function FeedScreen() {
         </TouchableOpacity>
       </View>
 
-      {posts.length === 0 ? (
-        <EmptyState
-          icon="newspaper-outline"
-          title="Your feed is empty"
-          description="Follow some people to see their posts here. Or create your first post!"
-        />
-      ) : (
-        <FlatList
-          data={posts}
-          renderItem={renderPost}
-          keyExtractor={(item) => item.id}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              tintColor={colors.primary[500]}
-            />
-          }
-          onEndReached={handleEndReached}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={renderFooter}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-
-      {/* Comments bottom sheet */}
-      {activePostId && (
-        <CommentsBottomSheet
-          postId={activePostId}
-          currentUserId={user?.id}
-          bottomSheetRef={bottomSheetRef}
-        />
-      )}
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        {posts.length === 0 ? (
+          <EmptyState
+            icon="newspaper-outline"
+            title="Your feed is empty"
+            description="Follow some people to see their posts here. Or create your first post!"
+          />
+        ) : (
+          <FlatList
+            data={posts}
+            renderItem={renderPost}
+            keyExtractor={(item) => item.id}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefetching}
+                onRefresh={refetch}
+                tintColor={colors.primary[500]}
+              />
+            }
+            onEndReached={handleEndReached}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={renderFooter}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="always"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          />
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -171,6 +150,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+  },
+  content: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',

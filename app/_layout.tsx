@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -8,10 +8,21 @@ import { AuthProvider, useAuth } from '@providers/AuthProvider';
 import { QueryProvider } from '@providers/QueryProvider';
 import { ThemeProvider } from '@providers/ThemeProvider';
 import { LoadingScreen } from '@components/common';
+import { DevAccountSwitcher } from '@components/dev/DevAccountSwitcher';
 import { supabase } from '@lib/supabase';
 
-// Keep splash screen visible while we load resources
-SplashScreen.preventAutoHideAsync();
+function handleSplashScreenError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  // Expo Go and Fast Refresh can remount the JS app after the native splash
+  // controller has already been removed. That is safe to ignore.
+  if (!message.includes('No native splash screen registered')) {
+    console.warn('Splash screen lifecycle error:', error);
+  }
+}
+
+// Keep the native splash visible while the initial auth state is loading.
+void SplashScreen.preventAutoHideAsync().catch(handleSplashScreenError);
 
 function extractSessionFromUrl(url: string) {
   const fragment = url.split('#')[1];
@@ -31,6 +42,7 @@ function RootLayoutNav() {
   const { isLoading, isAuthenticated, needsOnboarding } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const hasHiddenSplash = useRef(false);
 
   // Handle deep links with auth tokens
   useEffect(() => {
@@ -55,10 +67,14 @@ function RootLayoutNav() {
   }, []);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || hasHiddenSplash.current) return;
 
-    // Hide splash screen once we've determined auth state
-    SplashScreen.hideAsync();
+    hasHiddenSplash.current = true;
+    void SplashScreen.hideAsync().catch(handleSplashScreenError);
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (isLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboarding = (segments as string[]).includes('onboarding');
@@ -105,6 +121,7 @@ export default function RootLayout() {
         <ThemeProvider>
           <AuthProvider>
             <RootLayoutNav />
+            <DevAccountSwitcher />
           </AuthProvider>
         </ThemeProvider>
       </QueryProvider>

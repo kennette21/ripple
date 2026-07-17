@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -96,30 +98,37 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={posts}
-        renderItem={renderPost}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={renderHeader}
-        ListFooterComponent={renderFooter}
-        ListEmptyComponent={
-          !postsLoading ? (
-            <EmptyState
-              icon="document-text-outline"
-              title="No posts yet"
-              description="Share your first post!"
-            />
-          ) : (
-            <View style={styles.footer}>
-              <ActivityIndicator color={colors.primary[500]} />
-            </View>
-          )
-        }
-        onEndReached={handleEndReached}
-        onEndReachedThreshold={0.5}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-      />
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <FlatList
+          data={posts}
+          renderItem={renderPost}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderHeader}
+          ListFooterComponent={renderFooter}
+          ListEmptyComponent={
+            !postsLoading ? (
+              <EmptyState
+                icon="document-text-outline"
+                title="No posts yet"
+                description="Share your first post!"
+              />
+            ) : (
+              <View style={styles.footer}>
+                <ActivityIndicator color={colors.primary[500]} />
+              </View>
+            )
+          }
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.5}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        />
+      </KeyboardAvoidingView>
 
       {/* Avatar fullscreen modal */}
       <Modal
@@ -157,6 +166,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+  },
+  content: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',

@@ -42,7 +42,7 @@ After the first native build, day-to-day JS changes only need Metro running; you
 
 ### with seeded data
 
-Spin up the app + a local postgres container with migrations applied + seeding by running:
+Spin up the app + a local postgres container with migrations applied and seeding by running:
 
 ```bash
 npm run dev-start
@@ -54,12 +54,6 @@ if you'd like to re-apply the migrations, run with `:reset`
 npm run dev-start:reset
 ```
 
-the admin user of the dev db is
-
-```
-admin@ripple.local
-12345678
-```
 
 ### Checks
 

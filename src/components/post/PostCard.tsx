@@ -1,26 +1,41 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Keyboard,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@/components/ui/Avatar';
+import { InlineComments } from '@/components/comments/InlineComments';
 import { ImageGallery } from './ImageGallery';
+import { useUpdatePostPrivacy } from '@/hooks/posts/useUpdatePostPrivacy';
 import { colors, spacing } from '@/constants/theme';
 import type { FeedPost } from '@/hooks/feed/useFeed';
 
 interface PostCardProps {
   post: FeedPost;
   currentUserId?: string;
-  onCommentPress?: (postId: string) => void;
 }
 
 export function PostCard({
   post,
   currentUserId,
-  onCommentPress,
 }: PostCardProps) {
   const router = useRouter();
   const [showFullReflection, setShowFullReflection] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(post.is_private);
+  const updatePrivacy = useUpdatePostPrivacy();
+
+  useEffect(() => {
+    setIsPrivate(post.is_private);
+  }, [post.is_private]);
 
   // created_at is nullable in the schema but always set by the DB default
   const timeAgo = formatDistanceToNow(new Date(post.created_at!), { addSuffix: true });
@@ -34,6 +49,46 @@ export function PostCard({
     } else {
       router.push(`/user/${postAuthorId}`);
     }
+  };
+
+  const handleCommentsToggle = () => {
+    if (showComments) {
+      Keyboard.dismiss();
+    }
+    setShowComments((value) => !value);
+  };
+
+  const handlePrivacyToggle = () => {
+    if (!isOwnPost || updatePrivacy.isPending) return;
+
+    const makePrivate = !isPrivate;
+    Alert.alert(
+      makePrivate ? 'Make this post private?' : 'Make this post public?',
+      makePrivate
+        ? 'Only you will be able to see it. It will be removed from everyone else\'s feed and your public profile.'
+        : 'People in your pond will be able to see it in their feeds and on your profile.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: makePrivate ? 'Make private' : 'Make public',
+          onPress: async () => {
+            try {
+              const updatedPost = await updatePrivacy.mutateAsync({
+                postId: post.id,
+                authorId: postAuthorId,
+                isPrivate: makePrivate,
+              });
+              setIsPrivate(updatedPost.is_private);
+            } catch (error: any) {
+              Alert.alert(
+                'Could not update privacy',
+                error.message || 'Please try again.'
+              );
+            }
+          },
+        },
+      ]
+    );
   };
 
   const TEXT_LIMIT = 160;
@@ -95,7 +150,7 @@ export function PostCard({
   const hasImages = post.images && post.images.length > 0;
 
   // Only show lock icon to the post owner
-  const showLockIcon = post.is_private && isOwnPost;
+  const showLockIcon = isPrivate && isOwnPost;
 
   return (
     <View style={styles.container}>
@@ -137,15 +192,72 @@ export function PostCard({
       {/* Actions bar */}
       <View style={styles.actions}>
         <Pressable
-          style={styles.actionButton}
-          onPress={() => onCommentPress?.(post.id)}
+          style={({ pressed }) => [
+            styles.actionButton,
+            showComments && styles.actionButtonActive,
+            pressed && styles.actionButtonPressed,
+          ]}
+          onPress={handleCommentsToggle}
+          accessibilityRole="button"
+          accessibilityLabel={showComments
+            ? 'Hide comments'
+            : post.comment_count > 0
+              ? `View ${post.comment_count} comments`
+              : 'Add a comment'
+          }
+          accessibilityState={{ expanded: showComments }}
+          hitSlop={8}
         >
-          <Ionicons name="chatbubble-outline" size={20} color={colors.gray[500]} />
+          <Ionicons
+            name={showComments ? 'chatbubble' : 'chatbubble-outline'}
+            size={20}
+            color={showComments ? colors.primary[500] : colors.gray[500]}
+          />
           {post.comment_count > 0 && (
-            <Text style={styles.actionCount}>{post.comment_count}</Text>
+            <Text style={[
+              styles.actionCount,
+              showComments && styles.actionCountActive,
+            ]}>
+              {post.comment_count}
+            </Text>
           )}
         </Pressable>
+
+        {isOwnPost && (
+          <Pressable
+            style={({ pressed }) => [
+              styles.privacyButton,
+              isPrivate && styles.privacyButtonPrivate,
+              pressed && styles.actionButtonPressed,
+            ]}
+            onPress={handlePrivacyToggle}
+            disabled={updatePrivacy.isPending}
+            accessibilityRole="button"
+            accessibilityLabel={`Post is ${isPrivate ? 'private' : 'public'}. Change privacy`}
+            accessibilityState={{ busy: updatePrivacy.isPending }}
+          >
+            {updatePrivacy.isPending ? (
+              <ActivityIndicator size="small" color={colors.gray[500]} />
+            ) : (
+              <Ionicons
+                name={isPrivate ? 'lock-closed' : 'globe-outline'}
+                size={15}
+                color={isPrivate ? colors.primary[600] : colors.gray[500]}
+              />
+            )}
+            <Text style={[
+              styles.privacyButtonText,
+              isPrivate && styles.privacyButtonTextPrivate,
+            ]}>
+              {isPrivate ? 'Private' : 'Public'}
+            </Text>
+          </Pressable>
+        )}
       </View>
+
+      {showComments && (
+        <InlineComments postId={post.id} currentUserId={currentUserId} />
+      )}
     </View>
   );
 }
@@ -222,6 +334,7 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     gap: spacing.lg,
@@ -231,9 +344,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     padding: spacing.xs,
+    borderRadius: 999,
+  },
+  actionButtonActive: {
+    backgroundColor: colors.primary[50],
+  },
+  actionButtonPressed: {
+    opacity: 0.65,
   },
   actionCount: {
     fontSize: 13,
     color: colors.gray[500],
+  },
+  actionCountActive: {
+    color: colors.primary[600],
+    fontWeight: '600',
+  },
+  privacyButton: {
+    minHeight: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 999,
+    backgroundColor: colors.gray[100],
+  },
+  privacyButtonPrivate: {
+    backgroundColor: colors.primary[50],
+  },
+  privacyButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.gray[600],
+  },
+  privacyButtonTextPrivate: {
+    color: colors.primary[600],
   },
 });

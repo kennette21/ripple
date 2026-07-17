@@ -69,6 +69,21 @@ async function createComment(
   return data;
 }
 
+async function updateComment(commentId: string, content: string) {
+  const { data, error } = await (supabase
+    .from('comments') as any)
+    .update({ content })
+    .eq('id', commentId)
+    .select(`
+      *,
+      author:profiles!comments_author_id_fkey(*)
+    `)
+    .single();
+
+  if (error) throw error;
+  return data as CommentWithAuthor;
+}
+
 async function deleteComment(commentId: string) {
   const { error } = await (supabase
     .from('comments') as any)
@@ -98,8 +113,42 @@ export function useCreateComment() {
     }) => createComment(postId, userId, content, parentId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.comments.byPost(variables.postId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.posts.detail(variables.postId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.posts.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
+    },
+  });
+}
+
+export function useUpdateComment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ commentId, content }: {
+      commentId: string;
+      postId: string;
+      content: string;
+    }) => updateComment(commentId, content),
+    onSuccess: (updatedComment, variables) => {
+      queryClient.setQueryData<CommentWithAuthor[]>(
+        queryKeys.comments.byPost(variables.postId),
+        (comments) => comments?.map((comment) => {
+          if (comment.id === updatedComment.id) {
+            return { ...updatedComment, replies: comment.replies };
+          }
+
+          return {
+            ...comment,
+            replies: comment.replies?.map((reply) =>
+              reply.id === updatedComment.id
+                ? { ...updatedComment, replies: reply.replies }
+                : reply
+            ),
+          };
+        })
+      );
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.comments.byPost(variables.postId),
+      });
     },
   });
 }

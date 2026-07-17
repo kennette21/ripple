@@ -12,6 +12,7 @@ async function fetchPost(postId: string, userId: string): Promise<FeedPost> {
       images:post_images(*)
     `)
     .eq('id', postId)
+    .or(`is_private.eq.false,author_id.eq.${userId}`)
     .single();
 
   if (error) throw error;
@@ -41,7 +42,7 @@ async function fetchPost(postId: string, userId: string): Promise<FeedPost> {
 
 export function usePost(postId: string | undefined, userId: string | undefined) {
   return useQuery({
-    queryKey: queryKeys.posts.detail(postId || ''),
+    queryKey: queryKeys.posts.detail(postId || '', userId || ''),
     queryFn: () => fetchPost(postId!, userId!),
     enabled: !!postId && !!userId,
   });

@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
   TouchableOpacity,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -143,28 +145,35 @@ export default function UserProfileScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      <FlatList
-        data={posts}
-        renderItem={renderPost}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={renderHeader}
-        ListFooterComponent={renderFooter}
-        ListEmptyComponent={
-          !postsLoading ? (
-            <EmptyState
-              icon="document-text-outline"
-              title="No posts yet"
-              description={isOwnProfile
-                ? "You haven't posted anything yet. Share your first post!"
-                : "This user hasn't posted anything yet."
-              }
-            />
-          ) : null
-        }
-        onEndReached={handleEndReached}
-        onEndReachedThreshold={0.5}
-        showsVerticalScrollIndicator={false}
-      />
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <FlatList
+          data={posts}
+          renderItem={renderPost}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderHeader}
+          ListFooterComponent={renderFooter}
+          ListEmptyComponent={
+            !postsLoading ? (
+              <EmptyState
+                icon="document-text-outline"
+                title="No posts yet"
+                description={isOwnProfile
+                  ? "You haven't posted anything yet. Share your first post!"
+                  : "This user hasn't posted anything yet."
+                }
+              />
+            ) : null
+          }
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.5}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        />
+      </KeyboardAvoidingView>
 
       {/* Avatar fullscreen modal */}
       <Modal
@@ -202,6 +211,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+  },
+  content: {
+    flex: 1,
   },
   navbar: {
     flexDirection: 'row',
