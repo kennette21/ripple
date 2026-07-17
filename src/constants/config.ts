@@ -6,6 +6,7 @@ const useLocalSupabase = Boolean(localSupabaseUrl && localSupabaseAnonKey);
 export const APP_CONFIG = {
   name: 'Ripple',
   version: '1.0.0',
+  isLocalSupabase: useLocalSupabase,
 
   // API
   supabaseUrl: useLocalSupabase

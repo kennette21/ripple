@@ -1,6 +1,6 @@
 -- Profiles are inserted first because the remaining fixtures reference them.
 -- The on_profile_create trigger also creates notification settings and feed
--- watermarks, which are customized below.
+-- watermarks for every seeded user.
 
 insert into public.profiles (
   id,
@@ -15,72 +15,56 @@ insert into public.profiles (
 values
   (
     '00000000-0000-4000-8000-000000000001',
-    'admin',
-    'Ripple Dev',
-    'The primary local development account.',
-    'avatar.png',
+    'marcus_aurelius',
+    'Marcus Aurelius',
+    'Taking the scenic route whenever possible.',
+    'avatar-01.png',
     30,
     true,
     null
   ),
   (
     '00000000-0000-4000-8000-000000000002',
-    'maya',
-    'Maya Chen',
-    'Designer, reader, and enthusiastic walker.',
-    'avatar.png',
-    20,
+    'julius_caesar',
+    'Julius Caesar',
+    'Making things and sharing the good bits.',
+    'avatar-02.png',
+    30,
     true,
     null
   ),
   (
     '00000000-0000-4000-8000-000000000003',
-    'alex',
-    'Alex Rivera',
-    'Trying to spend more time making things.',
-    'avatar.png',
-    45,
+    'augustus',
+    'Augustus',
+    'Coffee, music, and long conversations.',
+    'avatar-03.png',
+    30,
     true,
     null
   ),
   (
     '00000000-0000-4000-8000-000000000004',
-    'jordan',
-    'Jordan Kim',
-    'Coffee, cameras, and long train rides.',
-    'avatar.png',
-    25,
+    'cicero',
+    'Cicero',
+    'Usually outside or planning the next trip.',
+    'avatar-04.png',
+    30,
     true,
     null
   ),
   (
     '00000000-0000-4000-8000-000000000005',
-    'sam',
-    'Sam Okafor',
-    'Finding a little more quiet in every day.',
-    'avatar.png',
-    15,
+    'seneca',
+    'Seneca',
+    'Collecting small moments worth remembering.',
+    'avatar-05.png',
+    30,
     true,
     null
   );
 
-update public.notification_settings
-set batch_interval_minutes = 30
-where user_id = '00000000-0000-4000-8000-000000000001';
-
-update public.notification_settings
-set
-  dnd_enabled = true,
-  dnd_start_time = '22:00:00',
-  dnd_end_time = '07:00:00'
-where user_id = '00000000-0000-4000-8000-000000000005';
-
-update public.feed_watermarks
-set
-  last_seen_at = now() - interval '2 hours',
-  updated_at = now() - interval '1 hour'
-where user_id = '00000000-0000-4000-8000-000000000001';
-
+-- Each user has one public post and one private reflection.
 insert into public.posts (
   id,
   author_id,
@@ -95,75 +79,95 @@ values
     '10000000-0000-4000-8000-000000000001',
     '00000000-0000-4000-8000-000000000001',
     'both',
-    'Welcome to the local Ripple',
-    'This account is a normal authenticated user, so local development exercises the same sessions, profile loading, and row-level security as production.',
-    now() - interval '1 hour',
+    'The blur makes this feel like a memory in motion.',
+    'I keep seeing a different expression every time I look at it.',
+    now() - interval '5 hours',
     false
   ),
   (
     '10000000-0000-4000-8000-000000000002',
-    '00000000-0000-4000-8000-000000000002',
-    'caption',
-    'A slow morning and a very good cup of coffee.',
+    '00000000-0000-4000-8000-000000000001',
+    'reflection',
     null,
-    now() - interval '3 hours',
-    false
+    'A private note from Marcus Aurelius about slowing down and leaving more room in the day.',
+    now() - interval '15 hours',
+    true
   ),
   (
     '10000000-0000-4000-8000-000000000003',
-    '00000000-0000-4000-8000-000000000003',
-    'reflection',
+    '00000000-0000-4000-8000-000000000002',
+    'caption',
+    'A tiny ship against all of that weather.',
     null,
-    'I left my phone at home for the walk today. It felt strange for five minutes and completely normal after ten.',
-    now() - interval '7 hours',
+    now() - interval '4 hours',
     false
   ),
   (
     '10000000-0000-4000-8000-000000000004',
-    '00000000-0000-4000-8000-000000000004',
-    'both',
-    'Somewhere between here and there',
-    'Train windows turn an ordinary afternoon into a sequence of small landscapes.',
-    now() - interval '11 hours',
-    false
+    '00000000-0000-4000-8000-000000000002',
+    'reflection',
+    null,
+    'A private note from Julius Caesar about what to make next.',
+    now() - interval '16 hours',
+    true
   ),
   (
     '10000000-0000-4000-8000-000000000005',
-    '00000000-0000-4000-8000-000000000005',
-    'caption',
-    'Today was quieter than yesterday. I needed that.',
-    null,
-    now() - interval '20 hours',
+    '00000000-0000-4000-8000-000000000003',
+    'both',
+    'Every glance finds a different path through this.',
+    'The quieter palette somehow makes all of that movement feel even louder.',
+    now() - interval '3 hours',
     false
   ),
   (
     '10000000-0000-4000-8000-000000000006',
-    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000003',
     'reflection',
-    'Private reflection fixture',
-    'This private post is useful for checking the owner-only presentation in the feed.',
-    now() - interval '28 hours',
+    null,
+    'A private note from Augustus about making more time for music.',
+    now() - interval '17 hours',
     true
   ),
   (
     '10000000-0000-4000-8000-000000000007',
-    '00000000-0000-4000-8000-000000000002',
+    '00000000-0000-4000-8000-000000000004',
     'caption',
-    'Finished a book without checking notifications between chapters.',
+    'Two completely different kinds of graphic energy.',
     null,
-    now() - interval '34 hours',
+    now() - interval '2 hours',
     false
   ),
   (
     '10000000-0000-4000-8000-000000000008',
-    '00000000-0000-4000-8000-000000000003',
+    '00000000-0000-4000-8000-000000000004',
+    'reflection',
+    null,
+    'A private note from Cicero about the next place he wants to explore.',
+    now() - interval '18 hours',
+    true
+  ),
+  (
+    '10000000-0000-4000-8000-000000000009',
+    '00000000-0000-4000-8000-000000000005',
     'both',
-    'Made something small today',
-    'Small counts. Finished counts even more.',
-    now() - interval '48 hours',
+    'The light makes the whole scene feel immediate.',
+    'It is difficult to look away from the tension between every figure.',
+    now() - interval '1 hour',
     false
+  ),
+  (
+    '10000000-0000-4000-8000-000000000010',
+    '00000000-0000-4000-8000-000000000005',
+    'reflection',
+    null,
+    'A private note from Seneca about holding onto a calm weekend feeling.',
+    now() - interval '19 hours',
+    true
   );
 
+-- Give every public post unique artwork so seeded feeds are easy to distinguish.
+-- Cicero's post has two images to exercise multi-image rendering.
 insert into public.post_images (
   id,
   post_id,
@@ -174,89 +178,48 @@ insert into public.post_images (
   created_at
 )
 values
-  (
-    '20000000-0000-4000-8000-000000000001',
-    '10000000-0000-4000-8000-000000000001',
-    'post.png',
-    296,
-    640,
-    0,
-    now() - interval '1 hour'
-  ),
-  (
-    '20000000-0000-4000-8000-000000000002',
-    '10000000-0000-4000-8000-000000000002',
-    'post.png',
-    296,
-    640,
-    0,
-    now() - interval '3 hours'
-  ),
-  (
-    '20000000-0000-4000-8000-000000000004',
-    '10000000-0000-4000-8000-000000000004',
-    'post.png',
-    296,
-    640,
-    0,
-    now() - interval '11 hours'
-  ),
-  (
-    '20000000-0000-4000-8000-000000000008',
-    '10000000-0000-4000-8000-000000000008',
-    'post.png',
-    296,
-    640,
-    0,
-    now() - interval '48 hours'
-  );
+  ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'frau-die-treppe.jpg', 843, 1315, 0, now() - interval '5 hours'),
+  ('20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000003', 'ship-at-sea.jpeg', 1920, 1080, 0, now() - interval '4 hours'),
+  ('20000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000005', 'number-23.jpg', 1536, 1126, 0, now() - interval '3 hours'),
+  ('20000000-0000-4000-8000-000000000004', '10000000-0000-4000-8000-000000000007', 'brushstroke-with-spatter.jpg', 843, 711, 0, now() - interval '2 hours'),
+  ('20000000-0000-4000-8000-000000000005', '10000000-0000-4000-8000-000000000007', 'alkaseltzer.jpg', 843, 1118, 1, now() - interval '2 hours'),
+  ('20000000-0000-4000-8000-000000000006', '10000000-0000-4000-8000-000000000009', 'dramatic-scene.jpg', 2000, 1479, 0, now() - interval '1 hour');
 
+-- A user's outgoing follows are the people in that user's pond.
 insert into public.follows (id, follower_id, following_id, created_at)
 values
-  ('30000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002', now() - interval '72 hours'),
-  ('30000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000003', now() - interval '69 hours'),
-  ('30000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000004', now() - interval '66 hours'),
-  ('30000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000005', now() - interval '63 hours'),
-  ('30000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001', now() - interval '60 hours'),
-  ('30000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', now() - interval '57 hours'),
-  ('30000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', now() - interval '54 hours'),
-  ('30000000-0000-4000-8000-000000000008', '00000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000002', now() - interval '51 hours'),
-  ('30000000-0000-4000-8000-000000000009', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003', now() - interval '48 hours');
+  -- Seneca -> Julius Caesar
+  ('30000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000002', now() - interval '5 days'),
+  -- Cicero -> Julius Caesar, Augustus
+  ('30000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000002', now() - interval '5 days'),
+  ('30000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000003', now() - interval '5 days'),
+  -- Marcus Aurelius -> Julius Caesar
+  ('30000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002', now() - interval '5 days'),
+  -- Augustus -> Marcus Aurelius, Cicero
+  ('30000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', now() - interval '5 days'),
+  ('30000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000004', now() - interval '5 days'),
+  -- Julius Caesar -> Seneca, Cicero, Augustus
+  ('30000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000005', now() - interval '5 days'),
+  ('30000000-0000-4000-8000-000000000008', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000004', now() - interval '5 days'),
+  ('30000000-0000-4000-8000-000000000009', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003', now() - interval '5 days');
 
-insert into public.notifications (
+-- Each pond relationship also has a comment on the followed user's public post.
+insert into public.comments (
   id,
-  recipient_id,
-  actor_id,
-  type,
   post_id,
-  read,
+  author_id,
+  parent_id,
+  content,
+  depth,
   created_at
 )
 values
-  (
-    '40000000-0000-4000-8000-000000000001',
-    '00000000-0000-4000-8000-000000000001',
-    '00000000-0000-4000-8000-000000000002',
-    'mention',
-    '10000000-0000-4000-8000-000000000002',
-    false,
-    now() - interval '2 hours'
-  ),
-  (
-    '40000000-0000-4000-8000-000000000002',
-    '00000000-0000-4000-8000-000000000001',
-    '00000000-0000-4000-8000-000000000003',
-    'repost',
-    '10000000-0000-4000-8000-000000000001',
-    true,
-    now() - interval '8 hours'
-  ),
-  (
-    '40000000-0000-4000-8000-000000000003',
-    '00000000-0000-4000-8000-000000000002',
-    '00000000-0000-4000-8000-000000000001',
-    'mention',
-    '10000000-0000-4000-8000-000000000001',
-    false,
-    now() - interval '1 hour'
-  );
+  ('50000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000005', null, 'That sea looks almost alive.', 0, now() - interval '3 hours 45 minutes'),
+  ('50000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000004', null, 'The scale of the storm is incredible.', 0, now() - interval '3 hours 30 minutes'),
+  ('50000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000004', null, 'I keep finding new details in this.', 0, now() - interval '2 hours 45 minutes'),
+  ('50000000-0000-4000-8000-000000000004', '10000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', null, 'I love that tiny orange flag against the blue.', 0, now() - interval '3 hours 15 minutes'),
+  ('50000000-0000-4000-8000-000000000005', '10000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000003', null, 'The sense of motion is so good.', 0, now() - interval '4 hours 30 minutes'),
+  ('50000000-0000-4000-8000-000000000006', '10000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000003', null, 'These make a great pairing.', 0, now() - interval '1 hour 45 minutes'),
+  ('50000000-0000-4000-8000-000000000007', '10000000-0000-4000-8000-000000000009', '00000000-0000-4000-8000-000000000002', null, 'The dramatic light is unreal.', 0, now() - interval '45 minutes'),
+  ('50000000-0000-4000-8000-000000000008', '10000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000002', null, 'The second one is wonderfully strange.', 0, now() - interval '1 hour 30 minutes'),
+  ('50000000-0000-4000-8000-000000000009', '10000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000002', null, 'This works so well in black and white.', 0, now() - interval '2 hours 30 minutes');

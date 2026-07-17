@@ -3,11 +3,11 @@
 
 with seed_users (id, email, display_name) as (
   values
-    ('00000000-0000-4000-8000-000000000001'::uuid, 'admin@ripple.local', 'Ripple Dev'),
-    ('00000000-0000-4000-8000-000000000002'::uuid, 'maya@ripple.local', 'Maya Chen'),
-    ('00000000-0000-4000-8000-000000000003'::uuid, 'alex@ripple.local', 'Alex Rivera'),
-    ('00000000-0000-4000-8000-000000000004'::uuid, 'jordan@ripple.local', 'Jordan Kim'),
-    ('00000000-0000-4000-8000-000000000005'::uuid, 'sam@ripple.local', 'Sam Okafor')
+    ('00000000-0000-4000-8000-000000000001'::uuid, 'marcus.aurelius@gmail.com', 'Marcus Aurelius'),
+    ('00000000-0000-4000-8000-000000000002'::uuid, 'julius.caesar@gmail.com', 'Julius Caesar'),
+    ('00000000-0000-4000-8000-000000000003'::uuid, 'augustus@gmail.com', 'Augustus'),
+    ('00000000-0000-4000-8000-000000000004'::uuid, 'cicero@gmail.com', 'Cicero'),
+    ('00000000-0000-4000-8000-000000000005'::uuid, 'seneca@gmail.com', 'Seneca')
 )
 insert into auth.users (
   instance_id,
@@ -54,11 +54,11 @@ from seed_users;
 
 with seed_users (id, identity_id, email) as (
   values
-    ('00000000-0000-4000-8000-000000000001'::uuid, '00000000-0000-4000-9000-000000000001'::uuid, 'admin@ripple.local'),
-    ('00000000-0000-4000-8000-000000000002'::uuid, '00000000-0000-4000-9000-000000000002'::uuid, 'maya@ripple.local'),
-    ('00000000-0000-4000-8000-000000000003'::uuid, '00000000-0000-4000-9000-000000000003'::uuid, 'alex@ripple.local'),
-    ('00000000-0000-4000-8000-000000000004'::uuid, '00000000-0000-4000-9000-000000000004'::uuid, 'jordan@ripple.local'),
-    ('00000000-0000-4000-8000-000000000005'::uuid, '00000000-0000-4000-9000-000000000005'::uuid, 'sam@ripple.local')
+    ('00000000-0000-4000-8000-000000000001'::uuid, '00000000-0000-4000-9000-000000000001'::uuid, 'marcus.aurelius@gmail.com'),
+    ('00000000-0000-4000-8000-000000000002'::uuid, '00000000-0000-4000-9000-000000000002'::uuid, 'julius.caesar@gmail.com'),
+    ('00000000-0000-4000-8000-000000000003'::uuid, '00000000-0000-4000-9000-000000000003'::uuid, 'augustus@gmail.com'),
+    ('00000000-0000-4000-8000-000000000004'::uuid, '00000000-0000-4000-9000-000000000004'::uuid, 'cicero@gmail.com'),
+    ('00000000-0000-4000-8000-000000000005'::uuid, '00000000-0000-4000-9000-000000000005'::uuid, 'seneca@gmail.com')
 )
 insert into auth.identities (
   provider_id,
