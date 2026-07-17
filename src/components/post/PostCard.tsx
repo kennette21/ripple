@@ -11,7 +11,7 @@ import type { FeedPost } from '@/hooks/feed/useFeed';
 interface PostCardProps {
   post: FeedPost;
   currentUserId?: string;
-  onCommentPress?: (postId: string) => void;
+  onCommentPress: (postId: string) => void;
 }
 
 export function PostCard({
@@ -138,7 +138,13 @@ export function PostCard({
       <View style={styles.actions}>
         <Pressable
           style={styles.actionButton}
-          onPress={() => onCommentPress?.(post.id)}
+          onPress={() => onCommentPress(post.id)}
+          accessibilityRole="button"
+          accessibilityLabel={post.comment_count > 0
+            ? `View ${post.comment_count} comments`
+            : 'Add a comment'
+          }
+          hitSlop={8}
         >
           <Ionicons name="chatbubble-outline" size={20} color={colors.gray[500]} />
           {post.comment_count > 0 && (

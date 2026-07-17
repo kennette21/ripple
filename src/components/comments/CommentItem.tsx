@@ -12,6 +12,7 @@ interface CommentItemProps {
   currentUserId?: string;
   onReply?: (comment: CommentWithAuthor) => void;
   onDelete?: (commentId: string) => void;
+  onProfilePress?: (userId: string) => void;
   isReply?: boolean;
 }
 
@@ -20,6 +21,7 @@ export function CommentItem({
   currentUserId,
   onReply,
   onDelete,
+  onProfilePress,
   isReply = false,
 }: CommentItemProps) {
   const router = useRouter();
@@ -32,7 +34,17 @@ export function CommentItem({
   const hasReplies = comment.replies && comment.replies.length > 0;
 
   const handleProfilePress = () => {
-    router.push(`/user/${commentAuthorId}`);
+    if (onProfilePress) {
+      onProfilePress(commentAuthorId);
+    } else {
+      router.push(`/user/${commentAuthorId}`);
+    }
+  };
+
+  const handleLongPress = () => {
+    if (isOwnComment && onDelete) {
+      onDelete(comment.id);
+    }
   };
 
   return (
@@ -46,32 +58,32 @@ export function CommentItem({
       </Pressable>
 
       <View style={styles.content}>
-        <View style={styles.header}>
-          <Pressable onPress={handleProfilePress}>
-            <Text style={styles.username}>
-              {comment.author.display_name || comment.author.username}
-            </Text>
-          </Pressable>
-          <Text style={styles.time}>{timeAgo}</Text>
-        </View>
+        <Pressable
+          onLongPress={handleLongPress}
+          delayLongPress={450}
+          accessibilityHint={isOwnComment ? 'Long press to delete this comment' : undefined}
+          style={({ pressed }) => pressed && isOwnComment && styles.commentBodyPressed}
+        >
+          <View style={styles.header}>
+            <Pressable onPress={handleProfilePress}>
+              <Text style={styles.username}>
+                {comment.author.display_name || comment.author.username}
+              </Text>
+            </Pressable>
+            <Text style={styles.time}>{timeAgo}</Text>
+          </View>
 
-        <Text style={styles.text}>{comment.content}</Text>
+          <Text style={styles.text}>{comment.content}</Text>
 
-        <View style={styles.actions}>
           {!isReply && onReply && (
-            <Pressable style={styles.actionButton} onPress={() => onReply(comment)}>
-              <Ionicons name="chatbubble-outline" size={14} color={colors.gray[500]} />
-              <Text style={styles.actionText}>Reply</Text>
-            </Pressable>
+            <View style={styles.actions}>
+              <Pressable style={styles.actionButton} onPress={() => onReply(comment)}>
+                <Ionicons name="chatbubble-outline" size={14} color={colors.gray[500]} />
+                <Text style={styles.actionText}>Reply</Text>
+              </Pressable>
+            </View>
           )}
-
-          {isOwnComment && onDelete && (
-            <Pressable style={styles.actionButton} onPress={() => onDelete(comment.id)}>
-              <Ionicons name="trash-outline" size={14} color={colors.error.main} />
-              <Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
-            </Pressable>
-          )}
-        </View>
+        </Pressable>
 
         {/* Replies */}
         {hasReplies && (
@@ -93,6 +105,7 @@ export function CommentItem({
                 comment={reply}
                 currentUserId={currentUserId}
                 onDelete={onDelete}
+                onProfilePress={onProfilePress}
                 isReply
               />
             ))}
@@ -115,6 +128,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     marginLeft: spacing.sm,
+  },
+  commentBodyPressed: {
+    opacity: 0.65,
   },
   header: {
     flexDirection: 'row',
@@ -150,9 +166,6 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 12,
     color: colors.gray[500],
-  },
-  deleteText: {
-    color: colors.error.main,
   },
   repliesSection: {
     marginTop: spacing.xs,

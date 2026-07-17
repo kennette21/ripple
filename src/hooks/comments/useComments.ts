@@ -98,7 +98,7 @@ export function useCreateComment() {
     }) => createComment(postId, userId, content, parentId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.comments.byPost(variables.postId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.posts.detail(variables.postId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.posts.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
     },
   });

@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@components/ui';
 import { EmptyState } from '@components/common';
 import { PostCard } from '@/components/post/PostCard';
+import { CommentsBottomSheet } from '@/components/comments/CommentsBottomSheet';
 import { useAuth } from '@providers/AuthProvider';
 import { useUserPosts } from '@/hooks/profile/useUserPosts';
 import { getAvatarUrl } from '@/lib/supabase/storage';
@@ -28,6 +29,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function ProfileScreen() {
   const { profile, user } = useAuth();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [activePostId, setActivePostId] = useState<string | null>(null);
 
   const {
     data: postsData,
@@ -38,6 +40,10 @@ export default function ProfileScreen() {
   } = useUserPosts(user?.id, user?.id);
 
   const posts = postsData?.pages.flatMap((page) => page.posts) ?? [];
+
+  const handleCommentPress = useCallback((postId: string) => {
+    setActivePostId(postId);
+  }, []);
 
   const renderHeader = () => (
     <>
@@ -67,8 +73,9 @@ export default function ProfileScreen() {
     <PostCard
       post={item}
       currentUserId={user?.id}
+      onCommentPress={handleCommentPress}
     />
-  ), [user?.id]);
+  ), [user?.id, handleCommentPress]);
 
   const renderFooter = () => {
     if (isFetchingNextPage) {
@@ -149,6 +156,14 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </Pressable>
       </Modal>
+
+      {activePostId && (
+        <CommentsBottomSheet
+          postId={activePostId}
+          currentUserId={user?.id}
+          onClose={() => setActivePostId(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }

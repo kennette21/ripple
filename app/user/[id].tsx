@@ -21,6 +21,7 @@ import { useUserPosts } from '@/hooks/profile/useUserPosts';
 import { useFollowStatus, useFollow } from '@/hooks/social/useFollow';
 import { getAvatarUrl } from '@/lib/supabase/storage';
 import { PostCard } from '@/components/post/PostCard';
+import { CommentsBottomSheet } from '@/components/comments/CommentsBottomSheet';
 import { EmptyState, LoadingScreen } from '@components/common';
 import { colors, spacing, typography } from '@constants/theme';
 import type { FeedPost } from '@/hooks/feed/useFeed';
@@ -32,6 +33,7 @@ export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [activePostId, setActivePostId] = useState<string | null>(null);
 
   const { data: profile, isLoading: profileLoading } = useProfile(id);
   const { data: followStatus, isLoading: statusLoading } = useFollowStatus(user?.id, id);
@@ -47,6 +49,10 @@ export default function UserProfileScreen() {
 
   const posts = postsData?.pages.flatMap((page) => page.posts) ?? [];
   const isOwnProfile = user?.id === id;
+
+  const handleCommentPress = useCallback((postId: string) => {
+    setActivePostId(postId);
+  }, []);
 
   const handleFollow = () => {
     if (!user || !followStatus) return;
@@ -97,8 +103,9 @@ export default function UserProfileScreen() {
     <PostCard
       post={item}
       currentUserId={user?.id}
+      onCommentPress={handleCommentPress}
     />
-  ), [user?.id]);
+  ), [user?.id, handleCommentPress]);
 
   const renderFooter = () => {
     if (isFetchingNextPage) {
@@ -194,6 +201,14 @@ export default function UserProfileScreen() {
           </TouchableOpacity>
         </Pressable>
       </Modal>
+
+      {activePostId && (
+        <CommentsBottomSheet
+          postId={activePostId}
+          currentUserId={user?.id}
+          onClose={() => setActivePostId(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }
