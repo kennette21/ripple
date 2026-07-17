@@ -1,9 +1,9 @@
 export const queryKeys = {
   feed: {
     all: ['feed'] as const,
-    list: (userId: string) => ['feed', 'list', 'public-only', userId] as const,
+    list: (userId: string) => ['feed', 'list', 'viewer-visible', userId] as const,
     caughtUp: (userId: string) =>
-      ['feed', 'caughtUp', 'public-only', userId] as const,
+      ['feed', 'caughtUp', 'viewer-visible', userId] as const,
   },
   posts: {
     all: ['posts'] as const,

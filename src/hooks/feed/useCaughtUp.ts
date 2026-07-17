@@ -41,7 +41,7 @@ async function checkCaughtUp(userId: string): Promise<CaughtUpStatus> {
     .from('posts') as any)
     .select('id', { count: 'exact', head: true })
     .in('author_id', followingIds)
-    .eq('is_private', false)
+    .or(`is_private.eq.false,author_id.eq.${userId}`)
     .gt('created_at', lastSeenAt);
 
   return {
