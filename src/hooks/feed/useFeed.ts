@@ -67,6 +67,7 @@ async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
       images:post_images(*)
     `)
     .in('author_id', allIds)
+    .eq('is_private', false)
     .order('created_at', { ascending: false })
     .limit(POSTS_PER_PAGE);
 

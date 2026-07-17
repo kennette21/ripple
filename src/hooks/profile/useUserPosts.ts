@@ -26,6 +26,11 @@ async function fetchUserPosts(
     .order('created_at', { ascending: false })
     .limit(POSTS_PER_PAGE);
 
+  // Private notes are visible on the author's own profile only.
+  if (viewerId !== userId) {
+    query = query.eq('is_private', false);
+  }
+
   if (cursor) {
     query = query.lt('created_at', cursor);
   }
@@ -71,7 +76,7 @@ async function fetchUserPosts(
 
 export function useUserPosts(userId: string | undefined, viewerId: string | undefined) {
   return useInfiniteQuery({
-    queryKey: queryKeys.posts.byUser(userId || ''),
+    queryKey: queryKeys.posts.byUser(userId || '', viewerId || ''),
     queryFn: ({ pageParam }) => fetchUserPosts(userId!, viewerId!, pageParam),
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialPageParam: undefined as string | undefined,

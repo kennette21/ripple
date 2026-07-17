@@ -1,13 +1,16 @@
 export const queryKeys = {
   feed: {
     all: ['feed'] as const,
-    list: (userId: string) => ['feed', 'list', userId] as const,
-    caughtUp: (userId: string) => ['feed', 'caughtUp', userId] as const,
+    list: (userId: string) => ['feed', 'list', 'public-only', userId] as const,
+    caughtUp: (userId: string) =>
+      ['feed', 'caughtUp', 'public-only', userId] as const,
   },
   posts: {
     all: ['posts'] as const,
-    detail: (postId: string) => ['posts', 'detail', postId] as const,
-    byUser: (userId: string) => ['posts', 'byUser', userId] as const,
+    detail: (postId: string, viewerId: string) =>
+      ['posts', 'detail', postId, viewerId] as const,
+    byUser: (userId: string, viewerId: string) =>
+      ['posts', 'byUser', userId, viewerId] as const,
   },
   profiles: {
     all: ['profiles'] as const,
