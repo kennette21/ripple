@@ -32,7 +32,7 @@ export const LIMITS = {
   maxImagesPerPost: 10,
 
   // Comments
-  commentMaxLength: 1000,
+  commentMaxLength: 500,
   maxCommentDepth: 3,
 
   // Profile
