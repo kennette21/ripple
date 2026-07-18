@@ -4,8 +4,8 @@ import { queryKeys } from '@/lib/query/keys';
 import type { FeedPost } from '@/hooks/feed/useFeed';
 
 async function fetchPost(postId: string, userId: string): Promise<FeedPost> {
-  const { data: post, error } = await (supabase
-    .from('posts') as any)
+  const { data: post, error } = await supabase
+    .from('posts')
     .select(`
       *,
       author:profiles!posts_author_id_fkey(*),
@@ -20,13 +20,13 @@ async function fetchPost(postId: string, userId: string): Promise<FeedPost> {
 
   // Get counts and bookmark status
   const [commentCount, repostCount, bookmarkStatus] = await Promise.all([
-    (supabase.from('comments') as any)
+    supabase.from('comments')
       .select('id', { count: 'exact', head: true })
       .eq('post_id', postId),
-    (supabase.from('reposts') as any)
+    supabase.from('reposts')
       .select('id', { count: 'exact', head: true })
-      .eq('post_id', postId),
-    (supabase.from('bookmarks') as any)
+      .eq('original_post_id', postId),
+    supabase.from('bookmarks')
       .select('id')
       .eq('post_id', postId)
       .eq('user_id', userId)

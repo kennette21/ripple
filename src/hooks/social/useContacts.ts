@@ -55,8 +55,8 @@ async function findContactsOnRipple(userId: string): Promise<ContactMatch[]> {
   if (phoneToName.size === 0) return [];
 
   // Get all profiles with phone numbers (excluding self)
-  const { data: profiles, error } = await (supabase
-    .from('profiles') as any)
+  const { data: profiles, error } = await supabase
+    .from('profiles')
     .select('*')
     .not('phone_number', 'is', null)
     .neq('id', userId);

@@ -142,7 +142,7 @@ export default function FeedScreen() {
         <Text style={styles.logo}>Ripple</Text>
         <TouchableOpacity
           style={styles.findFriendsButton}
-          onPress={() => router.push('/friends' as any)}
+          onPress={() => router.push('/friends')}
         >
           <Ionicons name="people-outline" size={24} color={colors.gray[600]} />
         </TouchableOpacity>

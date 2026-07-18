@@ -28,12 +28,14 @@ import {
 } from '@/hooks/social/useFriends';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
 import type { Profile } from '@/types/database';
+import { getErrorMessage } from '@/lib/errors';
 
 type Tab = 'contacts' | 'all';
 
+type SectionItem = FriendRequestWithProfile | ContactMatch | Profile;
 type SectionData = {
   title: string;
-  data: any[];
+  data: SectionItem[];
   type: 'requests' | 'contacts' | 'friends';
 };
 
@@ -69,16 +71,16 @@ export default function FriendsScreen() {
     setAllUsersLoading(true);
     try {
       const [{ data: profiles }, { data: follows }] = await Promise.all([
-        (supabase.from('profiles') as any)
+        supabase.from('profiles')
           .select('*')
           .neq('id', user.id)
           .order('created_at', { ascending: false }),
-        (supabase.from('follows') as any)
+        supabase.from('follows')
           .select('following_id')
           .eq('follower_id', user.id),
       ]);
 
-      const followingSet = new Set<string>(follows?.map((f: any) => f.following_id) || []);
+      const followingSet = new Set<string>(follows?.map((follow) => follow.following_id) || []);
       setFollowingIds(followingSet);
       setAllUsers(
         (profiles || []).map((p: Profile) => ({ ...p, isFollowing: followingSet.has(p.id) }))
@@ -97,7 +99,11 @@ export default function FriendsScreen() {
     // Optimistic update
     setFollowingIds((prev) => {
       const next = new Set(prev);
-      isCurrentlyFollowing ? next.delete(targetUserId) : next.add(targetUserId);
+      if (isCurrentlyFollowing) {
+        next.delete(targetUserId);
+      } else {
+        next.add(targetUserId);
+      }
       return next;
     });
     setAllUsers((prev) =>
@@ -106,12 +112,12 @@ export default function FriendsScreen() {
 
     try {
       if (isCurrentlyFollowing) {
-        await (supabase.from('follows') as any)
+        await supabase.from('follows')
           .delete()
           .eq('follower_id', user.id)
           .eq('following_id', targetUserId);
       } else {
-        await (supabase.from('follows') as any)
+        await supabase.from('follows')
           .insert({ follower_id: user.id, following_id: targetUserId });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
@@ -132,8 +138,8 @@ export default function FriendsScreen() {
     try {
       await sendRequest.mutateAsync({ senderId: user.id, receiverId });
       setSentRequests((prev) => new Set(prev).add(receiverId));
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send friend request');
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, 'Failed to send friend request'));
     }
   };
 
@@ -212,13 +218,10 @@ export default function FriendsScreen() {
     </Pressable>
   );
 
-  const renderSectionItem = ({ item, section }: { item: any; section: SectionData }) => {
-    switch (section.type) {
-      case 'requests': return renderRequest(item);
-      case 'contacts': return renderContact(item);
-      case 'friends': return renderFriend(item);
-      default: return null;
-    }
+  const renderSectionItem = ({ item }: { item: SectionItem }) => {
+    if ('sender' in item) return renderRequest(item);
+    if ('contactName' in item) return renderContact(item);
+    return renderFriend(item);
   };
 
   const renderAllUser = ({ item }: { item: Profile & { isFollowing: boolean } }) => {
@@ -264,7 +267,7 @@ export default function FriendsScreen() {
             title="Add Phone Number"
             onPress={() => {
               router.back();
-              setTimeout(() => router.push('/(main)/(profile)/settings/phone-number' as any), 100);
+              setTimeout(() => router.push('/(main)/(profile)/settings/phone-number'), 100);
             }}
             style={styles.promptButton}
           />

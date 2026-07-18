@@ -4,8 +4,8 @@ import { queryKeys } from '@/lib/query/keys';
 import type { Profile } from '@/types/database';
 
 async function fetchProfile(userId: string): Promise<Profile> {
-  const { data, error } = await (supabase
-    .from('profiles') as any)
+  const { data, error } = await supabase
+    .from('profiles')
     .select('*')
     .eq('id', userId)
     .single();

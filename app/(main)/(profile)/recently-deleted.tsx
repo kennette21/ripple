@@ -22,6 +22,7 @@ import {
   type DeletedPost,
 } from '@/hooks/posts';
 import { colors, spacing, typography } from '@/constants/theme';
+import { getErrorMessage } from '@/lib/errors';
 
 export default function RecentlyDeletedScreen() {
   const router = useRouter();
@@ -46,10 +47,10 @@ export default function RecentlyDeletedScreen() {
   const handleRestore = useCallback(async (postId: string) => {
     try {
       await restorePost.mutateAsync(postId);
-    } catch (error: any) {
+    } catch (error) {
       Alert.alert(
         'Could not restore post',
-        error.message || 'Please try again.'
+        getErrorMessage(error, 'Please try again.')
       );
     }
   }, [restorePost]);
@@ -66,10 +67,10 @@ export default function RecentlyDeletedScreen() {
           onPress: async () => {
             try {
               await permanentlyDeletePost.mutateAsync(postId);
-            } catch (error: any) {
+            } catch (error) {
               Alert.alert(
                 'Could not delete post',
-                error.message || 'Please try again.'
+                getErrorMessage(error, 'Please try again.')
               );
             }
           },

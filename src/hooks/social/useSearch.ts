@@ -15,16 +15,16 @@ async function searchUsers(query: string, currentUserId: string): Promise<Search
   const searchTerm = query.toLowerCase().trim();
 
   // Get blocked users to exclude
-  const { data: blocks } = await (supabase
-    .from('blocks') as any)
+  const { data: blocks } = await supabase
+    .from('blocks')
     .select('blocked_id')
     .eq('blocker_id', currentUserId);
 
-  const blockedIds = blocks?.map((b: any) => b.blocked_id) || [];
+  const blockedIds = blocks?.map((b) => b.blocked_id) || [];
 
   // Search by username or display name
-  let usersQuery = (supabase
-    .from('profiles') as any)
+  let usersQuery = supabase
+    .from('profiles')
     .select('*')
     .or(`username.ilike.%${searchTerm}%,display_name.ilike.%${searchTerm}%`)
     .neq('id', currentUserId)

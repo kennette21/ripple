@@ -89,8 +89,8 @@ export default function EditProfileScreen() {
       }
 
       // Update profile
-      const { error } = await (supabase
-        .from('profiles') as any)
+      const { error } = await supabase
+        .from('profiles')
         .update({
           display_name: displayName.trim(),
           bio: bio.trim() || null,

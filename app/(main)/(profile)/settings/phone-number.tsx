@@ -16,6 +16,7 @@ import { Button } from '@components/ui';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@providers/AuthProvider';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
+import { getErrorMessage } from '@/lib/errors';
 
 export default function PhoneNumberScreen() {
   const { profile, refreshProfile, user } = useAuth();
@@ -47,8 +48,8 @@ export default function PhoneNumberScreen() {
 
     setIsLoading(true);
     try {
-      const { error } = await (supabase
-        .from('profiles') as any)
+      const { error } = await supabase
+        .from('profiles')
         .update({ phone_number: digits })
         .eq('id', user.id);
 
@@ -58,8 +59,8 @@ export default function PhoneNumberScreen() {
       Alert.alert('Saved', 'Your phone number has been updated.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to save phone number.');
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, 'Failed to save phone number.'));
     } finally {
       setIsLoading(false);
     }
@@ -79,16 +80,16 @@ export default function PhoneNumberScreen() {
           onPress: async () => {
             setIsLoading(true);
             try {
-              const { error } = await (supabase
-                .from('profiles') as any)
+              const { error } = await supabase
+                .from('profiles')
                 .update({ phone_number: null })
                 .eq('id', user.id);
               if (error) throw error;
               await refreshProfile();
               setPhoneNumber('');
               Alert.alert('Removed', 'Your phone number has been removed.');
-            } catch (error: any) {
-              Alert.alert('Error', error.message);
+            } catch (error) {
+              Alert.alert('Error', getErrorMessage(error, 'Failed to remove phone number.'));
             } finally {
               setIsLoading(false);
             }

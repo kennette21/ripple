@@ -21,8 +21,8 @@ interface CreatePostInput {
 
 async function createPost(input: CreatePostInput, userId: string) {
   // Create the post first
-  const { data: post, error: postError } = await (supabase
-    .from('posts') as any)
+  const { data: post, error: postError } = await supabase
+    .from('posts')
     .insert({
       author_id: userId,
       caption: input.caption || null,
@@ -49,7 +49,7 @@ async function createPost(input: CreatePostInput, userId: string) {
         throw uploadError || new Error('Failed to upload image');
       }
 
-      return (supabase.from('post_images') as any).insert({
+      return supabase.from('post_images').insert({
         post_id: post.id,
         storage_path: storagePath,
         blurhash: image.blurhash || null,

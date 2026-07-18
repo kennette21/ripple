@@ -10,8 +10,8 @@ interface CaughtUpStatus {
 
 async function checkCaughtUp(userId: string): Promise<CaughtUpStatus> {
   // Get user's feed watermark (last time they saw the feed)
-  const { data: watermark } = await (supabase
-    .from('feed_watermarks') as any)
+  const { data: watermark } = await supabase
+    .from('feed_watermarks')
     .select('last_seen_at')
     .eq('user_id', userId)
     .maybeSingle();
@@ -28,17 +28,17 @@ async function checkCaughtUp(userId: string): Promise<CaughtUpStatus> {
   }
 
   // Get users the current user follows
-  const { data: follows } = await (supabase
-    .from('follows') as any)
+  const { data: follows } = await supabase
+    .from('follows')
     .select('following_id')
     .eq('follower_id', userId);
 
-  const followingIds = follows?.map((f: any) => f.following_id) || [];
+  const followingIds = follows?.map((f) => f.following_id) || [];
   followingIds.push(userId);
 
   // Count posts since last seen
-  const { count } = await (supabase
-    .from('posts') as any)
+  const { count } = await supabase
+    .from('posts')
     .select('id', { count: 'exact', head: true })
     .in('author_id', followingIds)
     .is('deleted_at', null)
@@ -53,8 +53,8 @@ async function checkCaughtUp(userId: string): Promise<CaughtUpStatus> {
 }
 
 async function updateWatermark(userId: string) {
-  const { error } = await (supabase
-    .from('feed_watermarks') as any)
+  const { error } = await supabase
+    .from('feed_watermarks')
     .upsert({
       user_id: userId,
       last_seen_at: new Date().toISOString(),

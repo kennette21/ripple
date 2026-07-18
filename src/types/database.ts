@@ -573,6 +573,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_comment: {
+        Args: {
+          p_content: string
+          p_parent_id?: string | null
+          p_post_id: string
+        }
+        Returns: {
+          author_id: string
+          content: string
+          created_at: string | null
+          depth: number | null
+          id: string
+          parent_id: string | null
+          post_id: string
+          thread_root_id: string | null
+        }
+      }
       restore_deleted_post: { Args: { p_post_id: string }; Returns: boolean }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }

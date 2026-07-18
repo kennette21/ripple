@@ -25,10 +25,12 @@ import {
 } from '@/hooks/social/useFriends';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
 import type { Profile } from '@/types/database';
+import { getErrorMessage } from '@/lib/errors';
 
+type SectionItem = FriendRequestWithProfile | ContactMatch | Profile;
 type SectionData = {
   title: string;
-  data: any[];
+  data: SectionItem[];
   type: 'requests' | 'contacts' | 'friends';
 };
 
@@ -61,8 +63,8 @@ export default function FindPeopleScreen() {
     try {
       await sendRequest.mutateAsync({ senderId: user.id, receiverId });
       setSentRequests((prev) => new Set(prev).add(receiverId));
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send friend request');
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, 'Failed to send friend request'));
     }
   };
 
@@ -183,17 +185,10 @@ export default function FindPeopleScreen() {
     </Pressable>
   );
 
-  const renderItem = ({ item, section }: { item: any; section: SectionData }) => {
-    switch (section.type) {
-      case 'requests':
-        return renderRequest(item);
-      case 'contacts':
-        return renderContact(item);
-      case 'friends':
-        return renderFriend(item);
-      default:
-        return null;
-    }
+  const renderItem = ({ item }: { item: SectionItem }) => {
+    if ('sender' in item) return renderRequest(item);
+    if ('contactName' in item) return renderContact(item);
+    return renderFriend(item);
   };
 
   const renderNoPhoneNumber = () => (
@@ -205,7 +200,7 @@ export default function FindPeopleScreen() {
       </Text>
       <Button
         title="Add Phone Number"
-        onPress={() => router.push('/(main)/(profile)/settings/phone-number' as any)}
+        onPress={() => router.push('/(main)/(profile)/settings/phone-number')}
         style={styles.promptButton}
       />
     </View>

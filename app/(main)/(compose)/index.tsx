@@ -26,6 +26,7 @@ import { Button, Avatar } from '@components/ui';
 import ImageCropModal from '@components/compose/ImageCropModal';
 import { useAuth } from '@providers/AuthProvider';
 import { useCreatePost } from '@/hooks/posts/useCreatePost';
+import { getErrorMessage } from '@/lib/errors';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
 import { LIMITS } from '@constants/config';
 
@@ -191,8 +192,8 @@ export default function ComposeScreen() {
       Alert.alert('Success', 'Your post has been shared!', [
         { text: 'OK', onPress: () => router.navigate('/(main)/(feed)') }
       ]);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to create post');
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, 'Failed to create post'));
     }
   };
 
