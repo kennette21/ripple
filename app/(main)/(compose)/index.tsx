@@ -16,7 +16,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import DraggableFlatList, {
+  RenderItemParams,
+  ScaleDecorator,
+} from 'react-native-draggable-flatlist';
 import { Button, Avatar } from '@components/ui';
 import ImageCropModal from '@components/compose/ImageCropModal';
 import { useAuth } from '@providers/AuthProvider';
@@ -27,6 +32,7 @@ import { LIMITS } from '@constants/config';
 type ContentType = 'caption' | 'reflection';
 
 interface SelectedImage {
+  id: string;
   uri: string;
   width: number;
   height: number;
@@ -43,6 +49,7 @@ export default function ComposeScreen() {
   const [images, setImages] = useState<SelectedImage[]>([]);
   const [inputHeight, setInputHeight] = useState(100);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [isReordering, setIsReordering] = useState(false);
 
   const [cropIndex, setCropIndex] = useState<number | null>(null);
 
@@ -63,7 +70,7 @@ export default function ComposeScreen() {
   const handleCrop = (uri: string, width: number, height: number) => {
     if (cropIndex === null) return;
     setImages((prev) =>
-      prev.map((img, i) => (i === cropIndex ? { uri, width, height } : img))
+      prev.map((img, i) => (i === cropIndex ? { ...img, uri, width, height } : img))
     );
     setCropIndex(null);
   };
@@ -84,7 +91,9 @@ export default function ComposeScreen() {
     });
 
     if (!result.canceled && result.assets) {
-      const newImages = result.assets.map((asset) => ({
+      const selectionId = Date.now();
+      const newImages = result.assets.map((asset, index) => ({
+        id: `${asset.assetId ?? asset.uri}-${selectionId}-${index}`,
         uri: asset.uri,
         width: asset.width,
         height: asset.height,
@@ -95,6 +104,62 @@ export default function ComposeScreen() {
 
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const renderImage = ({ item, getIndex, drag, isActive }: RenderItemParams<SelectedImage>) => {
+    const index = getIndex() ?? 0;
+    const accessibilityActions = [
+      ...(index > 0 ? [{ name: 'decrement' as const, label: 'Move photo left' }] : []),
+      ...(index < images.length - 1
+        ? [{ name: 'increment' as const, label: 'Move photo right' }]
+        : []),
+    ];
+
+    const startDrag = () => {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      drag();
+    };
+
+    return (
+      <ScaleDecorator activeScale={1.06}>
+        <View style={[styles.imageContainer, isActive && styles.imageContainerActive]}>
+          <Pressable
+            onPress={() => setCropIndex(index)}
+            onLongPress={images.length > 1 ? startDrag : undefined}
+            delayLongPress={200}
+            disabled={isActive}
+            accessibilityRole="imagebutton"
+            accessibilityLabel={`Photo ${index + 1} of ${images.length}`}
+            accessibilityHint={
+              images.length > 1
+                ? 'Double tap to crop. Long press and drag to change its position.'
+                : 'Double tap to crop.'
+            }
+            accessibilityActions={accessibilityActions}
+            onAccessibilityAction={(event) => {
+              if (event.nativeEvent.actionName === 'decrement') moveImage(index, 'left');
+              if (event.nativeEvent.actionName === 'increment') moveImage(index, 'right');
+            }}
+          >
+            <Image source={{ uri: item.uri }} style={styles.previewImage} />
+            <View style={styles.cropBadge} pointerEvents="none">
+              <Ionicons name="crop" size={14} color={colors.white} />
+            </View>
+          </Pressable>
+          <Pressable
+            style={styles.removeImage}
+            onPress={() => removeImage(index)}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove photo ${index + 1}`}
+          >
+            <Ionicons name="close-circle" size={24} color={colors.white} />
+          </Pressable>
+          <View style={styles.positionBadge} pointerEvents="none">
+            <Text style={styles.positionText}>{index + 1}</Text>
+          </View>
+        </View>
+      </ScaleDecorator>
+    );
   };
 
   const resetForm = () => {
@@ -201,6 +266,7 @@ export default function ComposeScreen() {
         <ScrollView
           ref={scrollViewRef}
           style={styles.content}
+          scrollEnabled={!isReordering}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -262,46 +328,34 @@ export default function ComposeScreen() {
 
         {/* Selected images */}
         {images.length > 0 && (
-          <ScrollView horizontal style={styles.imagePreview} showsHorizontalScrollIndicator={false}>
-            {images.map((img, index) => (
-              <View key={`${img.uri}-${index}`} style={styles.imageContainer}>
-                <Pressable onPress={() => setCropIndex(index)}>
-                  <Image source={{ uri: img.uri }} style={styles.previewImage} />
-                  <View style={styles.cropBadge}>
-                    <Ionicons name="crop" size={14} color={colors.white} />
-                  </View>
-                </Pressable>
-                <Pressable style={styles.removeImage} onPress={() => removeImage(index)}>
-                  <Ionicons name="close-circle" size={24} color="#fff" />
-                </Pressable>
-                {/* Position indicator */}
-                <View style={styles.positionBadge}>
-                  <Text style={styles.positionText}>{index + 1}</Text>
-                </View>
-                {/* Reorder buttons */}
-                {images.length > 1 && (
-                  <View style={styles.reorderButtons}>
-                    {index > 0 && (
-                      <Pressable
-                        style={styles.reorderButton}
-                        onPress={() => moveImage(index, 'left')}
-                      >
-                        <Ionicons name="chevron-back" size={14} color={colors.white} />
-                      </Pressable>
-                    )}
-                    {index < images.length - 1 && (
-                      <Pressable
-                        style={styles.reorderButton}
-                        onPress={() => moveImage(index, 'right')}
-                      >
-                        <Ionicons name="chevron-forward" size={14} color={colors.white} />
-                      </Pressable>
-                    )}
-                  </View>
-                )}
+          <View style={styles.imageOrderSection}>
+            {images.length > 1 && (
+              <View style={styles.reorderHint}>
+                <Ionicons name="reorder-three-outline" size={16} color={colors.gray[500]} />
+                <Text style={styles.reorderHintText}>Hold and drag · Photo 1 appears first</Text>
               </View>
-            ))}
-          </ScrollView>
+            )}
+            <DraggableFlatList
+              horizontal
+              data={images}
+              keyExtractor={(item) => item.id}
+              renderItem={renderImage}
+              onDragBegin={() => setIsReordering(true)}
+              onRelease={() => setIsReordering(false)}
+              onDragEnd={({ data }) => {
+                setImages(data);
+                setIsReordering(false);
+                void Haptics.selectionAsync();
+              }}
+              autoscrollThreshold={60}
+              autoscrollSpeed={120}
+              dragItemOverflow
+              showsHorizontalScrollIndicator={false}
+              removeClippedSubviews={false}
+              style={styles.imagePreview}
+              contentContainerStyle={styles.imagePreviewContent}
+            />
+          </View>
           )}
 
         {/* Crop modal */}
@@ -460,12 +514,40 @@ const styles = StyleSheet.create({
     color: colors.error.main,
   },
   imagePreview: {
+    height: 116,
+    flexGrow: 0,
+  },
+  imagePreviewContent: {
+    paddingTop: spacing.sm,
+    paddingRight: spacing.sm,
+  },
+  imageOrderSection: {
     marginTop: spacing.md,
     marginBottom: spacing.lg,
+  },
+  reorderHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  reorderHintText: {
+    color: colors.gray[500],
+    fontSize: typography.fontSizes.xs,
   },
   imageContainer: {
     marginRight: spacing.sm,
     position: 'relative',
+    width: 100,
+    height: 100,
+    borderRadius: borderRadius.md,
+  },
+  imageContainerActive: {
+    opacity: 0.92,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   previewImage: {
     width: 100,
@@ -502,23 +584,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.fontSizes.xs,
     fontWeight: typography.fontWeights.bold,
-  },
-  reorderButtons: {
-    position: 'absolute',
-    bottom: -24,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing.xs,
-  },
-  reorderButton: {
-    backgroundColor: colors.gray[600],
-    borderRadius: borderRadius.full,
-    width: 22,
-    height: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   toolbar: {
     flexDirection: 'row',
