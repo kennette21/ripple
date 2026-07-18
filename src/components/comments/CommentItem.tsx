@@ -20,6 +20,7 @@ const DELETE_MENU_MAX_WIDTH = 220;
 const DELETE_MENU_HEIGHT = 54;
 const DELETE_MENU_GAP = 8;
 const SCREEN_MARGIN = 16;
+const DEFAULT_VISIBLE_REPLY_COUNT = 2;
 
 interface MenuPosition {
   top: number;
@@ -49,14 +50,22 @@ export function CommentItem({
   const router = useRouter();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const commentBodyRef = useRef<View>(null);
-  const [showReplies, setShowReplies] = useState(true);
+  const [showAllReplies, setShowAllReplies] = useState(false);
   const [deleteMenuPosition, setDeleteMenuPosition] = useState<MenuPosition | null>(null);
 
   // created_at is nullable in the schema but always set by the DB default
   const timeAgo = formatDistanceToNow(new Date(comment.created_at!), { addSuffix: true });
   const commentAuthorId = (comment as any).author_id;
   const isOwnComment = commentAuthorId === currentUserId;
-  const hasReplies = comment.replies && comment.replies.length > 0;
+  const replies = comment.replies ?? [];
+  const hasReplies = replies.length > 0;
+  const remainingReplyCount = Math.max(
+    replies.length - DEFAULT_VISIBLE_REPLY_COUNT,
+    0
+  );
+  const visibleReplies = showAllReplies
+    ? replies
+    : replies.slice(0, DEFAULT_VISIBLE_REPLY_COUNT);
 
   const handleProfilePress = () => {
     if (onProfilePress) {
@@ -167,18 +176,7 @@ export function CommentItem({
         {/* Replies */}
         {hasReplies && (
           <View style={styles.repliesSection}>
-            {comment.replies!.length > 2 && (
-              <Pressable onPress={() => setShowReplies(!showReplies)}>
-                <Text style={styles.showReplies}>
-                  {showReplies
-                    ? 'Hide replies'
-                    : `Show ${comment.replies!.length} replies`
-                  }
-                </Text>
-              </Pressable>
-            )}
-
-            {showReplies && comment.replies!.map((reply) => (
+            {visibleReplies.map((reply) => (
               <CommentItem
                 key={reply.id}
                 comment={reply}
@@ -190,6 +188,25 @@ export function CommentItem({
                 isReply
               />
             ))}
+
+            {remainingReplyCount > 0 && (
+              <Pressable
+                onPress={() => setShowAllReplies((value) => !value)}
+                accessibilityRole="button"
+                accessibilityLabel={showAllReplies
+                  ? 'Show fewer replies'
+                  : `View ${remainingReplyCount} more ${remainingReplyCount === 1 ? 'reply' : 'replies'}`
+                }
+                accessibilityState={{ expanded: showAllReplies }}
+              >
+                <Text style={styles.showReplies}>
+                  {showAllReplies
+                    ? 'Show fewer replies'
+                    : `View ${remainingReplyCount} more ${remainingReplyCount === 1 ? 'reply' : 'replies'}`
+                  }
+                </Text>
+              </Pressable>
+            )}
           </View>
         )}
       </View>
