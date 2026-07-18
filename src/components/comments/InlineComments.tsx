@@ -70,18 +70,10 @@ export function InlineComments({
   const updateComment = useUpdateComment();
   const deleteComment = useDeleteComment();
   const flatComments = useMemo(() => comments ?? [], [comments]);
-  const totalCommentCount = useMemo(() => {
-    const countThread = (comment: CommentWithAuthor): number =>
-      1 + (comment.replies ?? []).reduce(
-        (total, reply) => total + countThread(reply),
-        0
-      );
-
-    return flatComments.reduce(
-      (total, comment) => total + countThread(comment),
-      0
-    );
-  }, [flatComments]);
+  const totalCommentCount = flatComments.reduce(
+    (total, comment) => total + 1 + (comment.replies?.length ?? 0),
+    0
+  );
   const isComposerVisible = isComposing && isThreadActive;
   const isShowingAll = showAll && isThreadActive;
   const visibleComments = isShowingAll

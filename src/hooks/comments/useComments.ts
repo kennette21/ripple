@@ -7,7 +7,6 @@ export interface CommentWithAuthor extends Comment {
   author: Profile;
   replies?: CommentWithAuthor[];
   replyToAuthor?: Profile;
-  thread_root_id?: string | null;
 }
 
 async function fetchComments(postId: string): Promise<CommentWithAuthor[]> {
@@ -30,29 +29,12 @@ async function fetchComments(postId: string): Promise<CommentWithAuthor[]> {
     threadedComments.map((comment: CommentWithAuthor) => [comment.id, comment])
   );
 
-  const findThreadRoot = (comment: CommentWithAuthor) => {
-    const visited = new Set<string>();
-    let current = comment;
-
-    while (current.parent_id && !visited.has(current.id)) {
-      visited.add(current.id);
-      const parent = commentsById.get(current.parent_id);
-      if (!parent) return undefined;
-      current = parent;
-    }
-
-    return current.parent_id ? undefined : current;
-  };
-
   threadedComments.forEach((comment: CommentWithAuthor) => {
     if (!comment.parent_id) return;
 
     const parent = commentsById.get(comment.parent_id);
     comment.replyToAuthor = parent?.author;
-
-    const root = comment.thread_root_id
-      ? commentsById.get(comment.thread_root_id)
-      : findThreadRoot(comment);
+    const root = commentsById.get(comment.thread_root_id ?? comment.parent_id);
     root?.replies?.push(comment);
   });
 
@@ -106,7 +88,6 @@ export function useComments(postId: string | undefined) {
     queryFn: () => fetchComments(postId!),
     enabled: !!postId,
     staleTime: 0,
-    refetchOnMount: 'always',
   });
 }
 
@@ -167,7 +148,7 @@ export function useDeleteComment() {
   return useMutation({
     mutationFn: deleteComment,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comments'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.comments.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.posts.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
     },
