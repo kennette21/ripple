@@ -7,8 +7,8 @@ async function updatePostPrivacy(
   authorId: string,
   isPrivate: boolean
 ) {
-  const { data, error } = await (supabase
-    .from('posts') as any)
+  const { data, error } = await supabase
+    .from('posts')
     .update({ is_private: isPrivate })
     .eq('id', postId)
     .eq('author_id', authorId)

@@ -3,8 +3,8 @@ import { supabase } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query/keys';
 
 async function checkIsMuted(muterId: string, mutedId: string): Promise<boolean> {
-  const { data } = await (supabase
-    .from('mutes') as any)
+  const { data } = await supabase
+    .from('mutes')
     .select('id')
     .eq('muter_id', muterId)
     .eq('muted_id', mutedId)
@@ -16,8 +16,8 @@ async function checkIsMuted(muterId: string, mutedId: string): Promise<boolean> 
 async function toggleMute(muterId: string, mutedId: string, isMuted: boolean) {
   if (isMuted) {
     // Unmute
-    const { error } = await (supabase
-      .from('mutes') as any)
+    const { error } = await supabase
+      .from('mutes')
       .delete()
       .eq('muter_id', muterId)
       .eq('muted_id', mutedId);
@@ -25,8 +25,8 @@ async function toggleMute(muterId: string, mutedId: string, isMuted: boolean) {
     if (error) throw error;
   } else {
     // Mute
-    const { error } = await (supabase
-      .from('mutes') as any)
+    const { error } = await supabase
+      .from('mutes')
       .insert({
         muter_id: muterId,
         muted_id: mutedId,

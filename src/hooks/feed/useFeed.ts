@@ -22,45 +22,45 @@ interface FeedPage {
 async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
   // Get friends (accepted friend requests in either direction)
   const [{ data: sentAccepted }, { data: receivedAccepted }] = await Promise.all([
-    (supabase.from('friend_requests') as any)
+    supabase.from('friend_requests')
       .select('receiver_id')
       .eq('sender_id', userId)
       .eq('status', 'accepted'),
-    (supabase.from('friend_requests') as any)
+    supabase.from('friend_requests')
       .select('sender_id')
       .eq('receiver_id', userId)
       .eq('status', 'accepted'),
   ]);
 
   const friendIds = [
-    ...(sentAccepted || []).map((r: any) => r.receiver_id),
-    ...(receivedAccepted || []).map((r: any) => r.sender_id),
+    ...(sentAccepted || []).map((r) => r.receiver_id),
+    ...(receivedAccepted || []).map((r) => r.sender_id),
   ];
   // Include own posts in feed
   friendIds.push(userId);
 
   // Also include follows for backwards compatibility during transition
-  const { data: follows } = await (supabase
-    .from('follows') as any)
+  const { data: follows } = await supabase
+    .from('follows')
     .select('following_id')
     .eq('follower_id', userId);
 
-  const followingIds = follows?.map((f: any) => f.following_id) || [];
+  const followingIds = follows?.map((f) => f.following_id) || [];
 
   // Merge friends and follows, dedupe
   const allIds = [...new Set([...friendIds, ...followingIds])];
 
   // Get blocked users to exclude
-  const { data: blocks } = await (supabase
-    .from('blocks') as any)
+  const { data: blocks } = await supabase
+    .from('blocks')
     .select('blocked_id')
     .eq('blocker_id', userId);
 
-  const blockedIds = blocks?.map((b: any) => b.blocked_id) || [];
+  const blockedIds = blocks?.map((b) => b.blocked_id) || [];
 
   // Build query
-  let query = (supabase
-    .from('posts') as any)
+  let query = supabase
+    .from('posts')
     .select(`
       *,
       author:profiles!posts_author_id_fkey(*),
@@ -88,15 +88,15 @@ async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
 
   // Get comment and repost counts, and bookmark status
   const postsWithCounts = await Promise.all(
-    (posts || []).map(async (post: any) => {
+    (posts || []).map(async (post) => {
       const [commentCount, repostCount, bookmarkStatus] = await Promise.all([
-        (supabase.from('comments') as any)
+        supabase.from('comments')
           .select('id', { count: 'exact', head: true })
           .eq('post_id', post.id),
-        (supabase.from('reposts') as any)
+        supabase.from('reposts')
           .select('id', { count: 'exact', head: true })
-          .eq('post_id', post.id),
-        (supabase.from('bookmarks') as any)
+          .eq('original_post_id', post.id),
+        supabase.from('bookmarks')
           .select('id')
           .eq('post_id', post.id)
           .eq('user_id', userId)

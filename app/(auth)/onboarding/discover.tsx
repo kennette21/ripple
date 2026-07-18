@@ -38,8 +38,8 @@ export default function DiscoverScreen() {
 
     try {
       // Get all users except current user
-      const { data: profiles, error: profilesError } = await (supabase
-        .from('profiles') as any)
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
         .select('*')
         .neq('id', user.id)
         .order('created_at', { ascending: false });
@@ -47,14 +47,14 @@ export default function DiscoverScreen() {
       if (profilesError) throw profilesError;
 
       // Get who the current user is following
-      const { data: follows, error: followsError } = await (supabase
-        .from('follows') as any)
+      const { data: follows, error: followsError } = await supabase
+        .from('follows')
         .select('following_id')
         .eq('follower_id', user.id);
 
       if (followsError) throw followsError;
 
-      const followingSet = new Set<string>(follows?.map((f: any) => f.following_id) || []);
+      const followingSet = new Set<string>(follows?.map((follow) => follow.following_id) || []);
       setFollowingIds(followingSet);
 
       const usersWithStatus = (profiles || []).map((profile: Profile) => ({
@@ -94,12 +94,12 @@ export default function DiscoverScreen() {
 
     try {
       if (isCurrentlyFollowing) {
-        await (supabase.from('follows') as any)
+        await supabase.from('follows')
           .delete()
           .eq('follower_id', user.id)
           .eq('following_id', targetUserId);
       } else {
-        await (supabase.from('follows') as any)
+        await supabase.from('follows')
           .insert({
             follower_id: user.id,
             following_id: targetUserId,
@@ -119,7 +119,7 @@ export default function DiscoverScreen() {
     if (!user?.id) return;
 
     // Mark onboarding as complete
-    await (supabase.from('profiles') as any)
+    await supabase.from('profiles')
       .update({ onboarding_completed: true })
       .eq('id', user.id);
 

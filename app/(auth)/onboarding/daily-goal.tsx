@@ -27,8 +27,8 @@ export default function DailyGoalScreen() {
     setIsLoading(true);
 
     try {
-      const { error } = await (supabase
-        .from('profiles') as any)
+      const { error } = await supabase
+        .from('profiles')
         .update({
           daily_usage_goal_minutes: selectedGoal,
           onboarding_completed: true,

@@ -57,7 +57,7 @@ export default function ProfileSetupScreen() {
     setIsLoading(true);
 
     try {
-      const { error } = await (supabase.from('profiles') as any).upsert({
+      const { error } = await supabase.from('profiles').upsert({
         id: user.id,
         username: username.toLowerCase(),
         display_name: displayName.trim(),

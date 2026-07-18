@@ -10,8 +10,8 @@ export interface CommentWithAuthor extends Comment {
 }
 
 async function fetchComments(postId: string): Promise<CommentWithAuthor[]> {
-  const { data: comments, error } = await (supabase
-    .from('comments') as any)
+  const { data: comments, error } = await supabase
+    .from('comments')
     .select(`
       *,
       author:profiles!comments_author_id_fkey(*)
@@ -48,7 +48,7 @@ async function createComment(
   content: string,
   parentId?: string
 ) {
-  const { data, error } = await (supabase as any).rpc('create_comment', {
+  const { data, error } = await supabase.rpc('create_comment', {
     p_post_id: postId,
     p_content: content,
     p_parent_id: parentId || null,
@@ -59,8 +59,8 @@ async function createComment(
 }
 
 async function updateComment(commentId: string, content: string) {
-  const { data, error } = await (supabase
-    .from('comments') as any)
+  const { data, error } = await supabase
+    .from('comments')
     .update({ content })
     .eq('id', commentId)
     .select(`
@@ -74,8 +74,8 @@ async function updateComment(commentId: string, content: string) {
 }
 
 async function deleteComment(commentId: string) {
-  const { error } = await (supabase
-    .from('comments') as any)
+  const { error } = await supabase
+    .from('comments')
     .delete()
     .eq('id', commentId);
 

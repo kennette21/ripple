@@ -10,15 +10,15 @@ interface FollowStatus {
 
 async function getFollowStatus(userId: string, targetUserId: string): Promise<FollowStatus> {
   const [followCheck, followersCount, followingCount] = await Promise.all([
-    (supabase.from('follows') as any)
+    supabase.from('follows')
       .select('id')
       .eq('follower_id', userId)
       .eq('following_id', targetUserId)
       .maybeSingle(),
-    (supabase.from('follows') as any)
+    supabase.from('follows')
       .select('id', { count: 'exact', head: true })
       .eq('following_id', targetUserId),
-    (supabase.from('follows') as any)
+    supabase.from('follows')
       .select('id', { count: 'exact', head: true })
       .eq('follower_id', targetUserId),
   ]);
@@ -33,8 +33,8 @@ async function getFollowStatus(userId: string, targetUserId: string): Promise<Fo
 async function toggleFollow(followerId: string, followingId: string, isFollowing: boolean) {
   if (isFollowing) {
     // Unfollow
-    const { error } = await (supabase
-      .from('follows') as any)
+    const { error } = await supabase
+      .from('follows')
       .delete()
       .eq('follower_id', followerId)
       .eq('following_id', followingId);
@@ -42,8 +42,8 @@ async function toggleFollow(followerId: string, followingId: string, isFollowing
     if (error) throw error;
   } else {
     // Follow
-    const { error } = await (supabase
-      .from('follows') as any)
+    const { error } = await supabase
+      .from('follows')
       .insert({
         follower_id: followerId,
         following_id: followingId,

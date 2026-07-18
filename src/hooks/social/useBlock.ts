@@ -3,8 +3,8 @@ import { supabase } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query/keys';
 
 async function checkIsBlocked(blockerId: string, blockedId: string): Promise<boolean> {
-  const { data } = await (supabase
-    .from('blocks') as any)
+  const { data } = await supabase
+    .from('blocks')
     .select('id')
     .eq('blocker_id', blockerId)
     .eq('blocked_id', blockedId)
@@ -16,8 +16,8 @@ async function checkIsBlocked(blockerId: string, blockedId: string): Promise<boo
 async function toggleBlock(blockerId: string, blockedId: string, isBlocked: boolean) {
   if (isBlocked) {
     // Unblock
-    const { error } = await (supabase
-      .from('blocks') as any)
+    const { error } = await supabase
+      .from('blocks')
       .delete()
       .eq('blocker_id', blockerId)
       .eq('blocked_id', blockedId);
@@ -25,8 +25,8 @@ async function toggleBlock(blockerId: string, blockedId: string, isBlocked: bool
     if (error) throw error;
   } else {
     // Block - also unfollow in both directions
-    const { error: blockError } = await (supabase
-      .from('blocks') as any)
+    const { error: blockError } = await supabase
+      .from('blocks')
       .insert({
         blocker_id: blockerId,
         blocked_id: blockedId,
@@ -36,11 +36,11 @@ async function toggleBlock(blockerId: string, blockedId: string, isBlocked: bool
 
     // Remove follows in both directions
     await Promise.all([
-      (supabase.from('follows') as any)
+      supabase.from('follows')
         .delete()
         .eq('follower_id', blockerId)
         .eq('following_id', blockedId),
-      (supabase.from('follows') as any)
+      supabase.from('follows')
         .delete()
         .eq('follower_id', blockedId)
         .eq('following_id', blockerId),

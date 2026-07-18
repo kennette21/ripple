@@ -66,12 +66,12 @@ export default function SettingsScreen() {
             <SettingsItem
               icon="call-outline"
               title="Phone Number"
-              onPress={() => router.push('/(main)/(profile)/settings/phone-number' as any)}
+              onPress={() => router.push('/(main)/(profile)/settings/phone-number')}
             />
             <SettingsItem
               icon="people-outline"
               title="Find Friends"
-              onPress={() => router.push('/friends' as any)}
+              onPress={() => router.push('/friends')}
             />
             <SettingsItem
               icon="lock-closed-outline"

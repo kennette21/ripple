@@ -5,8 +5,8 @@ import { queryKeys } from '@/lib/query/keys';
 async function toggleBookmark(postId: string, userId: string, isBookmarked: boolean) {
   if (isBookmarked) {
     // Remove bookmark
-    const { error } = await (supabase
-      .from('bookmarks') as any)
+    const { error } = await supabase
+      .from('bookmarks')
       .delete()
       .eq('post_id', postId)
       .eq('user_id', userId);
@@ -14,8 +14,8 @@ async function toggleBookmark(postId: string, userId: string, isBookmarked: bool
     if (error) throw error;
   } else {
     // Add bookmark
-    const { error } = await (supabase
-      .from('bookmarks') as any)
+    const { error } = await supabase
+      .from('bookmarks')
       .insert({
         post_id: postId,
         user_id: userId,

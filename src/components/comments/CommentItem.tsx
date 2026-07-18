@@ -59,7 +59,7 @@ export function CommentItem({
 
   // created_at is nullable in the schema but always set by the DB default
   const timeAgo = formatDistanceToNow(new Date(comment.created_at!), { addSuffix: true });
-  const commentAuthorId = (comment as any).author_id;
+  const commentAuthorId = (comment).author_id;
   const isOwnComment = commentAuthorId === currentUserId;
   const replies = comment.replies ?? [];
   const hasReplies = replies.length > 0;

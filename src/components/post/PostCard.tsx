@@ -17,6 +17,7 @@ import { ImageGallery } from './ImageGallery';
 import { PostActionsMenu } from './PostActionsMenu';
 import { useDeletePost } from '@/hooks/posts/useDeletePost';
 import { useUpdatePostPrivacy } from '@/hooks/posts/useUpdatePostPrivacy';
+import { getErrorMessage } from '@/lib/errors';
 import { colors, spacing } from '@/constants/theme';
 import type { FeedPost } from '@/hooks/feed/useFeed';
 
@@ -51,7 +52,7 @@ function PostCardComponent({
 
   // created_at is nullable in the schema but always set by the DB default
   const timeAgo = formatDistanceToNow(new Date(post.created_at!), { addSuffix: true });
-  const postAuthorId = (post as any).author_id;
+  const postAuthorId = (post).author_id;
   const isOwnPost = currentUserId === postAuthorId;
   const isPrivateReflection = post.is_private && post.content_type === 'reflection';
 
@@ -98,10 +99,10 @@ function PostCardComponent({
                 isPrivate: makePrivate,
               });
               setIsPrivate(updatedPost.is_private);
-            } catch (error: any) {
+            } catch (error) {
               Alert.alert(
                 'Could not update privacy',
-                error.message || 'Please try again.'
+                getErrorMessage(error, 'Please try again.')
               );
             }
           },
@@ -124,10 +125,10 @@ function PostCardComponent({
           onPress: async () => {
             try {
               await deletePost.mutateAsync(post.id);
-            } catch (error: any) {
+            } catch (error) {
               Alert.alert(
                 'Could not delete post',
-                error.message || 'Please try again.'
+                getErrorMessage(error, 'Please try again.')
               );
             }
           },

@@ -23,6 +23,7 @@ import {
 } from '@/hooks/comments/useComments';
 import { LIMITS } from '@/constants/config';
 import { borderRadius, colors, spacing, typography } from '@/constants/theme';
+import { getErrorMessage } from '@/lib/errors';
 
 const PREVIEW_COMMENT_COUNT = 3;
 const COMMENT_COUNT_WARNING_AT = Math.floor(LIMITS.commentMaxLength * 0.9);
@@ -204,14 +205,14 @@ export function InlineComments({
       setReplyingTo(null);
       setIsComposing(false);
       setShowAll(true);
-    } catch (error: any) {
+    } catch (error) {
       Alert.alert(
         editingComment
           ? 'Could not update comment'
           : replyingTo
             ? 'Could not add reply'
             : 'Could not add comment',
-        error.message || 'Please try again.'
+        getErrorMessage(error, 'Please try again.')
       );
     }
   }, [commentText, createComment, currentUserId, editingComment, postId, replyingTo, updateComment]);

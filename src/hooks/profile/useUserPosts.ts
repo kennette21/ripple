@@ -15,8 +15,8 @@ async function fetchUserPosts(
   viewerId: string,
   cursor?: string
 ): Promise<UserPostsPage> {
-  let query = (supabase
-    .from('posts') as any)
+  let query = supabase
+    .from('posts')
     .select(`
       *,
       author:profiles!posts_author_id_fkey(*),
@@ -42,15 +42,15 @@ async function fetchUserPosts(
 
   // Get comment and repost counts, and bookmark status
   const postsWithCounts = await Promise.all(
-    (posts || []).map(async (post: any) => {
+    (posts || []).map(async (post) => {
       const [commentCount, repostCount, bookmarkStatus] = await Promise.all([
-        (supabase.from('comments') as any)
+        supabase.from('comments')
           .select('id', { count: 'exact', head: true })
           .eq('post_id', post.id),
-        (supabase.from('reposts') as any)
+        supabase.from('reposts')
           .select('id', { count: 'exact', head: true })
-          .eq('post_id', post.id),
-        (supabase.from('bookmarks') as any)
+          .eq('original_post_id', post.id),
+        supabase.from('bookmarks')
           .select('id')
           .eq('post_id', post.id)
           .eq('user_id', viewerId)

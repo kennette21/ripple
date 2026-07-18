@@ -62,8 +62,8 @@ export default function AvatarSetupScreen() {
 
       // Update profile with avatar (onboarding completed on discover screen)
       if (avatarPath) {
-        const { error } = await (supabase
-          .from('profiles') as any)
+        const { error } = await supabase
+          .from('profiles')
           .update({ avatar_url: avatarPath })
           .eq('id', user.id);
 
