@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -16,12 +16,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@providers/AuthProvider';
 import { useFeed, type FeedPost } from '@/hooks/feed/useFeed';
 import { PostCard } from '@/components/post/PostCard';
+import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/lib/query/keys';
 import { EmptyState } from '@components/common';
 import { Skeleton } from '@components/ui';
 import { colors, spacing, typography } from '@constants/theme';
 
 export default function FeedScreen() {
   const { user } = useAuth();
+  const [isRefreshingComments, setIsRefreshingComments] = useState(false);
   const {
     data,
     fetchNextPage,
@@ -32,7 +35,10 @@ export default function FeedScreen() {
     refetch,
   } = useFeed(user?.id);
 
-  const posts = data?.pages.flatMap((page) => page.posts) ?? [];
+  const posts = useMemo(
+    () => data?.pages.flatMap((page) => page.posts) ?? [],
+    [data]
+  );
 
   const renderPost = useCallback(({ item }: { item: FeedPost }) => (
     <PostCard
@@ -73,6 +79,21 @@ export default function FeedScreen() {
       fetchNextPage();
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshingComments(true);
+    try {
+      await Promise.all([
+        refetch(),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.comments.all,
+          refetchType: 'active',
+        }),
+      ]);
+    } finally {
+      setIsRefreshingComments(false);
+    }
+  }, [refetch]);
 
   if (isLoading) {
     return (
@@ -128,13 +149,17 @@ export default function FeedScreen() {
             keyExtractor={(item) => item.id}
             refreshControl={
               <RefreshControl
-                refreshing={isRefetching}
-                onRefresh={refetch}
+                refreshing={isRefetching || isRefreshingComments}
+                onRefresh={handleRefresh}
                 tintColor={colors.primary[500]}
               />
             }
             onEndReached={handleEndReached}
             onEndReachedThreshold={0.5}
+            initialNumToRender={5}
+            maxToRenderPerBatch={5}
+            windowSize={7}
+            updateCellsBatchingPeriod={50}
             ListFooterComponent={renderFooter}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="always"

@@ -23,7 +23,7 @@ interface PostCardProps {
   currentUserId?: string;
 }
 
-export function PostCard({
+function PostCardComponent({
   post,
   currentUserId,
 }: PostCardProps) {
@@ -261,6 +261,8 @@ export function PostCard({
     </View>
   );
 }
+
+export const PostCard = React.memo(PostCardComponent);
 
 const styles = StyleSheet.create({
   container: {

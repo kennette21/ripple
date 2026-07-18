@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -39,7 +39,10 @@ export default function ProfileScreen() {
     isLoading: postsLoading,
   } = useUserPosts(user?.id, user?.id);
 
-  const posts = postsData?.pages.flatMap((page) => page.posts) ?? [];
+  const posts = useMemo(
+    () => postsData?.pages.flatMap((page) => page.posts) ?? [],
+    [postsData]
+  );
 
   const renderHeader = () => (
     <>
@@ -121,6 +124,10 @@ export default function ProfileScreen() {
               </View>
             )
           }
+          initialNumToRender={5}
+          maxToRenderPerBatch={5}
+          windowSize={7}
+          updateCellsBatchingPeriod={50}
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.5}
           showsVerticalScrollIndicator={false}

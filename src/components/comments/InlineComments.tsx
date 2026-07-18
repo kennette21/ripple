@@ -351,12 +351,14 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
               accessibilityRole="button"
               accessibilityLabel={showAll
                 ? 'Show fewer comments'
-                : `Show ${hiddenCommentCount} more comments`
+                : `View ${hiddenCommentCount} more ${hiddenCommentCount === 1 ? 'comment' : 'comments'}`
               }
             >
-              <Text style={styles.moreText}>•••</Text>
               <Text style={styles.moreLabel}>
-                {showAll ? 'Show less' : `${hiddenCommentCount} more`}
+                {showAll
+                  ? 'Show fewer comments'
+                  : `View ${hiddenCommentCount} more ${hiddenCommentCount === 1 ? 'comment' : 'comments'}`
+                }
               </Text>
             </Pressable>
           )}
@@ -550,28 +552,15 @@ const styles = StyleSheet.create({
   },
   moreButton: {
     alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    minHeight: 36,
-    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
     marginVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.gray[100],
   },
   moreButtonPressed: {
-    backgroundColor: colors.gray[200],
-  },
-  moreText: {
-    color: colors.gray[700],
-    fontSize: typography.fontSizes.sm,
-    fontWeight: typography.fontWeights.bold,
-    letterSpacing: 1,
-    marginTop: -4,
+    opacity: 0.65,
   },
   moreLabel: {
-    color: colors.gray[600],
-    fontSize: typography.fontSizes.xs,
+    color: colors.primary[500],
+    fontSize: 13,
     fontWeight: typography.fontWeights.medium,
   },
   composerPrompt: {

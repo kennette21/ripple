@@ -105,6 +105,8 @@ export function useComments(postId: string | undefined) {
     queryKey: queryKeys.comments.byPost(postId || ''),
     queryFn: () => fetchComments(postId!),
     enabled: !!postId,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
