@@ -14,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@/components/ui/Avatar';
 import { InlineComments } from '@/components/comments/InlineComments';
 import { ImageGallery } from './ImageGallery';
+import { PostActionsMenu } from './PostActionsMenu';
+import { useDeletePost } from '@/hooks/posts/useDeletePost';
 import { useUpdatePostPrivacy } from '@/hooks/posts/useUpdatePostPrivacy';
 import { colors, spacing } from '@/constants/theme';
 import type { FeedPost } from '@/hooks/feed/useFeed';
@@ -40,6 +42,7 @@ function PostCardComponent({
   const [showFullReflection, setShowFullReflection] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [isPrivate, setIsPrivate] = useState(post.is_private);
+  const deletePost = useDeletePost();
   const updatePrivacy = useUpdatePostPrivacy();
 
   useEffect(() => {
@@ -98,6 +101,32 @@ function PostCardComponent({
             } catch (error: any) {
               Alert.alert(
                 'Could not update privacy',
+                error.message || 'Please try again.'
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteRequest = () => {
+    if (!isOwnPost || deletePost.isPending) return;
+
+    Alert.alert(
+      'Delete Post?',
+      'This post will move to Recently Deleted. You can restore it for 30 days.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deletePost.mutateAsync(post.id);
+            } catch (error: any) {
+              Alert.alert(
+                'Could not delete post',
                 error.message || 'Please try again.'
               );
             }
@@ -190,6 +219,13 @@ function PostCardComponent({
             <Ionicons name="lock-closed" size={14} color={colors.gray[400]} style={styles.lockIcon} />
           )}
           <Text style={styles.time}>{timeAgo}</Text>
+          {isOwnPost && (
+            <PostActionsMenu
+              postId={post.id}
+              isDeleting={deletePost.isPending}
+              onDelete={handleDeleteRequest}
+            />
+          )}
         </View>
       </View>
 

@@ -12,6 +12,7 @@ async function updatePostPrivacy(
     .update({ is_private: isPrivate })
     .eq('id', postId)
     .eq('author_id', authorId)
+    .is('deleted_at', null)
     .select('id, is_private')
     .single();
 

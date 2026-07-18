@@ -80,6 +80,7 @@ The backend is a hosted Supabase project. The schema lives in `supabase/migratio
 | `20260713193010_remote_schema.sql` | Baseline: full production schema (tables, RLS policies, triggers, functions), pulled from prod on 2026-07-13 |
 | `20260713193011_storage_buckets.sql` | Storage buckets (`avatars`, `post-images`) and their `storage.objects` policies — maintained by hand since `db pull` doesn't capture them |
 | `20260713193012_storage_delete_policies.sql` | Adds the missing delete-own-object policies so `supabase.storage.remove()` works |
+| `20260718140000_soft_delete_posts.sql` | Keeps deleted posts recoverable for 30 days and schedules their final purge |
 
 > **History note:** the original hand-written migrations (visible in git history before 2026-07-13) were never actually run against production — the live schema was built via the dashboard and had drifted (e.g. `friend_requests` existed only in prod; `usage_sessions`, `push_tokens` and friends existed only in the files). The baseline above replaced them with the real production schema, and the remote migration history table was repaired to match. From here on, all schema changes must go through migration files.
 
@@ -104,6 +105,30 @@ supabase status        # prints the local URL and anon key
 ```
 
 Point `.env` at the local stack (`EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321` and the anon key from `supabase status`). Local auth emails are caught by Inbucket at http://localhost:54324. Local Studio is at http://localhost:54323.
+
+### Recently Deleted
+
+Posts are recoverable for 30 days, then a daily Cron-triggered Edge Function
+deletes their database rows and Storage objects. Production setup:
+
+```bash
+openssl rand -hex 32
+supabase secrets set PURGE_DELETED_POSTS_SECRET=<secret>
+```
+
+Add the same secret and project URL to Database Vault (SQL Editor):
+
+```sql
+select vault.create_secret('https://zgjqgspxxqdliwjiltdw.supabase.co', 'project_url');
+select vault.create_secret('<secret>', 'purge_deleted_posts_secret');
+```
+
+```bash
+supabase functions deploy purge-deleted-posts
+supabase db push
+```
+
+Runs appear under Dashboard → Integrations → Cron and Functions → Logs.
 
 ### Dashboard configuration (not in migrations)
 

@@ -62,3 +62,6 @@ enabled = false
 [experimental]
 orioledb_version = ""
 s3_host = ""
+
+[functions.purge-deleted-posts]
+verify_jwt = false

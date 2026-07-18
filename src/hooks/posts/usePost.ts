@@ -12,6 +12,7 @@ async function fetchPost(postId: string, userId: string): Promise<FeedPost> {
       images:post_images(*)
     `)
     .eq('id', postId)
+    .is('deleted_at', null)
     .or(`is_private.eq.false,author_id.eq.${userId}`)
     .single();
 

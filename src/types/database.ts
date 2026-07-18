@@ -455,6 +455,7 @@ export type Database = {
           caption: string | null
           content_type: Database["public"]["Enums"]["post_content_type"]
           created_at: string | null
+          deleted_at: string | null
           id: string
           is_private: boolean
           reflection: string | null
@@ -464,6 +465,7 @@ export type Database = {
           caption?: string | null
           content_type: Database["public"]["Enums"]["post_content_type"]
           created_at?: string | null
+          deleted_at?: string | null
           id?: string
           is_private?: boolean
           reflection?: string | null
@@ -473,6 +475,7 @@ export type Database = {
           caption?: string | null
           content_type?: Database["public"]["Enums"]["post_content_type"]
           created_at?: string | null
+          deleted_at?: string | null
           id?: string
           is_private?: boolean
           reflection?: string | null
@@ -570,8 +573,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      restore_deleted_post: { Args: { p_post_id: string }; Returns: boolean }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      soft_delete_post: { Args: { p_post_id: string }; Returns: boolean }
     }
     Enums: {
       notification_type:
