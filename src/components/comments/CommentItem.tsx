@@ -125,11 +125,18 @@ export function CommentItem({
               <Text style={styles.time}>{timeAgo}</Text>
             </View>
 
-            <Text style={styles.text}>{comment.content}</Text>
+            <Text style={styles.text}>
+              {comment.replyToAuthor && (
+                <Text style={styles.replyMention}>
+                  @{comment.replyToAuthor.username}{' '}
+                </Text>
+              )}
+              {comment.content}
+            </Text>
 
-            {((!isReply && onReply) || (isOwnComment && onEdit)) && (
+            {(onReply || (isOwnComment && onEdit)) && (
               <View style={styles.actions}>
-                {!isReply && onReply && (
+                {onReply && (
                   <Pressable
                     style={styles.actionButton}
                     onPress={() => onReply(comment)}
@@ -176,6 +183,7 @@ export function CommentItem({
                 key={reply.id}
                 comment={reply}
                 currentUserId={currentUserId}
+                onReply={onReply}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onProfilePress={onProfilePress}
@@ -269,6 +277,10 @@ const styles = StyleSheet.create({
     color: colors.gray[900],
     lineHeight: 20,
     marginTop: 2,
+  },
+  replyMention: {
+    color: colors.primary[600],
+    fontWeight: '500',
   },
   actions: {
     flexDirection: 'row',

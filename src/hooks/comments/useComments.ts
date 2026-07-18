@@ -6,6 +6,8 @@ import type { Comment, Profile } from '@/types/database';
 export interface CommentWithAuthor extends Comment {
   author: Profile;
   replies?: CommentWithAuthor[];
+  replyToAuthor?: Profile;
+  thread_root_id?: string | null;
 }
 
 async function fetchComments(postId: string): Promise<CommentWithAuthor[]> {
@@ -28,9 +30,30 @@ async function fetchComments(postId: string): Promise<CommentWithAuthor[]> {
     threadedComments.map((comment: CommentWithAuthor) => [comment.id, comment])
   );
 
+  const findThreadRoot = (comment: CommentWithAuthor) => {
+    const visited = new Set<string>();
+    let current = comment;
+
+    while (current.parent_id && !visited.has(current.id)) {
+      visited.add(current.id);
+      const parent = commentsById.get(current.parent_id);
+      if (!parent) return undefined;
+      current = parent;
+    }
+
+    return current.parent_id ? undefined : current;
+  };
+
   threadedComments.forEach((comment: CommentWithAuthor) => {
     if (!comment.parent_id) return;
-    commentsById.get(comment.parent_id)?.replies?.push(comment);
+
+    const parent = commentsById.get(comment.parent_id);
+    comment.replyToAuthor = parent?.author;
+
+    const root = comment.thread_root_id
+      ? commentsById.get(comment.thread_root_id)
+      : findThreadRoot(comment);
+    root?.replies?.push(comment);
   });
 
   return threadedComments.filter(
@@ -40,24 +63,14 @@ async function fetchComments(postId: string): Promise<CommentWithAuthor[]> {
 
 async function createComment(
   postId: string,
-  userId: string,
   content: string,
   parentId?: string
 ) {
-  const { data, error } = await (supabase
-    .from('comments') as any)
-    .insert({
-      post_id: postId,
-      author_id: userId,
-      content,
-      parent_id: parentId || null,
-      depth: parentId ? 1 : 0,
-    })
-    .select(`
-      *,
-      author:profiles!comments_author_id_fkey(*)
-    `)
-    .single();
+  const { data, error } = await (supabase as any).rpc('create_comment', {
+    p_post_id: postId,
+    p_content: content,
+    p_parent_id: parentId || null,
+  });
 
   if (error) throw error;
   return data;
@@ -99,12 +112,11 @@ export function useCreateComment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ postId, userId, content, parentId }: {
+    mutationFn: ({ postId, content, parentId }: {
       postId: string;
-      userId: string;
       content: string;
       parentId?: string;
-    }) => createComment(postId, userId, content, parentId),
+    }) => createComment(postId, content, parentId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.comments.byPost(variables.postId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.posts.all });

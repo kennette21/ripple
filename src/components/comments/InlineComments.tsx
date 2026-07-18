@@ -133,7 +133,6 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
       } else {
         await createComment.mutateAsync({
           postId,
-          userId: currentUserId,
           content,
           parentId: replyingTo?.id,
         });
