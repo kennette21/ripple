@@ -100,6 +100,7 @@ export type Database = {
           id: string
           parent_id: string | null
           post_id: string
+          thread_root_id: string | null
         }
         Insert: {
           author_id: string
@@ -109,6 +110,7 @@ export type Database = {
           id?: string
           parent_id?: string | null
           post_id: string
+          thread_root_id?: string | null
         }
         Update: {
           author_id?: string
@@ -118,6 +120,7 @@ export type Database = {
           id?: string
           parent_id?: string | null
           post_id?: string
+          thread_root_id?: string | null
         }
         Relationships: [
           {
@@ -139,6 +142,13 @@ export type Database = {
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_thread_root_id_fkey"
+            columns: ["thread_root_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
             referencedColumns: ["id"]
           },
         ]

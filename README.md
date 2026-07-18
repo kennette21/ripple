@@ -57,11 +57,18 @@ npm run dev-start:reset
 
 ### Checks
 
-There is no test suite yet. Before committing, run:
+Before committing, run:
 
 ```bash
 npm run typecheck    # tsc --noEmit
 npm run lint         # expo lint
+```
+
+With the seeded local stack and an iOS development build running, the comment
+composer regression flow is:
+
+```bash
+npm run test:e2e:comments
 ```
 
 ## Supabase setup

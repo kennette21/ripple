@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import { EmptyState } from '@components/common';
 import { PostCard } from '@/components/post/PostCard';
 import { useAuth } from '@providers/AuthProvider';
 import { useUserPosts } from '@/hooks/profile/useUserPosts';
+import { useCommentThreadController } from '@/hooks/comments/useCommentThreadController';
 import { getAvatarUrl } from '@/lib/supabase/storage';
 import { colors, spacing, typography } from '@constants/theme';
 import type { FeedPost } from '@/hooks/feed/useFeed';
@@ -30,6 +31,13 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function ProfileScreen() {
   const { profile, user } = useAuth();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const {
+    activeCommentThreadId,
+    handleCommentListScroll,
+    listRef,
+    scrollToCommentComposer,
+    setActiveCommentThreadId,
+  } = useCommentThreadController<FeedPost>();
 
   const {
     data: postsData,
@@ -39,7 +47,10 @@ export default function ProfileScreen() {
     isLoading: postsLoading,
   } = useUserPosts(user?.id, user?.id);
 
-  const posts = postsData?.pages.flatMap((page) => page.posts) ?? [];
+  const posts = useMemo(
+    () => postsData?.pages.flatMap((page) => page.posts) ?? [],
+    [postsData]
+  );
 
   const renderHeader = () => (
     <>
@@ -69,8 +80,16 @@ export default function ProfileScreen() {
     <PostCard
       post={item}
       currentUserId={user?.id}
+      isCommentThreadActive={activeCommentThreadId === item.id}
+      onCommentComposerActivated={scrollToCommentComposer}
+      onCommentThreadActiveChange={setActiveCommentThreadId}
     />
-  ), [user?.id]);
+  ), [
+    activeCommentThreadId,
+    scrollToCommentComposer,
+    setActiveCommentThreadId,
+    user?.id,
+  ]);
 
   const renderFooter = () => {
     if (isFetchingNextPage) {
@@ -103,6 +122,7 @@ export default function ProfileScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <FlatList
+          ref={listRef}
           data={posts}
           renderItem={renderPost}
           keyExtractor={(item) => item.id}
@@ -121,8 +141,14 @@ export default function ProfileScreen() {
               </View>
             )
           }
+          initialNumToRender={5}
+          maxToRenderPerBatch={5}
+          windowSize={7}
+          updateCellsBatchingPeriod={50}
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.5}
+          onScroll={handleCommentListScroll}
+          scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="always"

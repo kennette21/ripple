@@ -34,7 +34,9 @@ export const queryKeys = {
     users: (query: string) => ['search', 'users', query] as const,
   },
   comments: {
-    byPost: (postId: string) => ['comments', 'byPost', postId] as const,
+    all: ['comments'] as const,
+    byPost: (postId: string) =>
+      [...queryKeys.comments.all, 'byPost', postId] as const,
   },
   notifications: {
     all: ['notifications'] as const,

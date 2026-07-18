@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -20,6 +20,7 @@ const DELETE_MENU_MAX_WIDTH = 220;
 const DELETE_MENU_HEIGHT = 54;
 const DELETE_MENU_GAP = 8;
 const SCREEN_MARGIN = 16;
+const DEFAULT_VISIBLE_REPLY_COUNT = 2;
 
 interface MenuPosition {
   top: number;
@@ -34,6 +35,8 @@ interface CommentItemProps {
   onEdit?: (comment: CommentWithAuthor) => void;
   onDelete?: (commentId: string) => void;
   onProfilePress?: (userId: string) => void;
+  isThreadActive?: boolean;
+  onThreadInteraction?: () => void;
   isReply?: boolean;
 }
 
@@ -44,19 +47,36 @@ export function CommentItem({
   onEdit,
   onDelete,
   onProfilePress,
+  isThreadActive = false,
+  onThreadInteraction,
   isReply = false,
 }: CommentItemProps) {
   const router = useRouter();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const commentBodyRef = useRef<View>(null);
-  const [showReplies, setShowReplies] = useState(true);
+  const [showAllReplies, setShowAllReplies] = useState(false);
   const [deleteMenuPosition, setDeleteMenuPosition] = useState<MenuPosition | null>(null);
 
   // created_at is nullable in the schema but always set by the DB default
   const timeAgo = formatDistanceToNow(new Date(comment.created_at!), { addSuffix: true });
   const commentAuthorId = (comment as any).author_id;
   const isOwnComment = commentAuthorId === currentUserId;
-  const hasReplies = comment.replies && comment.replies.length > 0;
+  const replies = comment.replies ?? [];
+  const hasReplies = replies.length > 0;
+  const remainingReplyCount = Math.max(
+    replies.length - DEFAULT_VISIBLE_REPLY_COUNT,
+    0
+  );
+  const areAllRepliesVisible = showAllReplies && isThreadActive;
+  const visibleReplies = areAllRepliesVisible
+    ? replies
+    : replies.slice(0, DEFAULT_VISIBLE_REPLY_COUNT);
+
+  useEffect(() => {
+    if (!isThreadActive && showAllReplies) {
+      setShowAllReplies(false);
+    }
+  }, [isThreadActive, showAllReplies]);
 
   const handleProfilePress = () => {
     if (onProfilePress) {
@@ -125,12 +145,26 @@ export function CommentItem({
               <Text style={styles.time}>{timeAgo}</Text>
             </View>
 
-            <Text style={styles.text}>{comment.content}</Text>
+            <Text style={styles.text}>
+              {comment.replyToAuthor && (
+                <Text style={styles.replyMention}>
+                  @{comment.replyToAuthor.username}{' '}
+                </Text>
+              )}
+              {comment.content}
+            </Text>
 
-            {((!isReply && onReply) || (isOwnComment && onEdit)) && (
+            {(onReply || (isOwnComment && onEdit)) && (
               <View style={styles.actions}>
-                {!isReply && onReply && (
-                  <Pressable style={styles.actionButton} onPress={() => onReply(comment)}>
+                {onReply && (
+                  <Pressable
+                    style={styles.actionButton}
+                    onPress={() => onReply(comment)}
+                    testID={`comment-reply-${comment.id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Reply to ${comment.author.display_name || comment.author.username}`}
+                    hitSlop={8}
+                  >
                     <Ionicons name="chatbubble-outline" size={14} color={colors.gray[500]} />
                     <Text style={styles.actionText}>Reply</Text>
                   </Pressable>
@@ -139,6 +173,7 @@ export function CommentItem({
                   <Pressable
                     style={styles.actionButton}
                     onPress={() => onEdit(comment)}
+                    testID={`comment-edit-${comment.id}`}
                     accessibilityRole="button"
                     accessibilityLabel="Edit comment"
                     hitSlop={8}
@@ -154,28 +189,44 @@ export function CommentItem({
         {/* Replies */}
         {hasReplies && (
           <View style={styles.repliesSection}>
-            {comment.replies!.length > 2 && (
-              <Pressable onPress={() => setShowReplies(!showReplies)}>
-                <Text style={styles.showReplies}>
-                  {showReplies
-                    ? 'Hide replies'
-                    : `Show ${comment.replies!.length} replies`
-                  }
-                </Text>
-              </Pressable>
-            )}
-
-            {showReplies && comment.replies!.map((reply) => (
+            {visibleReplies.map((reply) => (
               <CommentItem
                 key={reply.id}
                 comment={reply}
                 currentUserId={currentUserId}
+                onReply={onReply}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onProfilePress={onProfilePress}
+                isThreadActive={isThreadActive}
+                onThreadInteraction={onThreadInteraction}
                 isReply
               />
             ))}
+
+            {remainingReplyCount > 0 && (
+              <Pressable
+                onPress={() => {
+                  if (!areAllRepliesVisible) {
+                    onThreadInteraction?.();
+                  }
+                  setShowAllReplies(!areAllRepliesVisible);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={areAllRepliesVisible
+                  ? 'Show fewer replies'
+                  : `View ${remainingReplyCount} more ${remainingReplyCount === 1 ? 'reply' : 'replies'}`
+                }
+                accessibilityState={{ expanded: areAllRepliesVisible }}
+              >
+                <Text style={styles.showReplies}>
+                  {areAllRepliesVisible
+                    ? 'Show fewer replies'
+                    : `View ${remainingReplyCount} more ${remainingReplyCount === 1 ? 'reply' : 'replies'}`
+                  }
+                </Text>
+              </Pressable>
+            )}
           </View>
         )}
       </View>
@@ -263,6 +314,10 @@ const styles = StyleSheet.create({
     color: colors.gray[900],
     lineHeight: 20,
     marginTop: 2,
+  },
+  replyMention: {
+    color: colors.primary[600],
+    fontWeight: '500',
   },
   actions: {
     flexDirection: 'row',
