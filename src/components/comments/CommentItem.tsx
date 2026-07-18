@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -35,6 +35,8 @@ interface CommentItemProps {
   onEdit?: (comment: CommentWithAuthor) => void;
   onDelete?: (commentId: string) => void;
   onProfilePress?: (userId: string) => void;
+  isThreadActive?: boolean;
+  onThreadInteraction?: () => void;
   isReply?: boolean;
 }
 
@@ -45,6 +47,8 @@ export function CommentItem({
   onEdit,
   onDelete,
   onProfilePress,
+  isThreadActive = false,
+  onThreadInteraction,
   isReply = false,
 }: CommentItemProps) {
   const router = useRouter();
@@ -63,9 +67,16 @@ export function CommentItem({
     replies.length - DEFAULT_VISIBLE_REPLY_COUNT,
     0
   );
-  const visibleReplies = showAllReplies
+  const areAllRepliesVisible = showAllReplies && isThreadActive;
+  const visibleReplies = areAllRepliesVisible
     ? replies
     : replies.slice(0, DEFAULT_VISIBLE_REPLY_COUNT);
+
+  useEffect(() => {
+    if (!isThreadActive && showAllReplies) {
+      setShowAllReplies(false);
+    }
+  }, [isThreadActive, showAllReplies]);
 
   const handleProfilePress = () => {
     if (onProfilePress) {
@@ -149,6 +160,7 @@ export function CommentItem({
                   <Pressable
                     style={styles.actionButton}
                     onPress={() => onReply(comment)}
+                    testID={`comment-reply-${comment.id}`}
                     accessibilityRole="button"
                     accessibilityLabel={`Reply to ${comment.author.display_name || comment.author.username}`}
                     hitSlop={8}
@@ -161,6 +173,7 @@ export function CommentItem({
                   <Pressable
                     style={styles.actionButton}
                     onPress={() => onEdit(comment)}
+                    testID={`comment-edit-${comment.id}`}
                     accessibilityRole="button"
                     accessibilityLabel="Edit comment"
                     hitSlop={8}
@@ -185,22 +198,29 @@ export function CommentItem({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onProfilePress={onProfilePress}
+                isThreadActive={isThreadActive}
+                onThreadInteraction={onThreadInteraction}
                 isReply
               />
             ))}
 
             {remainingReplyCount > 0 && (
               <Pressable
-                onPress={() => setShowAllReplies((value) => !value)}
+                onPress={() => {
+                  if (!areAllRepliesVisible) {
+                    onThreadInteraction?.();
+                  }
+                  setShowAllReplies(!areAllRepliesVisible);
+                }}
                 accessibilityRole="button"
-                accessibilityLabel={showAllReplies
+                accessibilityLabel={areAllRepliesVisible
                   ? 'Show fewer replies'
                   : `View ${remainingReplyCount} more ${remainingReplyCount === 1 ? 'reply' : 'replies'}`
                 }
-                accessibilityState={{ expanded: showAllReplies }}
+                accessibilityState={{ expanded: areAllRepliesVisible }}
               >
                 <Text style={styles.showReplies}>
-                  {showAllReplies
+                  {areAllRepliesVisible
                     ? 'Show fewer replies'
                     : `View ${remainingReplyCount} more ${remainingReplyCount === 1 ? 'reply' : 'replies'}`
                   }

@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@providers/AuthProvider';
 import { useFeed, type FeedPost } from '@/hooks/feed/useFeed';
+import { useCommentThreadController } from '@/hooks/comments/useCommentThreadController';
 import { PostCard } from '@/components/post/PostCard';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/lib/query/keys';
@@ -25,6 +26,13 @@ import { colors, spacing, typography } from '@constants/theme';
 export default function FeedScreen() {
   const { user } = useAuth();
   const [isRefreshingComments, setIsRefreshingComments] = useState(false);
+  const {
+    activeCommentThreadId,
+    handleCommentListScroll,
+    listRef,
+    scrollToCommentComposer,
+    setActiveCommentThreadId,
+  } = useCommentThreadController<FeedPost>();
   const {
     data,
     fetchNextPage,
@@ -44,8 +52,16 @@ export default function FeedScreen() {
     <PostCard
       post={item}
       currentUserId={user?.id}
+      isCommentThreadActive={activeCommentThreadId === item.id}
+      onCommentComposerActivated={scrollToCommentComposer}
+      onCommentThreadActiveChange={setActiveCommentThreadId}
     />
-  ), [user?.id]);
+  ), [
+    activeCommentThreadId,
+    scrollToCommentComposer,
+    setActiveCommentThreadId,
+    user?.id,
+  ]);
 
   const renderFooter = useCallback(() => {
     if (isFetchingNextPage) {
@@ -144,6 +160,7 @@ export default function FeedScreen() {
           />
         ) : (
           <FlatList
+            ref={listRef}
             data={posts}
             renderItem={renderPost}
             keyExtractor={(item) => item.id}
@@ -156,6 +173,8 @@ export default function FeedScreen() {
             }
             onEndReached={handleEndReached}
             onEndReachedThreshold={0.5}
+            onScroll={handleCommentListScroll}
+            scrollEventThrottle={16}
             initialNumToRender={5}
             maxToRenderPerBatch={5}
             windowSize={7}

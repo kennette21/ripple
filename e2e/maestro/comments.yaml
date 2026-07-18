@@ -1,0 +1,62 @@
+appId: com.proxy.ripple
+name: Comment composer transitions
+---
+- launchApp:
+    clearState: true
+
+- tapOn: "you@example.com"
+- inputText: "cicero@gmail.com"
+- tapOn: "Enter your password"
+- inputText: "12345678"
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Feed"
+    timeout: 15000
+
+- scrollUntilVisible:
+    element:
+      id: "comments-toggle-10000000-0000-4000-8000-000000000003"
+    direction: DOWN
+    timeout: 20000
+- tapOn:
+    id: "comments-toggle-10000000-0000-4000-8000-000000000003"
+- extendedWaitUntil:
+    visible:
+      id: "comment-edit-50000000-0000-4000-8000-000000000002"
+    timeout: 10000
+
+# Edit -> scroll away -> Reply.
+- tapOn:
+    id: "comment-edit-50000000-0000-4000-8000-000000000002"
+- assertVisible: "Editing comment"
+- assertVisible:
+    id: "comment-composer-input-10000000-0000-4000-8000-000000000003"
+- assertVisible: "return"
+- swipe:
+    start: "50%, 56%"
+    end: "50%, 18%"
+    duration: 500
+- tapOn:
+    id: "comment-reply-50000000-0000-4000-8000-000000000004"
+- assertVisible: "Replying to Marcus Aurelius: I love that tiny orange flag against the blue."
+- assertVisible:
+    id: "comment-composer-input-10000000-0000-4000-8000-000000000003"
+- assertVisible: "return"
+
+# Reply -> scroll away -> Edit.
+- swipe:
+    start: "50%, 56%"
+    end: "50%, 18%"
+    duration: 500
+- tapOn:
+    id: "comment-edit-50000000-0000-4000-8000-000000000002"
+- assertVisible: "Editing comment"
+- assertVisible:
+    id: "comment-composer-input-10000000-0000-4000-8000-000000000003"
+- assertVisible: "return"
+
+# Closing the mode removes the one active composer.
+- tapOn: "Cancel editing comment"
+- assertNotVisible:
+    id: "comment-composer-10000000-0000-4000-8000-000000000003"

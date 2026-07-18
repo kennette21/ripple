@@ -40,11 +40,24 @@ function normalizeCommentContent(value: string) {
 interface InlineCommentsProps {
   postId: string;
   currentUserId?: string;
+  isThreadActive: boolean;
+  onComposerActivated?: (
+    composer: View,
+    onPositioned?: () => void
+  ) => void;
+  onThreadActiveChange: (active: boolean) => void;
 }
 
-export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
+export function InlineComments({
+  postId,
+  currentUserId,
+  isThreadActive,
+  onComposerActivated,
+  onThreadActiveChange,
+}: InlineCommentsProps) {
   const router = useRouter();
   const { profile } = useAuth();
+  const composerRef = useRef<View>(null);
   const inputRef = useRef<TextInput>(null);
   const [commentText, setCommentText] = useState('');
   const [isComposing, setIsComposing] = useState(false);
@@ -69,55 +82,111 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
       0
     );
   }, [flatComments]);
-  const visibleComments = showAll
+  const isComposerVisible = isComposing && isThreadActive;
+  const isShowingAll = showAll && isThreadActive;
+  const visibleComments = isShowingAll
     ? flatComments
     : flatComments.slice(0, PREVIEW_COMMENT_COUNT);
   const hiddenCommentCount = Math.max(
     flatComments.length - PREVIEW_COMMENT_COUNT,
     0
   );
+  const composerModeKey = editingComment
+    ? `edit:${editingComment.id}`
+    : replyingTo
+      ? `reply:${replyingTo.id}`
+      : 'comment';
+
+  const activateComposer = useCallback(() => {
+    if (composerRef.current) {
+      onComposerActivated?.(composerRef.current);
+    }
+  }, [onComposerActivated]);
+
+  const positionAndFocusComposer = useCallback(() => {
+    const focusInput = () => inputRef.current?.focus();
+
+    if (composerRef.current && onComposerActivated) {
+      onComposerActivated(composerRef.current, focusInput);
+    } else {
+      focusInput();
+    }
+  }, [onComposerActivated]);
 
   useEffect(() => {
-    if (!isComposing) return;
+    if (!isComposerVisible) return;
 
-    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    const frame = requestAnimationFrame(() => {
+      positionAndFocusComposer();
+    });
+
     return () => cancelAnimationFrame(frame);
-  }, [isComposing]);
+  }, [composerModeKey, isComposerVisible, positionAndFocusComposer]);
+
+  useEffect(() => {
+    if (isThreadActive) return;
+
+    setCommentText('');
+    setEditingComment(null);
+    setReplyingTo(null);
+    setIsComposing(false);
+    setShowAll(false);
+  }, [isThreadActive]);
 
   const handleStartComposing = useCallback(() => {
+    onThreadActiveChange(true);
     setEditingComment(null);
     setReplyingTo(null);
     setCommentText('');
     setIsComposing(true);
-  }, []);
+  }, [onThreadActiveChange]);
 
   const handleStartReplying = useCallback((comment: CommentWithAuthor) => {
     if (!currentUserId) return;
 
+    onThreadActiveChange(true);
     setEditingComment(null);
     setReplyingTo(comment);
     setCommentText('');
     setIsComposing(true);
     setShowAll(true);
-  }, [currentUserId]);
+  }, [currentUserId, onThreadActiveChange]);
 
   const handleStartEditing = useCallback((comment: CommentWithAuthor) => {
     if (comment.author_id !== currentUserId) return;
 
+    onThreadActiveChange(true);
     setReplyingTo(null);
     setEditingComment(comment);
     setCommentText(comment.content);
     setIsComposing(true);
     setShowAll(true);
-  }, [currentUserId]);
+  }, [currentUserId, onThreadActiveChange]);
 
   const handleCancel = useCallback(() => {
     setCommentText('');
     setEditingComment(null);
     setReplyingTo(null);
     setIsComposing(false);
+    if (!showAll) {
+      onThreadActiveChange(false);
+    }
     Keyboard.dismiss();
-  }, []);
+  }, [onThreadActiveChange, showAll]);
+
+  const handleCommentsDisclosurePress = useCallback(() => {
+    if (showAll) {
+      if (isComposing) {
+        handleCancel();
+      }
+      setShowAll(false);
+      onThreadActiveChange(false);
+      return;
+    }
+
+    onThreadActiveChange(true);
+    setShowAll(true);
+  }, [handleCancel, isComposing, onThreadActiveChange, showAll]);
 
   const handleSubmit = useCallback(async () => {
     const content = normalizeCommentContent(commentText);
@@ -182,8 +251,14 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
 
   return (
     <View style={styles.container}>
-      {isComposing && (
-        <View style={styles.composer}>
+      {isComposerVisible && (
+        <View
+          ref={composerRef}
+          style={styles.composer}
+          collapsable={false}
+          onLayout={activateComposer}
+          testID={`comment-composer-${postId}`}
+        >
           <View style={styles.composerHeader}>
             {editingComment || replyingTo ? (
               <Text style={styles.composerContextLabel} numberOfLines={1}>
@@ -278,7 +353,9 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
                 </View>
               )}
               <TextInput
+                key={composerModeKey}
                 ref={inputRef}
+                testID={`comment-composer-input-${postId}`}
                 style={[
                   styles.composerInput,
                   replyingTo && styles.replyComposerInput,
@@ -292,6 +369,7 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
                 placeholderTextColor={colors.gray[400]}
                 value={commentText}
                 onChangeText={setCommentText}
+                onFocus={activateComposer}
                 multiline
                 maxLength={LIMITS.commentMaxLength}
                 textAlignVertical="top"
@@ -338,6 +416,8 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
               onEdit={handleStartEditing}
               onDelete={handleDelete}
               onProfilePress={handleProfilePress}
+              isThreadActive={isThreadActive}
+              onThreadInteraction={() => onThreadActiveChange(true)}
             />
           ))}
 
@@ -347,15 +427,15 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
                 styles.moreButton,
                 pressed && styles.moreButtonPressed,
               ]}
-              onPress={() => setShowAll((value) => !value)}
+              onPress={handleCommentsDisclosurePress}
               accessibilityRole="button"
-              accessibilityLabel={showAll
+              accessibilityLabel={isShowingAll
                 ? 'Show fewer comments'
                 : `View ${hiddenCommentCount} more ${hiddenCommentCount === 1 ? 'comment' : 'comments'}`
               }
             >
               <Text style={styles.moreLabel}>
-                {showAll
+                {isShowingAll
                   ? 'Show fewer comments'
                   : `View ${hiddenCommentCount} more ${hiddenCommentCount === 1 ? 'comment' : 'comments'}`
                 }
@@ -365,7 +445,7 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
         </View>
       )}
 
-      {!isComposing && (
+      {!isComposerVisible && (
         <Pressable
           style={({ pressed }) => [
             styles.composerPrompt,

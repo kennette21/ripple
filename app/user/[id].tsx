@@ -20,6 +20,7 @@ import { Avatar, Button } from '@components/ui';
 import { useAuth } from '@providers/AuthProvider';
 import { useProfile } from '@/hooks/profile/useProfile';
 import { useUserPosts } from '@/hooks/profile/useUserPosts';
+import { useCommentThreadController } from '@/hooks/comments/useCommentThreadController';
 import { useFollowStatus, useFollow } from '@/hooks/social/useFollow';
 import { getAvatarUrl } from '@/lib/supabase/storage';
 import { PostCard } from '@/components/post/PostCard';
@@ -34,6 +35,13 @@ export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const {
+    activeCommentThreadId,
+    handleCommentListScroll,
+    listRef,
+    scrollToCommentComposer,
+    setActiveCommentThreadId,
+  } = useCommentThreadController<FeedPost>();
 
   const { data: profile, isLoading: profileLoading } = useProfile(id);
   const { data: followStatus, isLoading: statusLoading } = useFollowStatus(user?.id, id);
@@ -99,8 +107,16 @@ export default function UserProfileScreen() {
     <PostCard
       post={item}
       currentUserId={user?.id}
+      isCommentThreadActive={activeCommentThreadId === item.id}
+      onCommentComposerActivated={scrollToCommentComposer}
+      onCommentThreadActiveChange={setActiveCommentThreadId}
     />
-  ), [user?.id]);
+  ), [
+    activeCommentThreadId,
+    scrollToCommentComposer,
+    setActiveCommentThreadId,
+    user?.id,
+  ]);
 
   const renderFooter = () => {
     if (isFetchingNextPage) {
@@ -150,6 +166,7 @@ export default function UserProfileScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <FlatList
+          ref={listRef}
           data={posts}
           renderItem={renderPost}
           keyExtractor={(item) => item.id}
@@ -169,6 +186,8 @@ export default function UserProfileScreen() {
           }
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.5}
+          onScroll={handleCommentListScroll}
+          scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="always"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}

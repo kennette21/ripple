@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,11 +21,20 @@ import type { FeedPost } from '@/hooks/feed/useFeed';
 interface PostCardProps {
   post: FeedPost;
   currentUserId?: string;
+  isCommentThreadActive?: boolean;
+  onCommentComposerActivated?: (
+    composer: View,
+    onPositioned?: () => void
+  ) => void;
+  onCommentThreadActiveChange?: (postId: string | null) => void;
 }
 
 function PostCardComponent({
   post,
   currentUserId,
+  isCommentThreadActive = false,
+  onCommentComposerActivated,
+  onCommentThreadActiveChange,
 }: PostCardProps) {
   const router = useRouter();
   const [showFullReflection, setShowFullReflection] = useState(false);
@@ -54,9 +63,16 @@ function PostCardComponent({
   const handleCommentsToggle = () => {
     if (showComments) {
       Keyboard.dismiss();
+      if (isCommentThreadActive) {
+        onCommentThreadActiveChange?.(null);
+      }
     }
     setShowComments((value) => !value);
   };
+
+  const handleCommentThreadActiveChange = useCallback((active: boolean) => {
+    onCommentThreadActiveChange?.(active ? post.id : null);
+  }, [onCommentThreadActiveChange, post.id]);
 
   const handlePrivacyToggle = () => {
     if (!isOwnPost || updatePrivacy.isPending) return;
@@ -198,6 +214,7 @@ function PostCardComponent({
             pressed && styles.actionButtonPressed,
           ]}
           onPress={handleCommentsToggle}
+          testID={`comments-toggle-${post.id}`}
           accessibilityRole="button"
           accessibilityLabel={showComments
             ? 'Hide comments'
@@ -256,7 +273,13 @@ function PostCardComponent({
       </View>
 
       {showComments && (
-        <InlineComments postId={post.id} currentUserId={currentUserId} />
+        <InlineComments
+          postId={post.id}
+          currentUserId={currentUserId}
+          isThreadActive={isCommentThreadActive}
+          onComposerActivated={onCommentComposerActivated}
+          onThreadActiveChange={handleCommentThreadActiveChange}
+        />
       )}
     </View>
   );
