@@ -11,6 +11,8 @@ export const queryKeys = {
       ['posts', 'detail', postId, viewerId] as const,
     byUser: (userId: string, viewerId: string) =>
       ['posts', 'byUser', userId, viewerId] as const,
+    deleted: (userId: string) =>
+      ['posts', 'deleted', userId] as const,
   },
   profiles: {
     all: ['profiles'] as const,

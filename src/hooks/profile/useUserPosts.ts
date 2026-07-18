@@ -23,6 +23,7 @@ async function fetchUserPosts(
       images:post_images(*)
     `)
     .eq('author_id', userId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(POSTS_PER_PAGE);
 

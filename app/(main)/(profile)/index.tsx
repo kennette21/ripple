@@ -72,7 +72,22 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.divider} />
-      <Text style={styles.postsTitle}>Posts</Text>
+      <View style={styles.postsHeader}>
+        <Text style={styles.postsTitle}>Posts</Text>
+        <Pressable
+          style={({ pressed }) => [
+            styles.deletedPostsLink,
+            pressed && styles.deletedPostsLinkPressed,
+          ]}
+          onPress={() => router.push('/(main)/(profile)/recently-deleted')}
+          accessibilityRole="button"
+          accessibilityLabel="Recently deleted"
+          hitSlop={6}
+        >
+          <Ionicons name="time-outline" size={16} color={colors.primary[600]} />
+          <Text style={styles.deletedPostsLinkText}>Recently Deleted</Text>
+        </Pressable>
+      </View>
     </>
   );
 
@@ -249,7 +264,30 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSizes.md,
     fontWeight: typography.fontWeights.semibold,
     color: colors.gray[900],
-    padding: spacing.md,
+  },
+  postsHeader: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  deletedPostsLink: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 999,
+  },
+  deletedPostsLinkPressed: {
+    backgroundColor: colors.primary[50],
+  },
+  deletedPostsLinkText: {
+    fontSize: typography.fontSizes.sm,
+    fontWeight: typography.fontWeights.medium,
+    color: colors.primary[600],
   },
   footer: {
     padding: spacing.lg,
