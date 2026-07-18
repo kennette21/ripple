@@ -1,17 +1,75 @@
+import {
+  defaultDevThemeColors,
+  getActiveDevThemeColors,
+  type DevThemeColors,
+} from '@lib/devTheme';
+
+function parseHexColor(value: string) {
+  const hex = value.replace('#', '');
+  return {
+    red: Number.parseInt(hex.slice(0, 2), 16),
+    green: Number.parseInt(hex.slice(2, 4), 16),
+    blue: Number.parseInt(hex.slice(4, 6), 16),
+    alpha: hex.length === 8 ? Number.parseInt(hex.slice(6, 8), 16) : 255,
+  };
+}
+
+function mixColor(value: string, target: '#FFFFFF' | '#000000', amount: number) {
+  const color = parseHexColor(value);
+  const targetChannel = target === '#FFFFFF' ? 255 : 0;
+  const mix = (channel: number) =>
+    Math.round(channel + (targetChannel - channel) * amount)
+      .toString(16)
+      .padStart(2, '0');
+  const alpha = color.alpha === 255 ? '' : color.alpha.toString(16).padStart(2, '0');
+
+  return `#${mix(color.red)}${mix(color.green)}${mix(color.blue)}${alpha}`.toUpperCase();
+}
+
+function createPrimaryScale(main: string) {
+  return {
+    50: mixColor(main, '#FFFFFF', 0.94),
+    100: mixColor(main, '#FFFFFF', 0.86),
+    200: mixColor(main, '#FFFFFF', 0.70),
+    300: mixColor(main, '#FFFFFF', 0.50),
+    400: mixColor(main, '#FFFFFF', 0.25),
+    500: main,
+    600: mixColor(main, '#000000', 0.12),
+    700: mixColor(main, '#000000', 0.25),
+    800: mixColor(main, '#000000', 0.38),
+    900: mixColor(main, '#000000', 0.50),
+  };
+}
+
+function createSemanticScale(main: string) {
+  return {
+    light: mixColor(main, '#FFFFFF', 0.82),
+    main,
+    dark: mixColor(main, '#000000', 0.16),
+  };
+}
+
+const activeDevThemeColors = getActiveDevThemeColors();
+const devThemeColors: DevThemeColors =
+  activeDevThemeColors ?? defaultDevThemeColors;
+const hasCustomDevTheme = !!activeDevThemeColors;
+
 export const colors = {
   // Primary brand colors
-  primary: {
-    50: '#EEF2FF',
-    100: '#E0E7FF',
-    200: '#C7D2FE',
-    300: '#A5B4FC',
-    400: '#818CF8',
-    500: '#6366F1', // Main primary
-    600: '#4F46E5',
-    700: '#4338CA',
-    800: '#3730A3',
-    900: '#312E81',
-  },
+  primary: hasCustomDevTheme
+    ? createPrimaryScale(devThemeColors.primary)
+    : {
+        50: '#EEF2FF',
+        100: '#E0E7FF',
+        200: '#C7D2FE',
+        300: '#A5B4FC',
+        400: '#818CF8',
+        500: '#6366F1', // Main primary
+        600: '#4F46E5',
+        700: '#4338CA',
+        800: '#3730A3',
+        900: '#312E81',
+      },
 
   // Neutral/gray scale
   gray: {
@@ -28,32 +86,24 @@ export const colors = {
   },
 
   // Semantic colors
-  success: {
-    light: '#D1FAE5',
-    main: '#10B981',
-    dark: '#059669',
-  },
-  warning: {
-    light: '#FEF3C7',
-    main: '#F59E0B',
-    dark: '#D97706',
-  },
-  error: {
-    light: '#FEE2E2',
-    main: '#EF4444',
-    dark: '#DC2626',
-  },
-  info: {
-    light: '#DBEAFE',
-    main: '#3B82F6',
-    dark: '#2563EB',
-  },
+  success: hasCustomDevTheme
+    ? createSemanticScale(devThemeColors.success)
+    : { light: '#D1FAE5', main: '#10B981', dark: '#059669' },
+  warning: hasCustomDevTheme
+    ? createSemanticScale(devThemeColors.warning)
+    : { light: '#FEF3C7', main: '#F59E0B', dark: '#D97706' },
+  error: hasCustomDevTheme
+    ? createSemanticScale(devThemeColors.error)
+    : { light: '#FEE2E2', main: '#EF4444', dark: '#DC2626' },
+  info: hasCustomDevTheme
+    ? createSemanticScale(devThemeColors.info)
+    : { light: '#DBEAFE', main: '#3B82F6', dark: '#2563EB' },
 
   // Base colors
   white: '#FFFFFF',
   black: '#000000',
   transparent: 'transparent',
-} as const;
+};
 
 export const spacing = {
   xs: 4,
