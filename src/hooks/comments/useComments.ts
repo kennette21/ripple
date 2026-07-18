@@ -9,7 +9,6 @@ export interface CommentWithAuthor extends Comment {
 }
 
 async function fetchComments(postId: string): Promise<CommentWithAuthor[]> {
-  // Fetch top-level comments
   const { data: comments, error } = await (supabase
     .from('comments') as any)
     .select(`
@@ -17,31 +16,26 @@ async function fetchComments(postId: string): Promise<CommentWithAuthor[]> {
       author:profiles!comments_author_id_fkey(*)
     `)
     .eq('post_id', postId)
-    .is('parent_id', null)
     .order('created_at', { ascending: true });
 
   if (error) throw error;
 
-  // Fetch replies for each comment
-  const commentsWithReplies = await Promise.all(
-    (comments || []).map(async (comment: CommentWithAuthor) => {
-      const { data: replies } = await (supabase
-        .from('comments') as any)
-        .select(`
-          *,
-          author:profiles!comments_author_id_fkey(*)
-        `)
-        .eq('parent_id', comment.id)
-        .order('created_at', { ascending: true });
-
-      return {
-        ...comment,
-        replies: replies || [],
-      };
-    })
+  const threadedComments: CommentWithAuthor[] = (comments || []).map((comment: CommentWithAuthor) => ({
+    ...comment,
+    replies: [],
+  }));
+  const commentsById = new Map<string, CommentWithAuthor>(
+    threadedComments.map((comment: CommentWithAuthor) => [comment.id, comment])
   );
 
-  return commentsWithReplies;
+  threadedComments.forEach((comment: CommentWithAuthor) => {
+    if (!comment.parent_id) return;
+    commentsById.get(comment.parent_id)?.replies?.push(comment);
+  });
+
+  return threadedComments.filter(
+    (comment: CommentWithAuthor) => !comment.parent_id
+  );
 }
 
 async function createComment(

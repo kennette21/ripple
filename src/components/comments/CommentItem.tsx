@@ -130,7 +130,13 @@ export function CommentItem({
             {((!isReply && onReply) || (isOwnComment && onEdit)) && (
               <View style={styles.actions}>
                 {!isReply && onReply && (
-                  <Pressable style={styles.actionButton} onPress={() => onReply(comment)}>
+                  <Pressable
+                    style={styles.actionButton}
+                    onPress={() => onReply(comment)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Reply to ${comment.author.display_name || comment.author.username}`}
+                    hitSlop={8}
+                  >
                     <Ionicons name="chatbubble-outline" size={14} color={colors.gray[500]} />
                     <Text style={styles.actionText}>Reply</Text>
                   </Pressable>

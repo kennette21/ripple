@@ -49,6 +49,7 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
   const [commentText, setCommentText] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const [editingComment, setEditingComment] = useState<CommentWithAuthor | null>(null);
+  const [replyingTo, setReplyingTo] = useState<CommentWithAuthor | null>(null);
   const [showAll, setShowAll] = useState(false);
 
   const { data: comments, isLoading } = useComments(postId);
@@ -56,6 +57,18 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
   const updateComment = useUpdateComment();
   const deleteComment = useDeleteComment();
   const flatComments = useMemo(() => comments ?? [], [comments]);
+  const totalCommentCount = useMemo(() => {
+    const countThread = (comment: CommentWithAuthor): number =>
+      1 + (comment.replies ?? []).reduce(
+        (total, reply) => total + countThread(reply),
+        0
+      );
+
+    return flatComments.reduce(
+      (total, comment) => total + countThread(comment),
+      0
+    );
+  }, [flatComments]);
   const visibleComments = showAll
     ? flatComments
     : flatComments.slice(0, PREVIEW_COMMENT_COUNT);
@@ -73,13 +86,25 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
 
   const handleStartComposing = useCallback(() => {
     setEditingComment(null);
+    setReplyingTo(null);
     setCommentText('');
     setIsComposing(true);
   }, []);
 
+  const handleStartReplying = useCallback((comment: CommentWithAuthor) => {
+    if (!currentUserId) return;
+
+    setEditingComment(null);
+    setReplyingTo(comment);
+    setCommentText('');
+    setIsComposing(true);
+    setShowAll(true);
+  }, [currentUserId]);
+
   const handleStartEditing = useCallback((comment: CommentWithAuthor) => {
     if (comment.author_id !== currentUserId) return;
 
+    setReplyingTo(null);
     setEditingComment(comment);
     setCommentText(comment.content);
     setIsComposing(true);
@@ -89,6 +114,7 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
   const handleCancel = useCallback(() => {
     setCommentText('');
     setEditingComment(null);
+    setReplyingTo(null);
     setIsComposing(false);
     Keyboard.dismiss();
   }, []);
@@ -109,20 +135,26 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
           postId,
           userId: currentUserId,
           content,
+          parentId: replyingTo?.id,
         });
       }
       Keyboard.dismiss();
       setCommentText('');
       setEditingComment(null);
+      setReplyingTo(null);
       setIsComposing(false);
       setShowAll(true);
     } catch (error: any) {
       Alert.alert(
-        editingComment ? 'Could not update comment' : 'Could not add comment',
+        editingComment
+          ? 'Could not update comment'
+          : replyingTo
+            ? 'Could not add reply'
+            : 'Could not add comment',
         error.message || 'Please try again.'
       );
     }
-  }, [commentText, createComment, currentUserId, editingComment, postId, updateComment]);
+  }, [commentText, createComment, currentUserId, editingComment, postId, replyingTo, updateComment]);
 
   const handleDelete = useCallback((commentId: string) => {
     Alert.alert('Delete Comment', 'Are you sure?', [
@@ -154,8 +186,13 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
       {isComposing && (
         <View style={styles.composer}>
           <View style={styles.composerHeader}>
-            {editingComment ? (
-              <Text style={styles.editingLabel}>Editing comment</Text>
+            {editingComment || replyingTo ? (
+              <Text style={styles.composerContextLabel} numberOfLines={1}>
+                {editingComment
+                  ? 'Editing comment'
+                  : 'Reply'
+                }
+              </Text>
             ) : (
               <Pressable
                 onPress={handleCancel}
@@ -168,7 +205,7 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
             )}
 
             <View style={styles.composerHeaderActions}>
-              {editingComment && (
+              {(editingComment || replyingTo) && (
                 <Pressable
                   style={({ pressed }) => [
                     styles.closeButton,
@@ -176,7 +213,7 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
                   ]}
                   onPress={handleCancel}
                   accessibilityRole="button"
-                  accessibilityLabel="Cancel editing comment"
+                  accessibilityLabel={editingComment ? 'Cancel editing comment' : 'Cancel reply'}
                   hitSlop={8}
                 >
                   <Ionicons name="close" size={20} color={colors.gray[500]} />
@@ -192,13 +229,18 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
                   pressed && canSubmit && styles.postButtonPressed,
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel={editingComment ? 'Save comment' : 'Post comment'}
+                accessibilityLabel={editingComment
+                  ? 'Save comment'
+                  : replyingTo
+                    ? 'Send reply'
+                    : 'Post comment'
+                }
               >
                 {isSubmitting ? (
                   <ActivityIndicator size="small" color={colors.white} />
                 ) : (
                   <Text style={styles.postButtonText}>
-                    {editingComment ? 'Save' : 'Post'}
+                    {editingComment ? 'Save' : replyingTo ? 'Send' : 'Post'}
                   </Text>
                 )}
               </Pressable>
@@ -211,11 +253,43 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
               name={profile?.display_name || profile?.username}
               size="md"
             />
-            <View style={styles.composerInputColumn}>
+            <View style={[
+              styles.composerInputColumn,
+              replyingTo && styles.replyComposer,
+            ]}>
+              {replyingTo && (
+                <View
+                  style={styles.replyQuote}
+                  accessible
+                  accessibilityLabel={`Replying to ${replyingTo.author.display_name || replyingTo.author.username}: ${replyingTo.content}`}
+                >
+                  <View style={styles.replyQuoteHeader}>
+                    <Ionicons
+                      name="return-down-forward-outline"
+                      size={15}
+                      color={colors.primary[500]}
+                    />
+                    <Text style={styles.replyQuoteAuthor} numberOfLines={1}>
+                      {replyingTo.author.display_name || replyingTo.author.username}
+                    </Text>
+                  </View>
+                  <Text style={styles.replyQuoteText} numberOfLines={4}>
+                    {replyingTo.content}
+                  </Text>
+                </View>
+              )}
               <TextInput
                 ref={inputRef}
-                style={styles.composerInput}
-                placeholder={editingComment ? 'Edit your comment' : 'Post your reply'}
+                style={[
+                  styles.composerInput,
+                  replyingTo && styles.replyComposerInput,
+                ]}
+                placeholder={editingComment
+                  ? 'Edit your comment'
+                  : replyingTo
+                    ? `Reply to ${replyingTo.author.display_name || replyingTo.author.username}`
+                    : 'Write a comment'
+                }
                 placeholderTextColor={colors.gray[400]}
                 value={commentText}
                 onChangeText={setCommentText}
@@ -223,10 +297,16 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
                 maxLength={LIMITS.commentMaxLength}
                 textAlignVertical="top"
                 returnKeyType="default"
-                accessibilityLabel="Comment draft"
+                accessibilityLabel={replyingTo
+                  ? `Reply to ${replyingTo.author.display_name || replyingTo.author.username}`
+                  : 'Comment draft'
+                }
               />
               {commentText.length >= COMMENT_COUNT_WARNING_AT && (
-                <Text style={styles.characterCount}>
+                <Text style={[
+                  styles.characterCount,
+                  replyingTo && styles.replyCharacterCount,
+                ]}>
                   {commentText.length}/{LIMITS.commentMaxLength}
                 </Text>
               )}
@@ -237,8 +317,8 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
 
       <View style={styles.threadHeader}>
         <Text style={styles.threadTitle}>Comments</Text>
-        {flatComments.length > 0 && (
-          <Text style={styles.threadCount}>{flatComments.length}</Text>
+        {totalCommentCount > 0 && (
+          <Text style={styles.threadCount}>{totalCommentCount}</Text>
         )}
       </View>
 
@@ -255,6 +335,7 @@ export function InlineComments({ postId, currentUserId }: InlineCommentsProps) {
               key={comment.id}
               comment={comment}
               currentUserId={currentUserId}
+              onReply={handleStartReplying}
               onEdit={handleStartEditing}
               onDelete={handleDelete}
               onProfilePress={handleProfilePress}
@@ -334,7 +415,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  editingLabel: {
+  composerContextLabel: {
+    flex: 1,
+    marginRight: spacing.sm,
     fontSize: typography.fontSizes.sm,
     fontWeight: typography.fontWeights.medium,
     color: colors.gray[500],
@@ -348,6 +431,37 @@ const styles = StyleSheet.create({
   },
   closeButtonPressed: {
     backgroundColor: colors.gray[100],
+  },
+  replyComposer: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.white,
+  },
+  replyQuote: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.primary[100],
+    backgroundColor: colors.primary[50],
+  },
+  replyQuoteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: 2,
+  },
+  replyQuoteAuthor: {
+    flex: 1,
+    fontSize: typography.fontSizes.sm,
+    fontWeight: typography.fontWeights.semibold,
+    color: colors.gray[900],
+  },
+  replyQuoteText: {
+    fontSize: typography.fontSizes.sm,
+    lineHeight: 20,
+    color: colors.gray[700],
   },
   composerBody: {
     flexDirection: 'row',
@@ -367,6 +481,11 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSizes.lg,
     lineHeight: 24,
   },
+  replyComposerInput: {
+    minHeight: 84,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
   cancelText: {
     minHeight: 36,
     paddingVertical: spacing.sm,
@@ -377,6 +496,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     fontSize: typography.fontSizes.xs,
     color: colors.gray[400],
+  },
+  replyCharacterCount: {
+    marginRight: spacing.md,
+    marginBottom: spacing.sm,
   },
   postButton: {
     minWidth: 68,
