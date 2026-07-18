@@ -9,7 +9,7 @@ import { ImageZoomProvider } from '@providers/ImageZoomProvider';
 import { QueryProvider } from '@providers/QueryProvider';
 import { ThemeProvider } from '@providers/ThemeProvider';
 import { LoadingScreen } from '@components/common';
-import { DevAccountSwitcher } from '@components/dev/DevAccountSwitcher';
+import { DevTools } from '@components/dev/DevAccountSwitcher';
 import { supabase } from '@lib/supabase';
 
 function handleSplashScreenError(error: unknown) {
@@ -133,7 +133,7 @@ export default function RootLayout() {
           <ThemeProvider>
             <AuthProvider>
               <RootLayoutNav />
-              <DevAccountSwitcher />
+              <DevTools />
             </AuthProvider>
           </ThemeProvider>
         </QueryProvider>
