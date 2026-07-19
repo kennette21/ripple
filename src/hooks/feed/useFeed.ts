@@ -21,7 +21,7 @@ interface FeedPage {
 
 async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
   // Get friends (accepted friend requests in either direction)
-  const [{ data: sentAccepted }, { data: receivedAccepted }] = await Promise.all([
+  const [sentResult, receivedResult] = await Promise.all([
     supabase.from('friend_requests')
       .select('receiver_id')
       .eq('sender_id', userId)
@@ -32,6 +32,12 @@ async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
       .eq('status', 'accepted'),
   ]);
 
+  if (sentResult.error) throw sentResult.error;
+  if (receivedResult.error) throw receivedResult.error;
+
+  const sentAccepted = sentResult.data;
+  const receivedAccepted = receivedResult.data;
+
   const friendIds = [
     ...(sentAccepted || []).map((r) => r.receiver_id),
     ...(receivedAccepted || []).map((r) => r.sender_id),
@@ -40,10 +46,12 @@ async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
   friendIds.push(userId);
 
   // Also include follows for backwards compatibility during transition
-  const { data: follows } = await supabase
+  const { data: follows, error: followsError } = await supabase
     .from('follows')
     .select('following_id')
     .eq('follower_id', userId);
+
+  if (followsError) throw followsError;
 
   const followingIds = follows?.map((f) => f.following_id) || [];
 
@@ -51,10 +59,12 @@ async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
   const allIds = [...new Set([...friendIds, ...followingIds])];
 
   // Get blocked users to exclude
-  const { data: blocks } = await supabase
+  const { data: blocks, error: blocksError } = await supabase
     .from('blocks')
     .select('blocked_id')
     .eq('blocker_id', userId);
+
+  if (blocksError) throw blocksError;
 
   const blockedIds = blocks?.map((b) => b.blocked_id) || [];
 
@@ -64,7 +74,10 @@ async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
     .select(`
       *,
       author:profiles!posts_author_id_fkey(*),
-      images:post_images(*)
+      images:post_images(*),
+      comments(count),
+      reposts(count),
+      bookmarks(id)
     `)
     .in('author_id', allIds)
     .is('deleted_at', null)
@@ -86,31 +99,15 @@ async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
 
   if (error) throw error;
 
-  // Get comment and repost counts, and bookmark status
-  const postsWithCounts = await Promise.all(
-    (posts || []).map(async (post) => {
-      const [commentCount, repostCount, bookmarkStatus] = await Promise.all([
-        supabase.from('comments')
-          .select('id', { count: 'exact', head: true })
-          .eq('post_id', post.id),
-        supabase.from('reposts')
-          .select('id', { count: 'exact', head: true })
-          .eq('original_post_id', post.id),
-        supabase.from('bookmarks')
-          .select('id')
-          .eq('post_id', post.id)
-          .eq('user_id', userId)
-          .maybeSingle(),
-      ]);
-
-      return {
-        ...post,
-        comment_count: commentCount.count || 0,
-        repost_count: repostCount.count || 0,
-        is_bookmarked: !!bookmarkStatus.data,
-      };
-    })
-  );
+  const postsWithCounts: FeedPost[] = (posts || []).map((post) => {
+    const { comments, reposts, bookmarks, ...postData } = post;
+    return {
+      ...postData,
+      comment_count: comments[0]?.count || 0,
+      repost_count: reposts[0]?.count || 0,
+      is_bookmarked: bookmarks.length > 0,
+    };
+  });
 
   const lastPost = postsWithCounts[postsWithCounts.length - 1];
   const nextCursor = postsWithCounts.length === POSTS_PER_PAGE ? lastPost?.created_at : null;
