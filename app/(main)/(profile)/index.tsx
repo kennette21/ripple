@@ -7,29 +7,30 @@ import {
   TouchableOpacity,
   Pressable,
   ActivityIndicator,
-  Modal,
-  Dimensions,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar } from '@components/ui';
+import {
+  Avatar,
+  FullscreenImageViewer,
+  PinchableImage,
+} from '@components/ui';
 import { EmptyState } from '@components/common';
 import { PostCard } from '@/components/post/PostCard';
 import { useAuth } from '@providers/AuthProvider';
 import { useUserPosts } from '@/hooks/profile/useUserPosts';
 import { useCommentThreadController } from '@/hooks/comments/useCommentThreadController';
 import { getAvatarUrl } from '@/lib/supabase/storage';
+import { useImageZoomActive } from '@/providers/ImageZoomProvider';
 import { colors, spacing, typography } from '@constants/theme';
 import type { FeedPost } from '@/hooks/feed/useFeed';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 export default function ProfileScreen() {
   const { profile, user } = useAuth();
+  const isZoomActive = useImageZoomActive();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const {
     activeCommentThreadId,
@@ -51,18 +52,33 @@ export default function ProfileScreen() {
     () => postsData?.pages.flatMap((page) => page.posts) ?? [],
     [postsData]
   );
+  const avatarImageUri = getAvatarUrl(profile?.avatar_url);
 
-  const renderHeader = () => (
+  const header = (
     <>
       <View style={styles.profileSection}>
         <View style={styles.profileHeader}>
-          <Pressable onPress={() => profile?.avatar_url && setShowAvatarModal(true)}>
+          {avatarImageUri ? (
+            <PinchableImage
+              uri={avatarImageUri}
+              borderRadius={60}
+              style={styles.profilePicture}
+              onPress={() => setShowAvatarModal(true)}
+              accessibilityLabel={`${profile?.display_name ?? 'Your'} profile picture`}
+              testID="profile-picture"
+            >
+              <Avatar
+                uri={profile?.avatar_url}
+                name={profile?.display_name}
+                size="xxl"
+              />
+            </PinchableImage>
+          ) : (
             <Avatar
-              uri={profile?.avatar_url}
               name={profile?.display_name}
               size="xxl"
             />
-          </Pressable>
+          )}
           <View style={styles.profileInfo}>
             <Text style={styles.displayName}>{profile?.display_name}</Text>
             <Text style={styles.username}>@{profile?.username}</Text>
@@ -141,7 +157,7 @@ export default function ProfileScreen() {
           data={posts}
           renderItem={renderPost}
           keyExtractor={(item) => item.id}
-          ListHeaderComponent={renderHeader}
+          ListHeaderComponent={header}
           ListFooterComponent={renderFooter}
           ListEmptyComponent={
             !postsLoading ? (
@@ -168,37 +184,17 @@ export default function ProfileScreen() {
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="always"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          scrollEnabled={!isZoomActive}
         />
       </KeyboardAvoidingView>
 
-      {/* Avatar fullscreen modal */}
-      <Modal
-        visible={showAvatarModal}
-        transparent
-        animationType="fade"
+      <FullscreenImageViewer
+        images={avatarImageUri ? [{ uri: avatarImageUri }] : []}
+        imageIndex={0}
+        visible={showAvatarModal && !!avatarImageUri}
         onRequestClose={() => setShowAvatarModal(false)}
-      >
-        <Pressable
-          style={styles.avatarModalOverlay}
-          onPress={() => setShowAvatarModal(false)}
-        >
-          <View style={styles.avatarModalContent}>
-            {profile?.avatar_url && (
-              <Image
-                source={{ uri: getAvatarUrl(profile.avatar_url)! }}
-                style={styles.avatarModalImage}
-                contentFit="cover"
-              />
-            )}
-          </View>
-          <TouchableOpacity
-            style={styles.avatarModalClose}
-            onPress={() => setShowAvatarModal(false)}
-          >
-            <Ionicons name="close" size={28} color={colors.white} />
-          </TouchableOpacity>
-        </Pressable>
-      </Modal>
+        closeAccessibilityLabel="Close profile picture"
+      />
     </SafeAreaView>
   );
 }
@@ -234,6 +230,12 @@ const styles = StyleSheet.create({
   profileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  profilePicture: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
   },
   profileInfo: {
     flex: 1,
@@ -292,27 +294,5 @@ const styles = StyleSheet.create({
   footer: {
     padding: spacing.lg,
     alignItems: 'center',
-  },
-  avatarModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarModalContent: {
-    width: SCREEN_WIDTH * 0.85,
-    height: SCREEN_WIDTH * 0.85,
-    borderRadius: SCREEN_WIDTH * 0.425,
-    overflow: 'hidden',
-  },
-  avatarModalImage: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarModalClose: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    padding: spacing.sm,
   },
 });

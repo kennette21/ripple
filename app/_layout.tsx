@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
 import { AuthProvider, useAuth } from '@providers/AuthProvider';
+import { ImageZoomProvider } from '@providers/ImageZoomProvider';
 import { QueryProvider } from '@providers/QueryProvider';
 import { ThemeProvider } from '@providers/ThemeProvider';
 import { LoadingScreen } from '@components/common';
@@ -127,14 +128,16 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <QueryProvider>
-        <ThemeProvider>
-          <AuthProvider>
-            <RootLayoutNav />
-            <DevAccountSwitcher />
-          </AuthProvider>
-        </ThemeProvider>
-      </QueryProvider>
+      <ImageZoomProvider>
+        <QueryProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <RootLayoutNav />
+              <DevAccountSwitcher />
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryProvider>
+      </ImageZoomProvider>
     </GestureHandlerRootView>
   );
 }

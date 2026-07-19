@@ -1,4 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   View,
   StyleSheet,
@@ -6,10 +11,10 @@ import {
   Dimensions,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Pressable,
 } from 'react-native';
 import { Image } from 'expo-image';
-import ImageViewing from 'react-native-image-viewing';
+import { FullscreenImageViewer } from '@/components/ui/FullscreenImageViewer';
+import { PinchableImage } from '@/components/ui/PinchableImage';
 import { spacing, borderRadius, colors } from '@/constants/theme';
 import { supabase } from '@/lib/supabase/client';
 
@@ -38,6 +43,8 @@ function getImageUrl(storagePath: string): string {
 
 export function ImageGallery({ images }: ImageGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isCarouselInteractionActive, setIsCarouselInteractionActive] =
+    useState(false);
   const [lightboxVisible, setLightboxVisible] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -81,18 +88,28 @@ export function ImageGallery({ images }: ImageGalleryProps) {
 
   // Single image - no carousel needed
   if (sortedImages.length === 1) {
+    const image = sortedImages[0];
+
     return (
       <View style={styles.container}>
-        <Pressable onPress={() => openLightbox(0)} style={styles.singleImage}>
+        <PinchableImage
+          uri={lightboxImages[0].uri}
+          borderRadius={borderRadius.md}
+          style={styles.postImage}
+          onPress={() => openLightbox(0)}
+          accessibilityLabel="Post photo"
+          testID={`post-image-${image.id}`}
+        >
           <Image
-            source={{ uri: getImageUrl(sortedImages[0].storage_path) }}
+            source={lightboxImages[0]}
             style={styles.image}
-            placeholder={sortedImages[0].blurhash || undefined}
+            placeholder={image.blurhash || undefined}
             contentFit="cover"
+            cachePolicy="memory-disk"
             transition={200}
           />
-        </Pressable>
-        <ImageViewing
+        </PinchableImage>
+        <FullscreenImageViewer
           images={lightboxImages}
           imageIndex={lightboxIndex}
           visible={lightboxVisible}
@@ -115,18 +132,29 @@ export function ImageGallery({ images }: ImageGalleryProps) {
         decelerationRate="fast"
         snapToInterval={IMAGE_WIDTH}
         snapToAlignment="start"
+        scrollEnabled={!isCarouselInteractionActive}
         contentContainerStyle={styles.scrollContent}
       >
         {sortedImages.map((img, index) => (
-          <Pressable key={img.id} onPress={() => openLightbox(index)} style={styles.carouselImage}>
+          <PinchableImage
+            key={img.id}
+            uri={lightboxImages[index].uri}
+            borderRadius={borderRadius.md}
+            style={styles.postImage}
+            onPress={() => openLightbox(index)}
+            onInteractionChange={setIsCarouselInteractionActive}
+            accessibilityLabel={`Post photo ${index + 1} of ${sortedImages.length}`}
+            testID={`post-image-${img.id}`}
+          >
             <Image
-              source={{ uri: getImageUrl(img.storage_path) }}
+              source={lightboxImages[index]}
               style={styles.image}
               placeholder={img.blurhash || undefined}
               contentFit="cover"
+              cachePolicy="memory-disk"
               transition={200}
             />
-          </Pressable>
+          </PinchableImage>
         ))}
       </ScrollView>
 
@@ -143,7 +171,7 @@ export function ImageGallery({ images }: ImageGalleryProps) {
         ))}
       </View>
 
-      <ImageViewing
+      <FullscreenImageViewer
         images={lightboxImages}
         imageIndex={lightboxIndex}
         visible={lightboxVisible}
@@ -161,13 +189,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     alignItems: 'center',
   },
-  singleImage: {
-    width: IMAGE_WIDTH,
-    height: IMAGE_HEIGHT,
-    borderRadius: borderRadius.md,
-    overflow: 'hidden',
-  },
-  carouselImage: {
+  postImage: {
     width: IMAGE_WIDTH,
     height: IMAGE_HEIGHT,
     borderRadius: borderRadius.md,
