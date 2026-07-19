@@ -36,6 +36,14 @@ function getImageUrl(storagePath: string): string {
   return data.publicUrl;
 }
 
+function getRenderedHeight(image: PostImageData | undefined): number {
+  if (!image?.width || !image.height || image.width <= 0 || image.height <= 0) {
+    return IMAGE_HEIGHT;
+  }
+
+  return IMAGE_WIDTH * (image.height / image.width);
+}
+
 export function ImageGallery({ images }: ImageGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxVisible, setLightboxVisible] = useState(false);
@@ -52,12 +60,14 @@ export function ImageGallery({ images }: ImageGalleryProps) {
     [sortedImages]
   );
 
+  const activeImageHeight = getRenderedHeight(sortedImages[activeIndex]);
+
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
     setLightboxVisible(true);
   };
 
-  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const handleMomentumScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
     const newIndex = Math.round(contentOffsetX / IMAGE_WIDTH);
     if (newIndex !== activeIndex && newIndex >= 0 && newIndex < sortedImages.length) {
@@ -69,12 +79,15 @@ export function ImageGallery({ images }: ImageGalleryProps) {
   if (sortedImages.length === 1) {
     return (
       <View style={styles.container}>
-        <Pressable onPress={() => openLightbox(0)} style={styles.singleImage}>
+        <Pressable
+          onPress={() => openLightbox(0)}
+          style={[styles.singleImage, { height: getRenderedHeight(sortedImages[0]) }]}
+        >
           <Image
             source={{ uri: getImageUrl(sortedImages[0].storage_path) }}
             style={styles.image}
             placeholder={sortedImages[0].blurhash || undefined}
-            contentFit="cover"
+            contentFit="contain"
             transition={200}
           />
         </Pressable>
@@ -96,20 +109,24 @@ export function ImageGallery({ images }: ImageGalleryProps) {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
         decelerationRate="fast"
         snapToInterval={IMAGE_WIDTH}
         snapToAlignment="start"
         contentContainerStyle={styles.scrollContent}
+        style={{ height: activeImageHeight }}
       >
         {sortedImages.map((img, index) => (
-          <Pressable key={img.id} onPress={() => openLightbox(index)} style={styles.carouselImage}>
+          <Pressable
+            key={img.id}
+            onPress={() => openLightbox(index)}
+            style={[styles.carouselImage, { height: activeImageHeight }]}
+          >
             <Image
               source={{ uri: getImageUrl(img.storage_path) }}
               style={styles.image}
               placeholder={img.blurhash || undefined}
-              contentFit="cover"
+              contentFit="contain"
               transition={200}
             />
           </Pressable>
@@ -149,15 +166,15 @@ const styles = StyleSheet.create({
   },
   singleImage: {
     width: IMAGE_WIDTH,
-    height: IMAGE_HEIGHT,
     borderRadius: borderRadius.md,
     overflow: 'hidden',
+    backgroundColor: colors.black,
   },
   carouselImage: {
     width: IMAGE_WIDTH,
-    height: IMAGE_HEIGHT,
     borderRadius: borderRadius.md,
     overflow: 'hidden',
+    backgroundColor: colors.black,
   },
   image: {
     width: '100%',
