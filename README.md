@@ -64,11 +64,17 @@ npm run typecheck    # tsc --noEmit
 npm run lint         # expo lint
 ```
 
-With the seeded local stack and an iOS development build running, the comment
-composer regression flow is:
+With an iOS development build installed, start the seeded stack in one terminal:
+
+```bash
+npm run dev-start:reset
+```
+
+Then run Maestro flows from another terminal:
 
 ```bash
 npm run test:e2e:comments
+npm run test:e2e:search-follow
 ```
 
 ## Supabase setup
