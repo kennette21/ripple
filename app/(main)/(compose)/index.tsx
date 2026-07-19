@@ -38,6 +38,8 @@ interface SelectedImage {
   uri: string;
   width: number;
   height: number;
+  mimeType?: string;
+  fileName?: string;
   sourceUri: string;
   sourceWidth: number;
   sourceHeight: number;
@@ -78,7 +80,14 @@ export default function ComposeScreen() {
         setImages((currentImages) =>
           currentImages.map((currentImage) =>
             currentImage.id === image.id
-              ? { ...currentImage, uri, width, height }
+              ? {
+                  ...currentImage,
+                  uri,
+                  width,
+                  height,
+                  mimeType: 'image/jpeg',
+                  fileName: 'crop.jpg',
+                }
               : currentImage
           )
         );
@@ -100,6 +109,8 @@ export default function ComposeScreen() {
       allowsMultipleSelection: true,
       orderedSelection: true,
       selectionLimit: remaining,
+      // Reduce file size without changing dimensions or aspect ratio.
+      // Cropping remains an explicit, separate operation.
       quality: 0.8,
     });
 
@@ -110,6 +121,8 @@ export default function ComposeScreen() {
         uri: asset.uri,
         width: asset.width,
         height: asset.height,
+        mimeType: asset.mimeType,
+        fileName: asset.fileName ?? undefined,
         sourceUri: asset.uri,
         sourceWidth: asset.width,
         sourceHeight: asset.height,
@@ -196,7 +209,7 @@ export default function ComposeScreen() {
           reflection: contentType === 'reflection' ? body : undefined,
           contentType,
           images,
-          isPrivate: contentType === 'reflection' ? isPrivate : false,
+          isPrivate,
         },
         userId: user.id,
       });
@@ -392,32 +405,33 @@ export default function ComposeScreen() {
             )}
           </Pressable>
 
-          {/* Private toggle - only for reflections */}
-          {contentType === 'reflection' && (
-            <Pressable
-              style={styles.privateToggle}
-              onPress={() => setIsPrivate(!isPrivate)}
-            >
-              <Ionicons
-                name={isPrivate ? 'lock-closed' : 'globe-outline'}
-                size={18}
-                color={isPrivate ? colors.primary[500] : colors.gray[500]}
-              />
-              <Text style={[
-                styles.privateText,
-                isPrivate && styles.privateTextActive,
-              ]}>
-                {isPrivate ? 'Private reflection' : 'Public'}
-              </Text>
-              <Switch
-                value={isPrivate}
-                onValueChange={setIsPrivate}
-                trackColor={{ false: colors.gray[200], true: colors.primary[200] }}
-                thumbColor={isPrivate ? colors.primary[500] : colors.gray[400]}
-                style={styles.switch}
-              />
-            </Pressable>
-          )}
+          <Pressable
+            style={styles.privateToggle}
+            onPress={() => setIsPrivate(!isPrivate)}
+          >
+            <Ionicons
+              name={isPrivate ? 'lock-closed' : 'globe-outline'}
+              size={18}
+              color={isPrivate ? colors.primary[500] : colors.gray[500]}
+            />
+            <Text style={[
+              styles.privateText,
+              isPrivate && styles.privateTextActive,
+            ]}>
+              {isPrivate
+                ? contentType === 'reflection'
+                  ? 'Private reflection'
+                  : 'Private caption'
+                : 'Public'}
+            </Text>
+            <Switch
+              value={isPrivate}
+              onValueChange={setIsPrivate}
+              trackColor={{ false: colors.gray[200], true: colors.primary[200] }}
+              thumbColor={isPrivate ? colors.primary[500] : colors.gray[400]}
+              style={styles.switch}
+            />
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

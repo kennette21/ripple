@@ -6,6 +6,75 @@ export const BUCKETS = {
   POST_IMAGES: 'post-images',
 } as const;
 
+const IMAGE_TYPES_BY_EXTENSION: Record<string, string> = {
+  avif: 'image/avif',
+  bmp: 'image/bmp',
+  gif: 'image/gif',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  svg: 'image/svg+xml',
+  tif: 'image/tiff',
+  tiff: 'image/tiff',
+  webp: 'image/webp',
+};
+
+const IMAGE_EXTENSIONS_BY_TYPE: Record<string, string> = {
+  'image/avif': 'avif',
+  'image/bmp': 'bmp',
+  'image/gif': 'gif',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/svg+xml': 'svg',
+  'image/tiff': 'tif',
+  'image/webp': 'webp',
+};
+
+interface PostImageUploadMetadata {
+  mimeType?: string | null;
+  fileName?: string | null;
+}
+
+function resolveImageType({
+  mimeType,
+  fileName,
+}: PostImageUploadMetadata): { contentType: string; extension: string } {
+  const normalizedMimeType = mimeType?.split(';')[0].trim().toLowerCase();
+  const fileExtension = fileName
+    ?.split(/[?#]/)[0]
+    .match(/\.([a-z\d]{1,10})$/i)?.[1]
+    .toLowerCase();
+
+  if (normalizedMimeType?.startsWith('image/')) {
+    const fallbackExtension = normalizedMimeType
+      .slice('image/'.length)
+      .replace('+xml', '')
+      .replace(/[^a-z\d]/g, '');
+
+    return {
+      contentType: normalizedMimeType,
+      extension:
+        IMAGE_EXTENSIONS_BY_TYPE[normalizedMimeType] ||
+        fileExtension ||
+        fallbackExtension ||
+        'jpg',
+    };
+  }
+
+  if (fileExtension && IMAGE_TYPES_BY_EXTENSION[fileExtension]) {
+    return {
+      contentType: IMAGE_TYPES_BY_EXTENSION[fileExtension],
+      extension: fileExtension === 'jpeg' ? 'jpg' : fileExtension,
+    };
+  }
+
+  return { contentType: 'image/jpeg', extension: 'jpg' };
+}
+
 // Convert image URI to base64 using fetch (works in Expo Go)
 async function uriToBase64(uri: string): Promise<string> {
   const response = await fetch(uri);
@@ -112,8 +181,10 @@ export async function uploadPostImage(
   userId: string,
   postId: string,
   position: number,
-  uri: string
+  uri: string,
+  metadata: PostImageUploadMetadata = {}
 ): Promise<{ path: string | null; error: Error | null }> {
-  const storagePath = `${userId}/${postId}/${position}.jpg`;
-  return uploadImage(BUCKETS.POST_IMAGES, storagePath, uri);
+  const { contentType, extension } = resolveImageType(metadata);
+  const storagePath = `${userId}/${postId}/${position}.${extension}`;
+  return uploadImage(BUCKETS.POST_IMAGES, storagePath, uri, contentType);
 }

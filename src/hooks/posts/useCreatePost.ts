@@ -8,6 +8,8 @@ interface ImageToUpload {
   uri: string;
   width: number;
   height: number;
+  mimeType?: string;
+  fileName?: string;
   blurhash?: string;
 }
 
@@ -43,7 +45,11 @@ async function createPost(input: CreatePostInput, userId: string) {
           userId,
           post.id,
           index,
-          image.uri
+          image.uri,
+          {
+            mimeType: image.mimeType,
+            fileName: image.fileName,
+          }
         );
 
         if (uploadError || !storagePath) {
