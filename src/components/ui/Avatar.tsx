@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, ViewStyle, ImageStyle, StyleProp } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import { Image } from 'expo-image';
-import { colors, borderRadius } from '@constants/theme';
+import { colors } from '@constants/theme';
 import { getAvatarUrl } from '@/lib/supabase/storage';
 
 interface AvatarProps {
@@ -33,6 +33,10 @@ export function Avatar({ uri, name, size = 'md', style }: AvatarProps) {
   const dimension = SIZES[size];
   const fontSize = FONT_SIZES[size];
   const imageUri = getAvatarUrl(uri);
+  const imageSource = useMemo(
+    () => imageUri ? { uri: imageUri } : null,
+    [imageUri]
+  );
 
   // Get initials from name
   const initials = name
@@ -50,16 +54,17 @@ export function Avatar({ uri, name, size = 'md', style }: AvatarProps) {
     : 0;
   const backgroundColor = AVATAR_COLORS[colorIndex];
 
-  if (imageUri) {
+  if (imageSource) {
     return (
       <View style={style}>
         <Image
-          source={{ uri: imageUri }}
+          source={imageSource}
           style={[
             styles.image,
             { width: dimension, height: dimension, borderRadius: dimension / 2 },
           ]}
           contentFit="cover"
+          cachePolicy="memory-disk"
           transition={200}
         />
       </View>

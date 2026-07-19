@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@providers/AuthProvider';
 import { useFeed, type FeedPost } from '@/hooks/feed/useFeed';
 import { useCommentThreadController } from '@/hooks/comments/useCommentThreadController';
+import { useImageZoomActive } from '@/providers/ImageZoomProvider';
 import { PostCard } from '@/components/post/PostCard';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/lib/query/keys';
@@ -25,6 +26,7 @@ import { colors, spacing, typography } from '@constants/theme';
 
 export default function FeedScreen() {
   const { user } = useAuth();
+  const isZoomActive = useImageZoomActive();
   const [isRefreshingComments, setIsRefreshingComments] = useState(false);
   const {
     activeCommentThreadId,
@@ -184,6 +186,7 @@ export default function FeedScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="always"
             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            scrollEnabled={!isZoomActive}
           />
         )}
       </KeyboardAvoidingView>

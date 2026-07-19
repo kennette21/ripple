@@ -6,34 +6,35 @@ import {
   FlatList,
   Pressable,
   ActivityIndicator,
-  Modal,
-  Dimensions,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Avatar, Button } from '@components/ui';
+import {
+  Avatar,
+  Button,
+  FullscreenImageViewer,
+  PinchableImage,
+} from '@components/ui';
 import { useAuth } from '@providers/AuthProvider';
 import { useProfile } from '@/hooks/profile/useProfile';
 import { useUserPosts } from '@/hooks/profile/useUserPosts';
 import { useCommentThreadController } from '@/hooks/comments/useCommentThreadController';
 import { useFollowStatus, useFollow } from '@/hooks/social/useFollow';
 import { getAvatarUrl } from '@/lib/supabase/storage';
+import { useImageZoomActive } from '@/providers/ImageZoomProvider';
 import { PostCard } from '@/components/post/PostCard';
 import { EmptyState, LoadingScreen } from '@components/common';
 import { colors, spacing, typography } from '@constants/theme';
 import type { FeedPost } from '@/hooks/feed/useFeed';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 export default function UserProfileScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const isZoomActive = useImageZoomActive();
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const {
     activeCommentThreadId,
@@ -57,6 +58,7 @@ export default function UserProfileScreen() {
 
   const posts = postsData?.pages.flatMap((page) => page.posts) ?? [];
   const isOwnProfile = user?.id === id;
+  const avatarImageUri = getAvatarUrl(profile?.avatar_url);
 
   const handleFollow = () => {
     if (!user || !followStatus) return;
@@ -67,16 +69,30 @@ export default function UserProfileScreen() {
     });
   };
 
-  const renderHeader = () => (
+  const header = (
     <View style={styles.header}>
       <View style={styles.profileHeader}>
-        <Pressable onPress={() => profile?.avatar_url && setShowAvatarModal(true)}>
+        {avatarImageUri ? (
+          <PinchableImage
+            uri={avatarImageUri}
+            borderRadius={60}
+            style={styles.profilePicture}
+            onPress={() => setShowAvatarModal(true)}
+            accessibilityLabel={`${profile?.display_name || profile?.username}'s profile picture`}
+            testID="profile-picture"
+          >
+            <Avatar
+              uri={profile?.avatar_url}
+              name={profile?.display_name || profile?.username}
+              size="xxl"
+            />
+          </PinchableImage>
+        ) : (
           <Avatar
-            uri={profile?.avatar_url}
             name={profile?.display_name || profile?.username}
             size="xxl"
           />
-        </Pressable>
+        )}
         <View style={styles.profileInfo}>
           <Text style={styles.displayName}>
             {profile?.display_name || profile?.username}
@@ -170,7 +186,7 @@ export default function UserProfileScreen() {
           data={posts}
           renderItem={renderPost}
           keyExtractor={(item) => item.id}
-          ListHeaderComponent={renderHeader}
+          ListHeaderComponent={header}
           ListFooterComponent={renderFooter}
           ListEmptyComponent={
             !postsLoading ? (
@@ -191,37 +207,17 @@ export default function UserProfileScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="always"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          scrollEnabled={!isZoomActive}
         />
       </KeyboardAvoidingView>
 
-      {/* Avatar fullscreen modal */}
-      <Modal
-        visible={showAvatarModal}
-        transparent
-        animationType="fade"
+      <FullscreenImageViewer
+        images={avatarImageUri ? [{ uri: avatarImageUri }] : []}
+        imageIndex={0}
+        visible={showAvatarModal && !!avatarImageUri}
         onRequestClose={() => setShowAvatarModal(false)}
-      >
-        <Pressable
-          style={styles.avatarModalOverlay}
-          onPress={() => setShowAvatarModal(false)}
-        >
-          <View style={styles.avatarModalContent}>
-            {profile?.avatar_url && (
-              <Image
-                source={{ uri: getAvatarUrl(profile.avatar_url)! }}
-                style={styles.avatarModalImage}
-                contentFit="cover"
-              />
-            )}
-          </View>
-          <TouchableOpacity
-            style={styles.avatarModalClose}
-            onPress={() => setShowAvatarModal(false)}
-          >
-            <Ionicons name="close" size={28} color={colors.white} />
-          </TouchableOpacity>
-        </Pressable>
-      </Modal>
+        closeAccessibilityLabel="Close profile picture"
+      />
     </SafeAreaView>
   );
 }
@@ -261,6 +257,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
+  profilePicture: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
+  },
   profileInfo: {
     flex: 1,
     marginLeft: spacing.lg,
@@ -297,27 +299,5 @@ const styles = StyleSheet.create({
   footer: {
     padding: spacing.lg,
     alignItems: 'center',
-  },
-  avatarModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarModalContent: {
-    width: SCREEN_WIDTH * 0.85,
-    height: SCREEN_WIDTH * 0.85,
-    borderRadius: SCREEN_WIDTH * 0.425,
-    overflow: 'hidden',
-  },
-  avatarModalImage: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarModalClose: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    padding: spacing.sm,
   },
 });
