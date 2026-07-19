@@ -3,12 +3,14 @@ import { supabase } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query/keys';
 
 async function checkIsBlocked(blockerId: string, blockedId: string): Promise<boolean> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('blocks')
     .select('id')
     .eq('blocker_id', blockerId)
     .eq('blocked_id', blockedId)
     .maybeSingle();
+
+  if (error) throw error;
 
   return !!data;
 }
@@ -24,7 +26,7 @@ async function toggleBlock(blockerId: string, blockedId: string, isBlocked: bool
 
     if (error) throw error;
   } else {
-    // Block - also unfollow in both directions
+    // The database trigger removes follows and friendships atomically.
     const { error: blockError } = await supabase
       .from('blocks')
       .insert({
@@ -33,18 +35,6 @@ async function toggleBlock(blockerId: string, blockedId: string, isBlocked: bool
       });
 
     if (blockError) throw blockError;
-
-    // Remove follows in both directions
-    await Promise.all([
-      supabase.from('follows')
-        .delete()
-        .eq('follower_id', blockerId)
-        .eq('following_id', blockedId),
-      supabase.from('follows')
-        .delete()
-        .eq('follower_id', blockedId)
-        .eq('following_id', blockerId),
-    ]);
   }
 
   return !isBlocked;

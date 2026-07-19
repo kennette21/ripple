@@ -3,8 +3,12 @@ import { supabase } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query/keys';
 import type { Profile } from '@/types/database';
 
+export interface SearchUser extends Profile {
+  isFollowing: boolean;
+}
+
 interface SearchResult {
-  users: Profile[];
+  users: SearchUser[];
 }
 
 async function searchUsers(query: string, currentUserId: string): Promise<SearchResult> {
@@ -14,13 +18,14 @@ async function searchUsers(query: string, currentUserId: string): Promise<Search
 
   const searchTerm = query.toLowerCase().trim();
 
-  // Get blocked users to exclude
-  const { data: blocks } = await supabase
+  const blocksResult = await supabase
     .from('blocks')
     .select('blocked_id')
     .eq('blocker_id', currentUserId);
 
-  const blockedIds = blocks?.map((b) => b.blocked_id) || [];
+  if (blocksResult.error) throw blocksResult.error;
+
+  const blockedIds = blocksResult.data.map((block) => block.blocked_id);
 
   // Search by username or display name
   let usersQuery = supabase
@@ -38,13 +43,31 @@ async function searchUsers(query: string, currentUserId: string): Promise<Search
   const { data: users, error } = await usersQuery;
 
   if (error) throw error;
+  if (!users?.length) return { users: [] };
 
-  return { users: users || [] };
+  const followsResult = await supabase
+    .from('follows')
+    .select('following_id')
+    .eq('follower_id', currentUserId)
+    .in('following_id', users.map((user) => user.id));
+
+  if (followsResult.error) throw followsResult.error;
+
+  const followingIds = new Set(
+    followsResult.data.map((follow) => follow.following_id)
+  );
+
+  return {
+    users: users.map((user) => ({
+      ...user,
+      isFollowing: followingIds.has(user.id),
+    })),
+  };
 }
 
 export function useSearch(query: string, userId: string | undefined) {
   return useQuery({
-    queryKey: queryKeys.search.users(query),
+    queryKey: queryKeys.search.users(query, userId || ''),
     queryFn: () => searchUsers(query, userId!),
     enabled: !!userId && query.length >= 2,
     staleTime: 1000 * 60, // 1 minute

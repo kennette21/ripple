@@ -20,7 +20,10 @@ async function fetchUserPosts(
     .select(`
       *,
       author:profiles!posts_author_id_fkey(*),
-      images:post_images(*)
+      images:post_images(*),
+      comments(count),
+      reposts(count),
+      bookmarks(id)
     `)
     .eq('author_id', userId)
     .is('deleted_at', null)
@@ -40,31 +43,15 @@ async function fetchUserPosts(
 
   if (error) throw error;
 
-  // Get comment and repost counts, and bookmark status
-  const postsWithCounts = await Promise.all(
-    (posts || []).map(async (post) => {
-      const [commentCount, repostCount, bookmarkStatus] = await Promise.all([
-        supabase.from('comments')
-          .select('id', { count: 'exact', head: true })
-          .eq('post_id', post.id),
-        supabase.from('reposts')
-          .select('id', { count: 'exact', head: true })
-          .eq('original_post_id', post.id),
-        supabase.from('bookmarks')
-          .select('id')
-          .eq('post_id', post.id)
-          .eq('user_id', viewerId)
-          .maybeSingle(),
-      ]);
-
-      return {
-        ...post,
-        comment_count: commentCount.count || 0,
-        repost_count: repostCount.count || 0,
-        is_bookmarked: !!bookmarkStatus.data,
-      };
-    })
-  );
+  const postsWithCounts: FeedPost[] = (posts || []).map((post) => {
+    const { comments, reposts, bookmarks, ...postData } = post;
+    return {
+      ...postData,
+      comment_count: comments[0]?.count || 0,
+      repost_count: reposts[0]?.count || 0,
+      is_bookmarked: bookmarks.length > 0,
+    };
+  });
 
   const lastPost = postsWithCounts[postsWithCounts.length - 1];
   const nextCursor = postsWithCounts.length === POSTS_PER_PAGE ? lastPost?.created_at : null;

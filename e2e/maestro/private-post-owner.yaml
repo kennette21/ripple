@@ -1,0 +1,31 @@
+appId: com.proxy.ripple
+name: Private post is visible to its owner
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+
+- extendedWaitUntil:
+    visible: "you@example.com"
+    timeout: 15000
+- tapOn: "you@example.com"
+- inputText: "cicero@gmail.com"
+- tapOn: "Enter your password"
+- inputText: "12345678"
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible:
+      id: "feed-list"
+    timeout: 15000
+
+- tapOn: "Profile.*tab.*"
+- extendedWaitUntil:
+    visible: "@cicero"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      text: "A private note from Cicero about the next place he wants to explore."
+    direction: DOWN
+    timeout: 15000
+- assertVisible: "Post is private. Change privacy"
