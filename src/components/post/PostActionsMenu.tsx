@@ -26,12 +26,14 @@ interface MenuPosition {
 interface PostActionsMenuProps {
   postId: string;
   isDeleting?: boolean;
+  onEdit: () => void;
   onDelete: () => void;
 }
 
 export function PostActionsMenu({
   postId,
   isDeleting = false,
+  onEdit,
   onDelete,
 }: PostActionsMenuProps) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -50,7 +52,7 @@ export function PostActionsMenu({
       const preferredLeft = x + width - menuWidth;
       const latestVisibleLeft = windowWidth - menuWidth - SCREEN_MARGIN;
       const preferredTop = y + height + MENU_GAP;
-      const latestVisibleTop = windowHeight - MENU_ACTION_HEIGHT - SCREEN_MARGIN;
+      const latestVisibleTop = windowHeight - MENU_ACTION_HEIGHT * 2 - SCREEN_MARGIN;
 
       setMenuPosition({
         top: Math.max(
@@ -64,6 +66,12 @@ export function PostActionsMenu({
         width: menuWidth,
       });
     });
+  };
+
+  const handleEditPress = () => {
+    setMenuPosition(null);
+    void Haptics.selectionAsync().catch(() => {});
+    onEdit();
   };
 
   const handleDeletePress = () => {
@@ -121,6 +129,24 @@ export function PostActionsMenu({
                 <Pressable
                   style={({ pressed }) => [
                     styles.menuAction,
+                    pressed && styles.editActionPressed,
+                  ]}
+                  onPress={handleEditPress}
+                  testID={`post-edit-action-${postId}`}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit post"
+                >
+                  <Ionicons
+                    name="pencil-outline"
+                    size={22}
+                    color={colors.gray[700]}
+                  />
+                  <Text style={styles.editText}>Edit</Text>
+                </Pressable>
+                <View style={styles.menuSeparator} />
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.menuAction,
                     pressed && styles.deleteActionPressed,
                   ]}
                   onPress={handleDeletePress}
@@ -167,7 +193,7 @@ const styles = StyleSheet.create({
     ...shadows.lg,
   },
   menu: {
-    minHeight: MENU_ACTION_HEIGHT,
+    minHeight: MENU_ACTION_HEIGHT * 2,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.8)',
@@ -181,6 +207,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     paddingHorizontal: spacing.md,
+  },
+  editActionPressed: {
+    backgroundColor: 'rgba(243, 244, 246, 0.84)',
+  },
+  editText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.gray[700],
+  },
+  menuSeparator: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 54,
+    backgroundColor: 'rgba(156, 163, 175, 0.32)',
   },
   deleteActionPressed: {
     backgroundColor: 'rgba(254, 226, 226, 0.84)',

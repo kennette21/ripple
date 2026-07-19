@@ -459,6 +459,7 @@ export type Database = {
           id: string
           is_private: boolean
           reflection: string | null
+          updated_at: string | null
         }
         Insert: {
           author_id: string
@@ -469,6 +470,7 @@ export type Database = {
           id?: string
           is_private?: boolean
           reflection?: string | null
+          updated_at?: string | null
         }
         Update: {
           author_id?: string
@@ -479,6 +481,7 @@ export type Database = {
           id?: string
           is_private?: boolean
           reflection?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -594,6 +597,15 @@ export type Database = {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       soft_delete_post: { Args: { p_post_id: string }; Returns: boolean }
+      update_post: {
+        Args: {
+          p_caption: string
+          p_image_ids: string[]
+          p_post_id: string
+          p_reflection: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       notification_type:

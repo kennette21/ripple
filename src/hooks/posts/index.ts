@@ -1,4 +1,5 @@
 export { useCreatePost } from './useCreatePost';
+export { useUpdatePost } from './useUpdatePost';
 export { usePost } from './usePost';
 export {
   useDeletePost,
