@@ -36,7 +36,7 @@ name: Comment composer transitions
 - assertVisible: "Editing comment"
 - assertVisible:
     id: "comment-composer-input-10000000-0000-4000-8000-000000000003"
-- assertVisible: "return"
+- assertVisible: "Save comment"
 - swipe:
     start: "50%, 56%"
     end: "50%, 18%"
@@ -46,7 +46,7 @@ name: Comment composer transitions
 - assertVisible: "Replying to Marcus Aurelius: I love that tiny orange flag against the blue."
 - assertVisible:
     id: "comment-composer-input-10000000-0000-4000-8000-000000000003"
-- assertVisible: "return"
+- assertVisible: "Send reply"
 
 # Reply -> scroll away -> Edit.
 - swipe:
@@ -58,7 +58,7 @@ name: Comment composer transitions
 - assertVisible: "Editing comment"
 - assertVisible:
     id: "comment-composer-input-10000000-0000-4000-8000-000000000003"
-- assertVisible: "return"
+- assertVisible: "Save comment"
 
 # Closing the mode removes the one active composer.
 - tapOn: "Cancel editing comment"
