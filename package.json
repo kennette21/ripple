@@ -22,7 +22,6 @@
     "@react-navigation/native": "^7.0.14",
     "@supabase/supabase-js": "^2.47.10",
     "@tanstack/react-query": "^5.62.8",
-    "base64-arraybuffer": "^1.0.2",
     "blurhash": "^2.0.5",
     "date-fns": "^4.1.0",
     "expo": "^54.0.30",

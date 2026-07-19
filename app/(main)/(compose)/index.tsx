@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,10 @@ import { useAuth } from '@providers/AuthProvider';
 import { useCreatePost } from '@/hooks/posts/useCreatePost';
 import { getErrorMessage } from '@/lib/errors';
 import { startImageCropSession } from '@/lib/imageCropSession';
+import {
+  clearPostImagePreparation,
+  preparePostImage,
+} from '@/lib/postImageUpload';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
 import { LIMITS } from '@constants/config';
 
@@ -38,15 +42,35 @@ interface SelectedImage {
   uri: string;
   width: number;
   height: number;
+  isCropped: boolean;
   sourceUri: string;
   sourceWidth: number;
   sourceHeight: number;
+}
+
+function clearSelectedImagePreparation(image: SelectedImage) {
+  clearPostImagePreparation({
+    uri: image.uri,
+    width: image.width,
+    height: image.height,
+    alreadyJpeg: image.isCropped,
+  });
+
+  if (image.uri !== image.sourceUri) {
+    clearPostImagePreparation({
+      uri: image.sourceUri,
+      width: image.sourceWidth,
+      height: image.sourceHeight,
+      alreadyJpeg: false,
+    });
+  }
 }
 
 export default function ComposeScreen() {
   const { profile, user } = useAuth();
   const createPost = useCreatePost();
   const scrollViewRef = useRef<ScrollView>(null);
+  const imagesRef = useRef<SelectedImage[]>([]);
 
   const [contentType, setContentType] = useState<ContentType>('caption');
   const [body, setBody] = useState('');
@@ -58,6 +82,25 @@ export default function ComposeScreen() {
 
   const maxLength = contentType === 'caption' ? LIMITS.captionMaxLength : LIMITS.reflectionMaxLength;
   const canPost = body.trim().length > 0 && body.length <= maxLength;
+
+  imagesRef.current = images;
+
+  useEffect(() => {
+    return () => {
+      imagesRef.current.forEach(clearSelectedImagePreparation);
+    };
+  }, []);
+
+  const startPreparingImage = (image: SelectedImage) => {
+    // The global preparation queue yields before doing native work, so this
+    // warms the upload artifact without blocking the selection UI.
+    void preparePostImage({
+      uri: image.uri,
+      width: image.width,
+      height: image.height,
+      alreadyJpeg: image.isCropped,
+    }).catch(() => {});
+  };
 
   const moveImage = (fromIndex: number, direction: 'left' | 'right') => {
     const toIndex = direction === 'left' ? fromIndex - 1 : fromIndex + 1;
@@ -75,13 +118,22 @@ export default function ComposeScreen() {
       imageWidth: image.sourceWidth,
       imageHeight: image.sourceHeight,
       onCrop: (uri, width, height) => {
+        const croppedImage = {
+          ...image,
+          uri,
+          width,
+          height,
+          isCropped: true,
+        };
+        clearSelectedImagePreparation(image);
         setImages((currentImages) =>
           currentImages.map((currentImage) =>
             currentImage.id === image.id
-              ? { ...currentImage, uri, width, height }
+              ? croppedImage
               : currentImage
           )
         );
+        startPreparingImage(croppedImage);
       },
     });
     router.push('/crop');
@@ -100,7 +152,9 @@ export default function ComposeScreen() {
       allowsMultipleSelection: true,
       orderedSelection: true,
       selectionLimit: remaining,
-      quality: 0.8,
+      // Keep the best local source; preparePostImage performs the single
+      // controlled JPEG encode before anything is uploaded.
+      quality: 1,
     });
 
     if (!result.canceled && result.assets) {
@@ -110,15 +164,19 @@ export default function ComposeScreen() {
         uri: asset.uri,
         width: asset.width,
         height: asset.height,
+        isCropped: false,
         sourceUri: asset.uri,
         sourceWidth: asset.width,
         sourceHeight: asset.height,
       }));
       setImages((prev) => [...prev, ...newImages].slice(0, LIMITS.maxImagesPerPost));
+      newImages.forEach(startPreparingImage);
     }
   };
 
   const removeImage = (index: number) => {
+    const image = images[index];
+    if (image) clearSelectedImagePreparation(image);
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -143,7 +201,7 @@ export default function ComposeScreen() {
             onPress={() => openCrop(item)}
             onLongPress={images.length > 1 ? startDrag : undefined}
             delayLongPress={200}
-            disabled={isActive}
+            disabled={isActive || createPost.isPending}
             accessibilityRole="imagebutton"
             accessibilityLabel={`Photo ${index + 1} of ${images.length}`}
             accessibilityHint={
@@ -165,6 +223,7 @@ export default function ComposeScreen() {
           <Pressable
             style={styles.removeImage}
             onPress={() => removeImage(index)}
+            disabled={createPost.isPending}
             accessibilityRole="button"
             accessibilityLabel={`Remove photo ${index + 1}`}
           >
@@ -179,6 +238,7 @@ export default function ComposeScreen() {
   };
 
   const resetForm = () => {
+    images.forEach(clearSelectedImagePreparation);
     setBody('');
     setReflectionTitle('');
     setImages([]);
@@ -196,7 +256,7 @@ export default function ComposeScreen() {
           reflection: contentType === 'reflection' ? body : undefined,
           contentType,
           images,
-          isPrivate: contentType === 'reflection' ? isPrivate : false,
+          isPrivate,
         },
         userId: user.id,
       });
@@ -215,7 +275,10 @@ export default function ComposeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          disabled={createPost.isPending}
+        >
           <Ionicons name="close" size={24} color={colors.gray[600]} />
         </TouchableOpacity>
         <Text style={styles.title}>New Post</Text>
@@ -385,39 +448,44 @@ export default function ComposeScreen() {
 
         {/* Bottom toolbar - inside KeyboardAvoidingView so it stays visible */}
         <View style={styles.toolbar}>
-          <Pressable style={styles.toolButton} onPress={pickImages}>
+          <Pressable
+            style={styles.toolButton}
+            onPress={pickImages}
+            disabled={createPost.isPending}
+          >
             <Ionicons name="image-outline" size={24} color={colors.primary[500]} />
             {images.length > 0 && (
               <Text style={styles.imageCount}>{images.length}/{LIMITS.maxImagesPerPost}</Text>
             )}
           </Pressable>
 
-          {/* Private toggle - only for reflections */}
-          {contentType === 'reflection' && (
-            <Pressable
-              style={styles.privateToggle}
-              onPress={() => setIsPrivate(!isPrivate)}
-            >
-              <Ionicons
-                name={isPrivate ? 'lock-closed' : 'globe-outline'}
-                size={18}
-                color={isPrivate ? colors.primary[500] : colors.gray[500]}
-              />
-              <Text style={[
-                styles.privateText,
-                isPrivate && styles.privateTextActive,
-              ]}>
-                {isPrivate ? 'Private reflection' : 'Public'}
-              </Text>
-              <Switch
-                value={isPrivate}
-                onValueChange={setIsPrivate}
-                trackColor={{ false: colors.gray[200], true: colors.primary[200] }}
-                thumbColor={isPrivate ? colors.primary[500] : colors.gray[400]}
-                style={styles.switch}
-              />
-            </Pressable>
-          )}
+          <Pressable
+            style={styles.privateToggle}
+            onPress={() => setIsPrivate(!isPrivate)}
+          >
+            <Ionicons
+              name={isPrivate ? 'lock-closed' : 'globe-outline'}
+              size={18}
+              color={isPrivate ? colors.primary[500] : colors.gray[500]}
+            />
+            <Text style={[
+              styles.privateText,
+              isPrivate && styles.privateTextActive,
+            ]}>
+              {isPrivate
+                ? contentType === 'reflection'
+                  ? 'Private reflection'
+                  : 'Private caption'
+                : 'Public'}
+            </Text>
+            <Switch
+              value={isPrivate}
+              onValueChange={setIsPrivate}
+              trackColor={{ false: colors.gray[200], true: colors.primary[200] }}
+              thumbColor={isPrivate ? colors.primary[500] : colors.gray[400]}
+              style={styles.switch}
+            />
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
