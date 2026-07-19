@@ -11,18 +11,22 @@ export interface FriendRequestWithProfile extends FriendRequest {
 // Get list of friends (accepted friend requests in either direction)
 async function fetchFriends(userId: string): Promise<Profile[]> {
   // Get requests where user is sender and accepted
-  const { data: sent } = await supabase
+  const { data: sent, error: sentError } = await supabase
     .from('friend_requests')
     .select('receiver:profiles!friend_requests_receiver_id_fkey(*)')
     .eq('sender_id', userId)
     .eq('status', 'accepted');
 
+  if (sentError) throw sentError;
+
   // Get requests where user is receiver and accepted
-  const { data: received } = await supabase
+  const { data: received, error: receivedError } = await supabase
     .from('friend_requests')
     .select('sender:profiles!friend_requests_sender_id_fkey(*)')
     .eq('receiver_id', userId)
     .eq('status', 'accepted');
+
+  if (receivedError) throw receivedError;
 
   const friends: Profile[] = [
     ...(sent || []).map((r) => r.receiver),
@@ -52,23 +56,24 @@ async function fetchIncomingRequests(userId: string): Promise<FriendRequestWithP
 // Send a friend request
 async function sendFriendRequest(senderId: string, receiverId: string) {
   // Check if a request already exists in either direction
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from('friend_requests')
     .select('id, status')
     .or(`and(sender_id.eq.${senderId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${senderId})`)
     .maybeSingle();
 
+  if (existingError) throw existingError;
+
   if (existing) {
     if (existing.status === 'accepted') throw new Error('Already friends');
     if (existing.status === 'pending') throw new Error('Request already pending');
-    // If declined, update to pending (re-request)
+    // Replace a declined request so either person can initiate a new one.
     if (existing.status === 'declined') {
       const { error } = await supabase
         .from('friend_requests')
-        .update({ status: 'pending', sender_id: senderId, receiver_id: receiverId, updated_at: new Date().toISOString() })
+        .delete()
         .eq('id', existing.id);
       if (error) throw error;
-      return;
     }
   }
 
@@ -106,11 +111,13 @@ async function removeFriend(userId: string, friendId: string) {
 
 // Check friendship status between two users
 async function getFriendshipStatus(userId: string, targetId: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('friend_requests')
     .select('id, status, sender_id, receiver_id')
     .or(`and(sender_id.eq.${userId},receiver_id.eq.${targetId}),and(sender_id.eq.${targetId},receiver_id.eq.${userId})`)
     .maybeSingle();
+
+  if (error) throw error;
 
   if (!data) return { status: 'none' as const, requestId: null, direction: null };
 
