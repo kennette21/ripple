@@ -12,7 +12,8 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test:e2e:comments": "maestro test e2e/maestro/comments.yaml",
-    "test:e2e:search-follow": "maestro test e2e/maestro/search-follow.yaml"
+    "test:e2e:search-follow": "maestro test e2e/maestro/search-follow.yaml",
+    "test:e2e:privacy": "maestro test e2e/maestro/private-post-owner.yaml e2e/maestro/private-post-visitor.yaml"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
