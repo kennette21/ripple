@@ -21,6 +21,8 @@ import { supabase } from '@/lib/supabase/client';
 const { width: screenWidth } = Dimensions.get('window');
 const IMAGE_WIDTH = screenWidth - spacing.md * 2;
 const IMAGE_HEIGHT = 350;
+const IMAGE_GAP = spacing.sm;
+const CAROUSEL_SNAP_INTERVAL = IMAGE_WIDTH + IMAGE_GAP;
 
 interface PostImageData {
   id: string;
@@ -65,7 +67,7 @@ export function ImageGallery({ images }: ImageGalleryProps) {
     if (activeIndex > lastIndex) {
       setActiveIndex(lastIndex);
       scrollViewRef.current?.scrollTo({
-        x: lastIndex * IMAGE_WIDTH,
+        x: lastIndex * CAROUSEL_SNAP_INTERVAL,
         animated: false,
       });
     }
@@ -80,7 +82,7 @@ export function ImageGallery({ images }: ImageGalleryProps) {
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
-    const newIndex = Math.round(contentOffsetX / IMAGE_WIDTH);
+    const newIndex = Math.round(contentOffsetX / CAROUSEL_SNAP_INTERVAL);
     if (newIndex !== activeIndex && newIndex >= 0 && newIndex < sortedImages.length) {
       setActiveIndex(newIndex);
     }
@@ -125,12 +127,11 @@ export function ImageGallery({ images }: ImageGalleryProps) {
       <ScrollView
         ref={scrollViewRef}
         horizontal
-        pagingEnabled
         showsHorizontalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         decelerationRate="fast"
-        snapToInterval={IMAGE_WIDTH}
+        snapToInterval={CAROUSEL_SNAP_INTERVAL}
         snapToAlignment="start"
         scrollEnabled={!isCarouselInteractionActive}
         contentContainerStyle={styles.scrollContent}
@@ -188,6 +189,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     alignItems: 'center',
+    gap: IMAGE_GAP,
   },
   postImage: {
     width: IMAGE_WIDTH,
