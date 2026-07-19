@@ -6,35 +6,12 @@ export const BUCKETS = {
   POST_IMAGES: 'post-images',
 } as const;
 
-// Convert image URI to base64 using fetch (works in Expo Go)
-async function uriToBase64(uri: string): Promise<string> {
+async function uriToArrayBuffer(uri: string): Promise<ArrayBuffer> {
   const response = await fetch(uri);
-  const blob = await response.blob();
-
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
-      const base64 = base64String.split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+  return response.arrayBuffer();
 }
 
-// Decode base64 to ArrayBuffer
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes.buffer;
-}
-
-// Upload an image to a bucket using base64 (React Native compatible)
+// Upload an image to a bucket using an ArrayBuffer (React Native compatible).
 export async function uploadImage(
   bucket: string,
   path: string,
@@ -42,11 +19,7 @@ export async function uploadImage(
   contentType: string = 'image/jpeg'
 ): Promise<{ path: string | null; error: Error | null }> {
   try {
-    // Convert URI to base64
-    const base64 = await uriToBase64(uri);
-
-    // Decode base64 to ArrayBuffer
-    const arrayBuffer = base64ToArrayBuffer(base64);
+    const arrayBuffer = await uriToArrayBuffer(uri);
 
     const { data, error } = await supabase.storage
       .from(bucket)
