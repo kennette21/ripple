@@ -18,24 +18,14 @@ async function searchUsers(query: string, currentUserId: string): Promise<Search
 
   const searchTerm = query.toLowerCase().trim();
 
-  const [blocksResult, followsResult] = await Promise.all([
-    supabase
-      .from('blocks')
-      .select('blocked_id')
-      .eq('blocker_id', currentUserId),
-    supabase
-      .from('follows')
-      .select('following_id')
-      .eq('follower_id', currentUserId),
-  ]);
+  const blocksResult = await supabase
+    .from('blocks')
+    .select('blocked_id')
+    .eq('blocker_id', currentUserId);
 
   if (blocksResult.error) throw blocksResult.error;
-  if (followsResult.error) throw followsResult.error;
 
   const blockedIds = blocksResult.data.map((block) => block.blocked_id);
-  const followingIds = new Set(
-    followsResult.data.map((follow) => follow.following_id)
-  );
 
   // Search by username or display name
   let usersQuery = supabase
@@ -53,9 +43,22 @@ async function searchUsers(query: string, currentUserId: string): Promise<Search
   const { data: users, error } = await usersQuery;
 
   if (error) throw error;
+  if (!users?.length) return { users: [] };
+
+  const followsResult = await supabase
+    .from('follows')
+    .select('following_id')
+    .eq('follower_id', currentUserId)
+    .in('following_id', users.map((user) => user.id));
+
+  if (followsResult.error) throw followsResult.error;
+
+  const followingIds = new Set(
+    followsResult.data.map((follow) => follow.following_id)
+  );
 
   return {
-    users: (users || []).map((user) => ({
+    users: users.map((user) => ({
       ...user,
       isFollowing: followingIds.has(user.id),
     })),
