@@ -3,6 +3,7 @@ name: Comment composer transitions
 ---
 - launchApp:
     clearState: true
+    clearKeychain: true
 
 - tapOn: "you@example.com"
 - inputText: "cicero@gmail.com"
@@ -11,7 +12,8 @@ name: Comment composer transitions
 - hideKeyboard
 - tapOn: "Sign In"
 - extendedWaitUntil:
-    visible: "Feed"
+    visible:
+      id: "feed-list"
     timeout: 15000
 
 - scrollUntilVisible:
@@ -21,10 +23,12 @@ name: Comment composer transitions
     timeout: 20000
 - tapOn:
     id: "comments-toggle-10000000-0000-4000-8000-000000000003"
-- extendedWaitUntil:
-    visible:
+- scrollUntilVisible:
+    element:
       id: "comment-edit-50000000-0000-4000-8000-000000000002"
+    direction: DOWN
     timeout: 10000
+    centerElement: true
 
 # Edit -> scroll away -> Reply.
 - tapOn:
