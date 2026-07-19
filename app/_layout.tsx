@@ -103,6 +103,14 @@ function RootLayoutNav() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(main)" />
         <Stack.Screen name="friends" />
+        <Stack.Screen
+          name="crop"
+          options={{
+            animation: 'slide_from_bottom',
+            gestureEnabled: false,
+            presentation: 'fullScreenModal',
+          }}
+        />
       </Stack>
     </>
   );

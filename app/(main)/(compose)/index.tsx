@@ -23,10 +23,10 @@ import DraggableFlatList, {
   ScaleDecorator,
 } from 'react-native-draggable-flatlist';
 import { Button, Avatar } from '@components/ui';
-import ImageCropModal from '@components/compose/ImageCropModal';
 import { useAuth } from '@providers/AuthProvider';
 import { useCreatePost } from '@/hooks/posts/useCreatePost';
 import { getErrorMessage } from '@/lib/errors';
+import { startImageCropSession } from '@/lib/imageCropSession';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
 import { LIMITS } from '@constants/config';
 
@@ -37,6 +37,9 @@ interface SelectedImage {
   uri: string;
   width: number;
   height: number;
+  sourceUri: string;
+  sourceWidth: number;
+  sourceHeight: number;
 }
 
 export default function ComposeScreen() {
@@ -52,8 +55,6 @@ export default function ComposeScreen() {
   const [isPrivate, setIsPrivate] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
 
-  const [cropIndex, setCropIndex] = useState<number | null>(null);
-
   const content = contentType === 'caption' ? caption : reflection;
   const maxLength = contentType === 'caption' ? LIMITS.captionMaxLength : LIMITS.reflectionMaxLength;
   const canPost = content.trim().length > 0 && content.length <= maxLength;
@@ -68,12 +69,22 @@ export default function ComposeScreen() {
     });
   };
 
-  const handleCrop = (uri: string, width: number, height: number) => {
-    if (cropIndex === null) return;
-    setImages((prev) =>
-      prev.map((img, i) => (i === cropIndex ? { ...img, uri, width, height } : img))
-    );
-    setCropIndex(null);
+  const openCrop = (image: SelectedImage) => {
+    startImageCropSession({
+      imageUri: image.sourceUri,
+      imageWidth: image.sourceWidth,
+      imageHeight: image.sourceHeight,
+      onCrop: (uri, width, height) => {
+        setImages((currentImages) =>
+          currentImages.map((currentImage) =>
+            currentImage.id === image.id
+              ? { ...currentImage, uri, width, height }
+              : currentImage
+          )
+        );
+      },
+    });
+    router.push('/crop');
   };
 
   const pickImages = async () => {
@@ -85,8 +96,9 @@ export default function ComposeScreen() {
     const remaining = LIMITS.maxImagesPerPost - images.length;
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsMultipleSelection: true,
+      orderedSelection: true,
       selectionLimit: remaining,
       quality: 0.8,
     });
@@ -98,6 +110,9 @@ export default function ComposeScreen() {
         uri: asset.uri,
         width: asset.width,
         height: asset.height,
+        sourceUri: asset.uri,
+        sourceWidth: asset.width,
+        sourceHeight: asset.height,
       }));
       setImages((prev) => [...prev, ...newImages].slice(0, LIMITS.maxImagesPerPost));
     }
@@ -125,7 +140,7 @@ export default function ComposeScreen() {
       <ScaleDecorator activeScale={1.06}>
         <View style={[styles.imageContainer, isActive && styles.imageContainerActive]}>
           <Pressable
-            onPress={() => setCropIndex(index)}
+            onPress={() => openCrop(item)}
             onLongPress={images.length > 1 ? startDrag : undefined}
             delayLongPress={200}
             disabled={isActive}
@@ -133,8 +148,8 @@ export default function ComposeScreen() {
             accessibilityLabel={`Photo ${index + 1} of ${images.length}`}
             accessibilityHint={
               images.length > 1
-                ? 'Double tap to crop. Long press and drag to change its position.'
-                : 'Double tap to crop.'
+                ? 'Tap to crop. Long press and drag to change its position.'
+                : 'Tap to crop.'
             }
             accessibilityActions={accessibilityActions}
             onAccessibilityAction={(event) => {
@@ -359,17 +374,6 @@ export default function ComposeScreen() {
           </View>
           )}
 
-        {/* Crop modal */}
-        {cropIndex !== null && (
-          <ImageCropModal
-            visible
-            imageUri={images[cropIndex].uri}
-            imageWidth={images[cropIndex].width}
-            imageHeight={images[cropIndex].height}
-            onCrop={handleCrop}
-            onCancel={() => setCropIndex(null)}
-          />
-        )}
         </ScrollView>
 
         {/* Bottom toolbar - inside KeyboardAvoidingView so it stays visible */}
