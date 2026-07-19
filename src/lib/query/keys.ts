@@ -33,7 +33,9 @@ export const queryKeys = {
     contacts: (userId: string) => ['friends', 'contacts', userId] as const,
   },
   search: {
-    users: (query: string) => ['search', 'users', query] as const,
+    all: ['search'] as const,
+    users: (query: string, userId: string) =>
+      ['search', 'users', userId, query] as const,
   },
   comments: {
     all: ['comments'] as const,

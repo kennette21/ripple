@@ -12,22 +12,19 @@ import { useRouter } from 'expo-router';
 import { Input, Avatar, Button } from '@components/ui';
 import { EmptyState } from '@components/common';
 import { useAuth } from '@providers/AuthProvider';
-import { useSearch } from '@/hooks/social/useSearch';
-import { useFollow, useFollowStatus } from '@/hooks/social/useFollow';
+import { useSearch, type SearchUser } from '@/hooks/social/useSearch';
+import { useFollow } from '@/hooks/social/useFollow';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
-import type { Profile } from '@/types/database';
 
-function UserRow({ profile, currentUserId }: { profile: Profile; currentUserId: string }) {
+function UserRow({ profile, currentUserId }: { profile: SearchUser; currentUserId: string }) {
   const router = useRouter();
-  const { data: followStatus, isLoading: statusLoading } = useFollowStatus(currentUserId, profile.id);
   const followMutation = useFollow();
 
   const handleFollow = () => {
-    if (!followStatus) return;
     followMutation.mutate({
       followerId: currentUserId,
       followingId: profile.id,
-      isFollowing: followStatus.isFollowing,
+      isFollowing: profile.isFollowing,
     });
   };
 
@@ -54,12 +51,11 @@ function UserRow({ profile, currentUserId }: { profile: Profile; currentUserId: 
         )}
       </View>
       <Button
-        title={followStatus?.isFollowing ? 'Following' : 'Follow'}
-        variant={followStatus?.isFollowing ? 'outline' : 'primary'}
+        title={profile.isFollowing ? 'Following' : 'Follow'}
+        variant={profile.isFollowing ? 'outline' : 'primary'}
         size="sm"
         onPress={handleFollow}
         loading={followMutation.isPending}
-        disabled={statusLoading}
       />
     </Pressable>
   );
@@ -70,7 +66,7 @@ export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const { data, isLoading, isFetching } = useSearch(searchQuery, user?.id);
 
-  const renderUser = useCallback(({ item }: { item: Profile }) => (
+  const renderUser = useCallback(({ item }: { item: SearchUser }) => (
     <UserRow profile={item} currentUserId={user?.id || ''} />
   ), [user?.id]);
 

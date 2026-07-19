@@ -79,6 +79,7 @@ export function useFollow() {
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.profiles.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.search.all });
     },
   });
 }
