@@ -38,8 +38,7 @@ interface SelectedImage {
   uri: string;
   width: number;
   height: number;
-  mimeType?: string;
-  fileName?: string;
+  isCropped: boolean;
   sourceUri: string;
   sourceWidth: number;
   sourceHeight: number;
@@ -85,8 +84,7 @@ export default function ComposeScreen() {
                   uri,
                   width,
                   height,
-                  mimeType: 'image/jpeg',
-                  fileName: 'crop.jpg',
+                  isCropped: true,
                 }
               : currentImage
           )
@@ -109,9 +107,9 @@ export default function ComposeScreen() {
       allowsMultipleSelection: true,
       orderedSelection: true,
       selectionLimit: remaining,
-      // Reduce file size without changing dimensions or aspect ratio.
-      // Cropping remains an explicit, separate operation.
-      quality: 0.8,
+      // Keep the best local source; preparePostImage performs the single
+      // controlled JPEG encode before anything is uploaded.
+      quality: 1,
     });
 
     if (!result.canceled && result.assets) {
@@ -121,8 +119,7 @@ export default function ComposeScreen() {
         uri: asset.uri,
         width: asset.width,
         height: asset.height,
-        mimeType: asset.mimeType,
-        fileName: asset.fileName ?? undefined,
+        isCropped: false,
         sourceUri: asset.uri,
         sourceWidth: asset.width,
         sourceHeight: asset.height,

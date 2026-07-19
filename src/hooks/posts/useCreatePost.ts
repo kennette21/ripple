@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { uploadPostImage } from '@/lib/supabase/storage';
+import { preparePostImage } from '@/lib/postImageUpload';
 import { queryKeys } from '@/lib/query/keys';
 import type { ContentType } from '@/types/database';
 
@@ -8,8 +9,7 @@ interface ImageToUpload {
   uri: string;
   width: number;
   height: number;
-  mimeType?: string;
-  fileName?: string;
+  isCropped: boolean;
   blurhash?: string;
 }
 
@@ -22,6 +22,24 @@ interface CreatePostInput {
 }
 
 async function createPost(input: CreatePostInput, userId: string) {
+  const preparedImages: ImageToUpload[] = [];
+
+  // Prepare files before creating the database row so an oversized or
+  // unreadable image cannot leave behind an empty post.
+  for (const image of input.images ?? []) {
+    const preparedImage = await preparePostImage({
+      uri: image.uri,
+      width: image.width,
+      height: image.height,
+      alreadyJpeg: image.isCropped,
+    });
+
+    preparedImages.push({
+      ...image,
+      ...preparedImage,
+    });
+  }
+
   // Create the post first
   const { data: post, error: postError } = await supabase
     .from('posts')
@@ -38,18 +56,14 @@ async function createPost(input: CreatePostInput, userId: string) {
   if (postError) throw postError;
 
   // Upload images if any
-  if (input.images && input.images.length > 0) {
+  if (preparedImages.length > 0) {
     const imageRows = await Promise.all(
-      input.images.map(async (image, index) => {
+      preparedImages.map(async (image, index) => {
         const { path: storagePath, error: uploadError } = await uploadPostImage(
           userId,
           post.id,
           index,
-          image.uri,
-          {
-            mimeType: image.mimeType,
-            fileName: image.fileName,
-          }
+          image.uri
         );
 
         if (uploadError || !storagePath) {
