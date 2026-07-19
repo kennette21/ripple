@@ -15,8 +15,8 @@ export const queryClient = new QueryClient({
       refetchOnMount: true,
     },
     mutations: {
-      // Retry mutations once on failure
-      retry: 1,
+      // Retrying non-idempotent writes can create duplicate data.
+      retry: false,
     },
   },
 });

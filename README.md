@@ -75,6 +75,7 @@ Then run Maestro flows from another terminal:
 ```bash
 npm run test:e2e:comments
 npm run test:e2e:search-follow
+npm run test:e2e:privacy
 ```
 
 ## Supabase setup

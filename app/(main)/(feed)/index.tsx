@@ -160,6 +160,7 @@ export default function FeedScreen() {
           />
         ) : (
           <FlatList
+            testID="feed-list"
             ref={listRef}
             data={posts}
             renderItem={renderPost}
