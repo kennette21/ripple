@@ -26,12 +26,15 @@ import DraggableFlatList, {
 } from 'react-native-draggable-flatlist';
 import { Avatar, Button } from '@components/ui';
 import { useAuth } from '@/providers/AuthProvider';
-import { usePost, useUpdatePost } from '@/hooks/posts';
+import {
+  useEditablePost,
+  useUpdatePost,
+  type EditablePostImage,
+} from '@/hooks/posts';
 import { getErrorMessage } from '@/lib/errors';
 import { BUCKETS, getPublicUrl } from '@/lib/supabase/storage';
 import { borderRadius, colors, spacing, typography } from '@/constants/theme';
 import { LIMITS } from '@/constants/config';
-import type { PostImage } from '@/types/database';
 
 const REFLECTION_TITLE_MAX_LENGTH = 100;
 const REFLECTION_INPUT_MIN_HEIGHT = 120;
@@ -50,13 +53,13 @@ function EditPostContent() {
   const { profile, user } = useAuth();
   const rawPostId = params.postId;
   const postId = Array.isArray(rawPostId) ? rawPostId[0] : rawPostId;
-  const postQuery = usePost(postId, user?.id);
+  const postQuery = useEditablePost(postId, user?.id);
   const updatePost = useUpdatePost();
   const initializedPostId = useRef<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const [caption, setCaption] = useState('');
   const [reflection, setReflection] = useState('');
-  const [images, setImages] = useState<PostImage[]>([]);
+  const [images, setImages] = useState<EditablePostImage[]>([]);
   const [inputHeight, setInputHeight] = useState(100);
   const [isReordering, setIsReordering] = useState(false);
 
@@ -118,7 +121,7 @@ function EditPostContent() {
     void Haptics.selectionAsync().catch(() => {});
   };
 
-  const handleRemoveImage = (image: PostImage, index: number) => {
+  const handleRemoveImage = (image: EditablePostImage, index: number) => {
     Alert.alert(
       'Remove photo?',
       `Photo ${index + 1} will be removed from this post when you save.`,
@@ -145,7 +148,7 @@ function EditPostContent() {
     getIndex,
     drag,
     isActive,
-  }: RenderItemParams<PostImage>) => {
+  }: RenderItemParams<EditablePostImage>) => {
     const index = getIndex() ?? 0;
     const accessibilityActions = [
       ...(index > 0
@@ -239,8 +242,6 @@ function EditPostContent() {
     try {
       await updatePost.mutateAsync({
         postId: post.id,
-        authorId: user.id,
-        contentType: post.content_type,
         caption: caption.trim(),
         reflection: reflection.trim(),
         imageIds: images.map((image) => image.id),

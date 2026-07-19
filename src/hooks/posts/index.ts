@@ -1,4 +1,8 @@
 export { useCreatePost } from './useCreatePost';
+export {
+  useEditablePost,
+  type EditablePostImage,
+} from './useEditablePost';
 export { useUpdatePost } from './useUpdatePost';
 export { usePost } from './usePost';
 export {

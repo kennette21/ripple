@@ -2,12 +2,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { BUCKETS } from '@/lib/supabase/storage';
 import { queryKeys } from '@/lib/query/keys';
-import type { ContentType } from '@/types/database';
 
 interface UpdatePostInput {
   postId: string;
-  authorId: string;
-  contentType: ContentType;
   caption: string;
   reflection: string;
   /** IDs of existing images in their desired order. Omitted IDs are deleted. */
@@ -18,8 +15,7 @@ async function updatePost(input: UpdatePostInput) {
   const { data, error } = await supabase.rpc('update_post', {
     p_post_id: input.postId,
     p_caption: input.caption,
-    p_reflection:
-      input.contentType !== 'caption' ? input.reflection : '',
+    p_reflection: input.reflection,
     p_image_ids: input.imageIds,
   });
 
@@ -48,7 +44,7 @@ async function updatePost(input: UpdatePostInput) {
     }
   }
 
-  return data;
+  return result;
 }
 
 export function useUpdatePost() {

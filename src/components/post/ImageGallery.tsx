@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -59,6 +59,20 @@ export function ImageGallery({ images }: ImageGalleryProps) {
     sortedImages.map((img) => ({ uri: getImageUrl(img.storage_path) })),
     [sortedImages]
   );
+
+  useEffect(() => {
+    const lastIndex = Math.max(0, sortedImages.length - 1);
+
+    if (activeIndex > lastIndex) {
+      setActiveIndex(lastIndex);
+      scrollViewRef.current?.scrollTo({
+        x: lastIndex * IMAGE_WIDTH,
+        animated: false,
+      });
+    }
+
+    setLightboxIndex((currentIndex) => Math.min(currentIndex, lastIndex));
+  }, [activeIndex, sortedImages.length]);
 
   const activeImageHeight = getRenderedHeight(sortedImages[activeIndex]);
 

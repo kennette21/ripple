@@ -18,6 +18,3 @@ $$;
 CREATE TRIGGER posts_updated_at
   BEFORE UPDATE OF caption, reflection, content_type ON public.posts
   FOR EACH ROW EXECUTE FUNCTION public.set_post_updated_at();
-
--- The existing RLS policy still limits updates to the post author.
-GRANT UPDATE (caption, reflection, content_type) ON public.posts TO authenticated;

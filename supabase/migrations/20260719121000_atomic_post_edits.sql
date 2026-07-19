@@ -2,6 +2,13 @@
 -- transaction. Storage objects for removed rows are returned to the client for
 -- best-effort cleanup after the database commit.
 
+-- Position swaps need uniqueness checked after the complete reorder rather
+-- than after each row update.
+ALTER TABLE public.post_images
+  DROP CONSTRAINT unique_image_position,
+  ADD CONSTRAINT unique_image_position UNIQUE (post_id, position)
+    DEFERRABLE INITIALLY IMMEDIATE;
+
 CREATE OR REPLACE FUNCTION public.update_post(
   p_post_id uuid,
   p_caption text,
@@ -128,6 +135,8 @@ BEGIN
       AND image.thumbnail_path IS NOT NULL
   ) AS deleted_paths;
 
+  SET CONSTRAINTS public.unique_image_position DEFERRED;
+
   DELETE FROM public.post_images AS image
   WHERE image.post_id = p_post_id
     AND NOT (image.id = ANY(v_image_ids));
@@ -156,7 +165,3 @@ $$;
 REVOKE ALL ON FUNCTION public.update_post(uuid, text, text, uuid[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.update_post(uuid, text, text, uuid[]) FROM anon;
 GRANT EXECUTE ON FUNCTION public.update_post(uuid, text, text, uuid[]) TO authenticated;
-
--- Content edits use update_post so text and image changes cannot partially
--- commit. Privacy remains a separately authorized update.
-REVOKE UPDATE (caption, reflection, content_type) ON public.posts FROM authenticated;

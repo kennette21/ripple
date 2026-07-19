@@ -37,30 +37,34 @@ async function createPost(input: CreatePostInput, userId: string) {
 
   // Upload images if any
   if (input.images && input.images.length > 0) {
-    const imagePromises = input.images.map(async (image, index) => {
-      const { path: storagePath, error: uploadError } = await uploadPostImage(
-        userId,
-        post.id,
-        index,
-        image.uri
-      );
+    const imageRows = await Promise.all(
+      input.images.map(async (image, index) => {
+        const { path: storagePath, error: uploadError } = await uploadPostImage(
+          userId,
+          post.id,
+          index,
+          image.uri
+        );
 
-      if (uploadError || !storagePath) {
-        throw uploadError || new Error('Failed to upload image');
-      }
+        if (uploadError || !storagePath) {
+          throw uploadError || new Error('Failed to upload image');
+        }
 
-      return supabase.from('post_images').insert({
-        post_id: post.id,
-        storage_path: storagePath,
-        blurhash: image.blurhash || null,
-        width: image.width,
-        height: image.height,
-        position: index,
-      });
-    });
+        return {
+          post_id: post.id,
+          storage_path: storagePath,
+          blurhash: image.blurhash || null,
+          width: image.width,
+          height: image.height,
+          position: index,
+        };
+      })
+    );
 
-    const results = await Promise.all(imagePromises);
-    const imageError = results.find(r => r.error)?.error;
+    const { error: imageError } = await supabase
+      .from('post_images')
+      .insert(imageRows);
+
     if (imageError) throw imageError;
   }
 
@@ -71,9 +75,8 @@ export function useCreatePost() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ input, userId }: { input: CreatePostInput; userId: string }) => {
-      return createPost(input, userId);
-    },
+    mutationFn: ({ input, userId }: { input: CreatePostInput; userId: string }) =>
+      createPost(input, userId),
     onSuccess: () => {
       // Invalidate feed queries to show new post
       queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
