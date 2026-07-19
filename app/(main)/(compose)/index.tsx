@@ -23,20 +23,24 @@ import DraggableFlatList, {
   ScaleDecorator,
 } from 'react-native-draggable-flatlist';
 import { Button, Avatar } from '@components/ui';
-import ImageCropModal from '@components/compose/ImageCropModal';
 import { useAuth } from '@providers/AuthProvider';
 import { useCreatePost } from '@/hooks/posts/useCreatePost';
 import { getErrorMessage } from '@/lib/errors';
+import { startImageCropSession } from '@/lib/imageCropSession';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
 import { LIMITS } from '@constants/config';
 
 type ContentType = 'caption' | 'reflection';
+const REFLECTION_INPUT_MIN_HEIGHT = 120;
 
 interface SelectedImage {
   id: string;
   uri: string;
   width: number;
   height: number;
+  sourceUri: string;
+  sourceWidth: number;
+  sourceHeight: number;
 }
 
 export default function ComposeScreen() {
@@ -45,18 +49,15 @@ export default function ComposeScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
 
   const [contentType, setContentType] = useState<ContentType>('caption');
-  const [caption, setCaption] = useState('');
-  const [reflection, setReflection] = useState('');
+  const [body, setBody] = useState('');
+  const [reflectionTitle, setReflectionTitle] = useState('');
   const [images, setImages] = useState<SelectedImage[]>([]);
   const [inputHeight, setInputHeight] = useState(100);
   const [isPrivate, setIsPrivate] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
 
-  const [cropIndex, setCropIndex] = useState<number | null>(null);
-
-  const content = contentType === 'caption' ? caption : reflection;
   const maxLength = contentType === 'caption' ? LIMITS.captionMaxLength : LIMITS.reflectionMaxLength;
-  const canPost = content.trim().length > 0 && content.length <= maxLength;
+  const canPost = body.trim().length > 0 && body.length <= maxLength;
 
   const moveImage = (fromIndex: number, direction: 'left' | 'right') => {
     const toIndex = direction === 'left' ? fromIndex - 1 : fromIndex + 1;
@@ -68,12 +69,22 @@ export default function ComposeScreen() {
     });
   };
 
-  const handleCrop = (uri: string, width: number, height: number) => {
-    if (cropIndex === null) return;
-    setImages((prev) =>
-      prev.map((img, i) => (i === cropIndex ? { ...img, uri, width, height } : img))
-    );
-    setCropIndex(null);
+  const openCrop = (image: SelectedImage) => {
+    startImageCropSession({
+      imageUri: image.sourceUri,
+      imageWidth: image.sourceWidth,
+      imageHeight: image.sourceHeight,
+      onCrop: (uri, width, height) => {
+        setImages((currentImages) =>
+          currentImages.map((currentImage) =>
+            currentImage.id === image.id
+              ? { ...currentImage, uri, width, height }
+              : currentImage
+          )
+        );
+      },
+    });
+    router.push('/crop');
   };
 
   const pickImages = async () => {
@@ -85,8 +96,9 @@ export default function ComposeScreen() {
     const remaining = LIMITS.maxImagesPerPost - images.length;
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsMultipleSelection: true,
+      orderedSelection: true,
       selectionLimit: remaining,
       quality: 0.8,
     });
@@ -98,6 +110,9 @@ export default function ComposeScreen() {
         uri: asset.uri,
         width: asset.width,
         height: asset.height,
+        sourceUri: asset.uri,
+        sourceWidth: asset.width,
+        sourceHeight: asset.height,
       }));
       setImages((prev) => [...prev, ...newImages].slice(0, LIMITS.maxImagesPerPost));
     }
@@ -125,7 +140,7 @@ export default function ComposeScreen() {
       <ScaleDecorator activeScale={1.06}>
         <View style={[styles.imageContainer, isActive && styles.imageContainerActive]}>
           <Pressable
-            onPress={() => setCropIndex(index)}
+            onPress={() => openCrop(item)}
             onLongPress={images.length > 1 ? startDrag : undefined}
             delayLongPress={200}
             disabled={isActive}
@@ -133,8 +148,8 @@ export default function ComposeScreen() {
             accessibilityLabel={`Photo ${index + 1} of ${images.length}`}
             accessibilityHint={
               images.length > 1
-                ? 'Double tap to crop. Long press and drag to change its position.'
-                : 'Double tap to crop.'
+                ? 'Tap to crop. Long press and drag to change its position.'
+                : 'Tap to crop.'
             }
             accessibilityActions={accessibilityActions}
             onAccessibilityAction={(event) => {
@@ -164,8 +179,8 @@ export default function ComposeScreen() {
   };
 
   const resetForm = () => {
-    setCaption('');
-    setReflection('');
+    setBody('');
+    setReflectionTitle('');
     setImages([]);
     setContentType('caption');
     setIsPrivate(false);
@@ -177,8 +192,8 @@ export default function ComposeScreen() {
     try {
       await createPost.mutateAsync({
         input: {
-          caption: contentType === 'caption' ? caption : (caption || undefined),
-          reflection: contentType === 'reflection' ? reflection : undefined,
+          caption: contentType === 'caption' ? body : (reflectionTitle || undefined),
+          reflection: contentType === 'reflection' ? body : undefined,
           contentType,
           images,
           isPrivate: contentType === 'reflection' ? isPrivate : false,
@@ -262,13 +277,13 @@ export default function ComposeScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
-        keyboardVerticalOffset={60}
       >
         <ScrollView
           ref={scrollViewRef}
           style={styles.content}
           scrollEnabled={!isReordering}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.authorRow}>
@@ -288,8 +303,8 @@ export default function ComposeScreen() {
               style={styles.titleInput}
               placeholder="Title (optional)"
               placeholderTextColor={colors.gray[400]}
-              value={caption}
-              onChangeText={setCaption}
+              value={reflectionTitle}
+              onChangeText={setReflectionTitle}
               maxLength={100}
             />
           )}
@@ -298,7 +313,11 @@ export default function ComposeScreen() {
             style={[
               styles.input,
               contentType === 'reflection' && styles.inputReflection,
-              { minHeight: contentType === 'reflection' ? Math.max(200, inputHeight) : 100 },
+              {
+                minHeight: contentType === 'reflection'
+                  ? Math.max(REFLECTION_INPUT_MIN_HEIGHT, inputHeight)
+                  : 100,
+              },
             ]}
             placeholder={
               contentType === 'caption'
@@ -306,8 +325,8 @@ export default function ComposeScreen() {
                 : 'Share your thoughts in detail...'
             }
             placeholderTextColor={colors.gray[400]}
-            value={contentType === 'caption' ? caption : reflection}
-            onChangeText={contentType === 'caption' ? setCaption : setReflection}
+            value={body}
+            onChangeText={setBody}
             multiline
             autoFocus
             scrollEnabled={false}
@@ -315,7 +334,10 @@ export default function ComposeScreen() {
               const newHeight = e.nativeEvent.contentSize.height;
               setInputHeight(newHeight);
               // Auto-scroll when content grows
-              if (contentType === 'reflection' && newHeight > 200) {
+              if (
+                contentType === 'reflection' &&
+                newHeight > REFLECTION_INPUT_MIN_HEIGHT
+              ) {
                 setTimeout(() => {
                   scrollViewRef.current?.scrollToEnd({ animated: true });
                 }, 100);
@@ -323,8 +345,8 @@ export default function ComposeScreen() {
             }}
           />
 
-        <Text style={[styles.charCount, content.length > maxLength && styles.charCountOver]}>
-          {content.length}/{maxLength}
+        <Text style={[styles.charCount, body.length > maxLength && styles.charCountOver]}>
+          {body.length}/{maxLength}
         </Text>
 
         {/* Selected images */}
@@ -359,17 +381,6 @@ export default function ComposeScreen() {
           </View>
           )}
 
-        {/* Crop modal */}
-        {cropIndex !== null && (
-          <ImageCropModal
-            visible
-            imageUri={images[cropIndex].uri}
-            imageWidth={images[cropIndex].width}
-            imageHeight={images[cropIndex].height}
-            onCrop={handleCrop}
-            onCancel={() => setCropIndex(null)}
-          />
-        )}
         </ScrollView>
 
         {/* Bottom toolbar - inside KeyboardAvoidingView so it stays visible */}
@@ -501,7 +512,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   inputReflection: {
-    minHeight: 200,
+    minHeight: REFLECTION_INPUT_MIN_HEIGHT,
     fontSize: typography.fontSizes.md,
     lineHeight: 24,
   },

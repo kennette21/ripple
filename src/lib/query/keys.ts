@@ -9,6 +9,8 @@ export const queryKeys = {
     all: ['posts'] as const,
     detail: (postId: string, viewerId: string) =>
       ['posts', 'detail', postId, viewerId] as const,
+    edit: (postId: string, userId: string) =>
+      ['posts', 'edit', postId, userId] as const,
     byUser: (userId: string, viewerId: string) =>
       ['posts', 'byUser', userId, viewerId] as const,
     deleted: (userId: string) =>

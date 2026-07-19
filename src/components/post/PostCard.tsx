@@ -137,6 +137,15 @@ function PostCardComponent({
     );
   };
 
+  const handleEditRequest = () => {
+    if (!isOwnPost || deletePost.isPending) return;
+
+    router.push({
+      pathname: '/edit-post',
+      params: { postId: post.id },
+    });
+  };
+
   const TEXT_LIMIT = 160;
 
   const renderContent = () => {
@@ -224,6 +233,7 @@ function PostCardComponent({
             <PostActionsMenu
               postId={post.id}
               isDeleting={deletePost.isPending}
+              onEdit={handleEditRequest}
               onDelete={handleDeleteRequest}
             />
           )}
