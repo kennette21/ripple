@@ -153,9 +153,8 @@ export function ImageZoomProvider({ children }: PropsWithChildren) {
   const backdropOpacity = useSharedValue(0);
 
   const beginZoom = useCallback((request: ImageZoomRequest) => {
-    setActiveZoom((current) =>
-      activeInstance.value === request.instanceId ? request : current
-    );
+    if (activeInstance.value !== request.instanceId) return;
+    setActiveZoom(request);
   }, [activeInstance]);
 
   const finishZoom = useCallback((instanceId: number, session: number) => {
