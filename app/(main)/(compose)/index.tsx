@@ -473,9 +473,7 @@ export default function ComposeScreen() {
               isPrivate && styles.privateTextActive,
             ]}>
               {isPrivate
-                ? contentType === 'reflection'
-                  ? 'Private reflection'
-                  : 'Private caption'
+                ? 'Private'
                 : 'Public'}
             </Text>
             <Switch
