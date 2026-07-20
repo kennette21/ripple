@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import ImageViewing from 'react-native-image-viewing';
 import { colors } from '@/constants/theme';
@@ -10,8 +10,10 @@ export function FullscreenImageViewer({
   closeAccessibilityLabel = 'Close image viewer',
   ...viewerProps
 }: FullscreenImageViewerProps) {
+  const { top } = useSafeAreaInsets();
+
   const HeaderComponent = useCallback(() => (
-    <SafeAreaView style={styles.header}>
+    <View style={[styles.header, { paddingTop: top }]}>
       <Pressable
         style={styles.closeButton}
         onPress={viewerProps.onRequestClose}
@@ -21,8 +23,8 @@ export function FullscreenImageViewer({
       >
         <Ionicons name="close" size={26} color={colors.white} />
       </Pressable>
-    </SafeAreaView>
-  ), [closeAccessibilityLabel, viewerProps.onRequestClose]);
+    </View>
+  ), [closeAccessibilityLabel, top, viewerProps.onRequestClose]);
 
   return (
     <ImageViewing
