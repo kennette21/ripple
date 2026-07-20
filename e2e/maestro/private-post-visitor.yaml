@@ -1,23 +1,12 @@
 appId: com.proxy.ripple
 name: Private post is hidden from another user
+tags:
+  - private-post-visitor
 ---
-- launchApp:
-    clearState: true
-    clearKeychain: true
-
-- extendedWaitUntil:
-    visible: "you@example.com"
-    timeout: 15000
-- tapOn: "you@example.com"
-- inputText: "julius.caesar@gmail.com"
-- tapOn: "Enter your password"
-- inputText: "12345678"
-- hideKeyboard
-- tapOn: "Sign In"
-- extendedWaitUntil:
-    visible:
-      id: "feed-list"
-    timeout: 15000
+- runFlow:
+    file: subflows/login.yaml
+    env:
+      EMAIL: "julius.caesar@gmail.com"
 
 - openLink: "ripple:///user/00000000-0000-4000-8000-000000000004"
 - extendedWaitUntil:

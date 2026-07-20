@@ -1,20 +1,12 @@
 appId: com.proxy.ripple
 name: Comment composer transitions
+tags:
+  - comments
 ---
-- launchApp:
-    clearState: true
-    clearKeychain: true
-
-- tapOn: "you@example.com"
-- inputText: "cicero@gmail.com"
-- tapOn: "Enter your password"
-- inputText: "12345678"
-- hideKeyboard
-- tapOn: "Sign In"
-- extendedWaitUntil:
-    visible:
-      id: "feed-list"
-    timeout: 15000
+- runFlow:
+    file: subflows/login.yaml
+    env:
+      EMAIL: "cicero@gmail.com"
 
 - scrollUntilVisible:
     element:
@@ -64,3 +56,21 @@ name: Comment composer transitions
 - tapOn: "Cancel editing comment"
 - assertNotVisible:
     id: "comment-composer-10000000-0000-4000-8000-000000000003"
+
+# Create and delete a real comment so the mutation path remains covered and
+# the seeded database is left unchanged when the flow succeeds.
+- tapOn: "Write a comment"
+- inputText: "Maestro comment lifecycle"
+- tapOn: "Post comment"
+- scrollUntilVisible:
+    element:
+      text: ".*Maestro comment lifecycle.*"
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+- longPressOn: ".*Maestro comment lifecycle.*"
+- tapOn: "Delete comment"
+- tapOn: "Delete"
+- extendedWaitUntil:
+    notVisible: ".*Maestro comment lifecycle.*"
+    timeout: 10000

@@ -3,6 +3,7 @@ import {
   Modal,
   Pressable,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,10 +38,28 @@ export function FullscreenImageViewer({
             contentFit="contain"
           />
         )}
-        <SafeAreaView style={styles.header} pointerEvents="box-none">
+        <SafeAreaView
+          style={styles.header}
+          pointerEvents="box-none"
+          testID="fullscreen-image-viewer"
+        >
+          <View style={styles.counterSlot}>
+            {images.length > 1 && (
+              <View style={styles.counter}>
+                <Text
+                  style={styles.counterText}
+                  testID="fullscreen-image-index"
+                  accessibilityLabel={`Photo ${imageIndex + 1} of ${images.length}`}
+                >
+                  {imageIndex + 1} / {images.length}
+                </Text>
+              </View>
+            )}
+          </View>
           <Pressable
             style={styles.closeButton}
             onPress={onRequestClose}
+            testID="fullscreen-image-close"
             accessibilityRole="button"
             accessibilityLabel={closeAccessibilityLabel}
             hitSlop={12}
@@ -66,7 +85,28 @@ const styles = StyleSheet.create({
   },
   header: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  counterSlot: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    marginLeft: 8,
+  },
+  counter: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.48)',
+  },
+  counterText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '600',
   },
   closeButton: {
     width: 44,

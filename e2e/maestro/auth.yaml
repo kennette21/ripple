@@ -1,0 +1,29 @@
+appId: com.proxy.ripple
+name: Sign in and sign out
+tags:
+  - auth
+---
+- runFlow:
+    file: subflows/login.yaml
+    env:
+      EMAIL: "cicero@gmail.com"
+
+- tapOn:
+    id: "profile-tab"
+- extendedWaitUntil:
+    visible: "@cicero"
+    timeout: 10000
+- tapOn:
+    id: "profile-settings"
+- extendedWaitUntil:
+    visible: "Settings"
+    timeout: 10000
+- tapOn:
+    id: "settings-sign-out"
+- extendedWaitUntil:
+    visible: "Are you sure you want to sign out?"
+    timeout: 10000
+- tapOn: "Confirm Sign Out"
+- extendedWaitUntil:
+    visible: "you@example.com"
+    timeout: 15000

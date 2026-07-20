@@ -296,6 +296,7 @@ function PostCardComponent({
             ]}
             onPress={handlePrivacyToggle}
             disabled={updatePrivacy.isPending}
+            testID={`post-privacy-${post.id}`}
             accessibilityRole="button"
             accessibilityLabel={`Post is ${isPrivate ? 'private' : 'public'}. Change privacy`}
             accessibilityState={{ busy: updatePrivacy.isPending }}

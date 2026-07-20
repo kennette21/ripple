@@ -11,9 +11,16 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test:e2e:comments": "maestro test e2e/maestro/comments.yaml",
-    "test:e2e:search-follow": "maestro test e2e/maestro/search-follow.yaml",
-    "test:e2e:privacy": "maestro test e2e/maestro/private-post-owner.yaml e2e/maestro/private-post-visitor.yaml"
+    "test:e2e": "node scripts/run-maestro-suite.js",
+    "test:e2e:flows": "maestro test --config e2e/maestro/config.yaml .",
+    "test:e2e:auth": "node scripts/run-maestro-suite.js --include-tags=auth",
+    "test:e2e:comments": "node scripts/run-maestro-suite.js --include-tags=comments",
+    "test:e2e:photo-post": "node scripts/run-maestro-suite.js --include-tags=photo-post",
+    "test:e2e:photos": "node scripts/run-maestro-suite.js --include-tags=photo-viewer",
+    "test:e2e:posts": "node scripts/run-maestro-suite.js --include-tags=post-lifecycle",
+    "test:e2e:profile": "node scripts/run-maestro-suite.js --include-tags=profile-edit",
+    "test:e2e:search-follow": "node scripts/run-maestro-suite.js --include-tags=search-follow",
+    "test:e2e:privacy": "node scripts/run-maestro-suite.js --include-tags=private-post-owner,private-post-visitor"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

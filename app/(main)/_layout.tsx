@@ -29,6 +29,8 @@ export default function MainLayout() {
         name="(feed)"
         options={{
           title: 'Feed',
+          tabBarButtonTestID: 'feed-tab',
+          tabBarAccessibilityLabel: 'Feed tab',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
@@ -45,6 +47,8 @@ export default function MainLayout() {
         name="(compose)"
         options={{
           title: 'Post',
+          tabBarButtonTestID: 'post-tab',
+          tabBarAccessibilityLabel: 'Post tab',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="add-circle-outline" size={size} color={color} />
           ),
@@ -60,6 +64,8 @@ export default function MainLayout() {
         name="(profile)"
         options={{
           title: 'Profile',
+          tabBarButtonTestID: 'profile-tab',
+          tabBarAccessibilityLabel: 'Profile tab',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),

@@ -1,0 +1,103 @@
+appId: com.proxy.ripple
+name: Create, edit, delete, restore, and purge a reflection
+tags:
+  - post-lifecycle
+---
+- runFlow:
+    file: subflows/login.yaml
+    env:
+      EMAIL: "cicero@gmail.com"
+
+# Create a reflection.
+- tapOn:
+    id: "post-tab"
+- extendedWaitUntil:
+    visible: "New Post"
+    timeout: 10000
+- tapOn:
+    id: "compose-type-reflection"
+- tapOn:
+    id: "compose-post-title-input"
+- inputText: "Maestro reflection title"
+- tapOn:
+    id: "compose-post-content-input"
+- inputText: "Maestro reflection lifecycle"
+- tapOn: "New Post"
+- tapOn: "Post"
+- extendedWaitUntil:
+    visible: "Your post has been shared!"
+    timeout: 15000
+- tapOn: "OK"
+- extendedWaitUntil:
+    visible: "Maestro reflection lifecycle"
+    timeout: 15000
+
+# Edit the newest profile post.
+- tapOn:
+    id: "profile-tab"
+- extendedWaitUntil:
+    visible: "Maestro reflection lifecycle"
+    timeout: 10000
+- tapOn:
+    text: "Post actions"
+    index: 0
+- tapOn: "Edit post"
+- extendedWaitUntil:
+    visible:
+      id: "edit-post-content-input"
+    timeout: 10000
+- tapOn:
+    id: "edit-post-title-input"
+- eraseText
+- inputText: "Maestro reflection title edited"
+- tapOn:
+    id: "edit-post-content-input"
+- eraseText
+- inputText: "Maestro reflection lifecycle edited"
+- tapOn: "Edit Post"
+- tapOn: "Save"
+- extendedWaitUntil:
+    visible: "Maestro reflection lifecycle edited"
+    timeout: 15000
+
+# Delete and restore it from Recently Deleted.
+- tapOn:
+    text: "Post actions"
+    index: 0
+- tapOn: "Delete post"
+- tapOn: "Delete"
+- extendedWaitUntil:
+    notVisible: "Maestro reflection lifecycle edited"
+    timeout: 10000
+- tapOn: "Recently deleted"
+- extendedWaitUntil:
+    visible: "Maestro reflection lifecycle edited"
+    timeout: 10000
+- tapOn:
+    text: "Restore post"
+    index: 0
+- extendedWaitUntil:
+    notVisible: "Maestro reflection lifecycle edited"
+    timeout: 10000
+- tapOn: "Back to profile"
+- extendedWaitUntil:
+    visible: "Maestro reflection lifecycle edited"
+    timeout: 10000
+
+# Delete it once more and purge it so the flow cleans up after itself.
+- tapOn:
+    text: "Post actions"
+    index: 0
+- tapOn: "Delete post"
+- tapOn: "Delete"
+- tapOn: "Recently deleted"
+- extendedWaitUntil:
+    visible: "Maestro reflection lifecycle edited"
+    timeout: 10000
+- tapOn:
+    text: "Delete post permanently"
+    index: 0
+- tapOn: "Delete Permanently"
+- extendedWaitUntil:
+    notVisible: "Maestro reflection lifecycle edited"
+    timeout: 10000

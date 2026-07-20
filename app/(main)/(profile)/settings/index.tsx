@@ -11,13 +11,17 @@ interface SettingsItemProps {
   title: string;
   onPress: () => void;
   showBorder?: boolean;
+  testID?: string;
 }
 
-function SettingsItem({ icon, title, onPress, showBorder = true }: SettingsItemProps) {
+function SettingsItem({ icon, title, onPress, showBorder = true, testID }: SettingsItemProps) {
   return (
     <TouchableOpacity
       style={[styles.settingsItem, showBorder && styles.settingsItemBorder]}
       onPress={onPress}
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={title}
     >
       <Ionicons name={icon} size={22} color={colors.gray[600]} />
       <Text style={styles.settingsItemText}>{title}</Text>
@@ -35,7 +39,7 @@ export default function SettingsScreen() {
       'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign Out', style: 'destructive', onPress: signOut },
+        { text: 'Confirm Sign Out', style: 'destructive', onPress: signOut },
       ]
     );
   };
@@ -47,7 +51,12 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          testID="settings-back"
+          accessibilityRole="button"
+          accessibilityLabel="Back to profile"
+        >
           <Ionicons name="arrow-back" size={24} color={colors.gray[600]} />
         </TouchableOpacity>
         <Text style={styles.title}>Settings</Text>
@@ -62,6 +71,7 @@ export default function SettingsScreen() {
               icon="person-outline"
               title="Edit Profile"
               onPress={() => router.push('/(main)/(profile)/settings/edit-profile')}
+              testID="settings-edit-profile"
             />
             <SettingsItem
               icon="call-outline"
@@ -88,6 +98,7 @@ export default function SettingsScreen() {
               title="Sign Out"
               onPress={handleSignOut}
               showBorder={false}
+              testID="settings-sign-out"
             />
           </View>
         </View>

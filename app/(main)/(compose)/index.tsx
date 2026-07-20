@@ -298,6 +298,9 @@ export default function ComposeScreen() {
             contentType === 'caption' && styles.typeButtonActive,
           ]}
           onPress={() => setContentType('caption')}
+          testID="compose-type-caption"
+          accessibilityRole="button"
+          accessibilityLabel="Caption"
         >
           <Ionicons
             name="chatbubble-outline"
@@ -320,6 +323,9 @@ export default function ComposeScreen() {
             contentType === 'reflection' && styles.typeButtonActive,
           ]}
           onPress={() => setContentType('reflection')}
+          testID="compose-type-reflection"
+          accessibilityRole="button"
+          accessibilityLabel="Reflection"
         >
           <Ionicons
             name="document-text-outline"
@@ -368,6 +374,7 @@ export default function ComposeScreen() {
               placeholderTextColor={colors.gray[400]}
               value={reflectionTitle}
               onChangeText={setReflectionTitle}
+              testID="compose-post-title-input"
               maxLength={100}
             />
           )}
@@ -390,6 +397,7 @@ export default function ComposeScreen() {
             placeholderTextColor={colors.gray[400]}
             value={body}
             onChangeText={setBody}
+            testID="compose-post-content-input"
             multiline
             autoFocus
             scrollEnabled={false}
@@ -452,6 +460,9 @@ export default function ComposeScreen() {
             style={styles.toolButton}
             onPress={pickImages}
             disabled={createPost.isPending}
+            testID="compose-add-photos"
+            accessibilityRole="button"
+            accessibilityLabel="Add photos"
           >
             <Ionicons name="image-outline" size={24} color={colors.primary[500]} />
             {images.length > 0 && (

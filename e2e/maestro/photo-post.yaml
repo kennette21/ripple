@@ -1,0 +1,83 @@
+appId: com.proxy.ripple
+name: Create and clean up a photo post
+tags:
+  - photo-post
+---
+- runFlow:
+    file: subflows/login.yaml
+    env:
+      EMAIL: "cicero@gmail.com"
+
+# Seed a known image into the simulator's photo library.
+- addMedia:
+    - "../../supabase/seed-assets/post-images/ship-at-sea.jpeg"
+
+- tapOn:
+    id: "post-tab"
+- extendedWaitUntil:
+    visible: "New Post"
+    timeout: 10000
+- tapOn:
+    id: "compose-add-photos"
+
+# The system picker hierarchy changed in iOS 18. Record whether its stable
+# grid ID is present so the older accessibility-label fallback cannot tap a
+# second time after a successful selection.
+- evalScript: ${output.usedPickerGrid = false}
+- runFlow:
+    when:
+      visible:
+        id: "PXGGridLayout-Info"
+    commands:
+      - tapOn:
+          id: "PXGGridLayout-Info"
+          index: 0
+      - evalScript: ${output.usedPickerGrid = true}
+- runFlow:
+    when:
+      true: ${output.usedPickerGrid == false}
+    commands:
+      - tapOn:
+          text: "Photo, .*"
+          index: 0
+- tapOn: "Add.*"
+- extendedWaitUntil:
+    visible: "Photo 1 of 1"
+    timeout: 15000
+
+- tapOn:
+    id: "compose-post-content-input"
+- inputText: "Maestro photo post"
+- tapOn: "New Post"
+- tapOn: "Post"
+- extendedWaitUntil:
+    visible: "Your post has been shared!"
+    timeout: 30000
+- tapOn: "OK"
+- extendedWaitUntil:
+    visible: "Maestro photo post"
+    timeout: 15000
+- assertVisible: "Post photo"
+
+# Permanently remove the temporary database and Storage records.
+- tapOn:
+    id: "profile-tab"
+- extendedWaitUntil:
+    visible: "Maestro photo post"
+    timeout: 10000
+- tapOn:
+    text: "Post actions"
+    index: 0
+- tapOn: "Delete post"
+- tapOn: "Delete"
+- tapOn: "Recently deleted"
+- extendedWaitUntil:
+    visible: "Maestro photo post"
+    timeout: 10000
+- tapOn:
+    text: "Delete post permanently"
+    index: 0
+- tapOn: "Delete Permanently"
+- extendedWaitUntil:
+    notVisible: "Maestro photo post"
+    timeout: 15000

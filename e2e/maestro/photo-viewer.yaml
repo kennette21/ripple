@@ -1,0 +1,67 @@
+appId: com.proxy.ripple
+name: Post photo gallery and fullscreen viewer
+tags:
+  - photo-viewer
+---
+- runFlow:
+    file: subflows/login.yaml
+    env:
+      EMAIL: "cicero@gmail.com"
+
+# Cicero's seeded public post has two photos, making it a stable gallery fixture.
+- scrollUntilVisible:
+    element:
+      id: "post-image-20000000-0000-4000-8000-000000000004"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: "post-image-20000000-0000-4000-8000-000000000004"
+- extendedWaitUntil:
+    visible:
+      id: "fullscreen-image-viewer"
+    timeout: 10000
+- assertVisible: "Photo 1 of 2"
+
+# The fullscreen gallery should page independently from the feed carousel.
+- swipe:
+    start: "85%, 50%"
+    end: "15%, 50%"
+    duration: 500
+- extendedWaitUntil:
+    visible: "Photo 2 of 2"
+    timeout: 10000
+
+# Swipe-to-close is part of the native viewer contract and avoids coupling the
+# flow to the status-bar inset used by a particular simulator model.
+- swipe:
+    start: "50%, 45%"
+    end: "50%, 90%"
+    duration: 100
+- extendedWaitUntil:
+    notVisible:
+      id: "fullscreen-image-viewer"
+    timeout: 10000
+- assertVisible:
+    id: "post-image-20000000-0000-4000-8000-000000000004"
+
+# Avatar viewing uses the same zoom/fullscreen primitives on a second hot path.
+- tapOn:
+    id: "profile-tab"
+- extendedWaitUntil:
+    visible:
+      id: "profile-picture"
+    timeout: 10000
+- tapOn:
+    id: "profile-picture"
+- extendedWaitUntil:
+    visible:
+      id: "fullscreen-image-viewer"
+    timeout: 10000
+- assertVisible: "Close profile picture"
+- swipe:
+    start: "50%, 45%"
+    end: "50%, 90%"
+    duration: 100
+- assertNotVisible:
+    id: "fullscreen-image-viewer"

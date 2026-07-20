@@ -1,0 +1,99 @@
+appId: com.proxy.ripple
+name: Edit profile and restore seed values
+tags:
+  - profile-edit
+---
+- runFlow:
+    file: subflows/login.yaml
+    env:
+      EMAIL: "cicero@gmail.com"
+
+- tapOn:
+    id: "profile-tab"
+- extendedWaitUntil:
+    visible: "@cicero"
+    timeout: 10000
+- tapOn:
+    id: "profile-settings"
+- extendedWaitUntil:
+    visible:
+      id: "settings-edit-profile"
+    timeout: 10000
+- tapOn:
+    id: "settings-edit-profile"
+- extendedWaitUntil:
+    visible:
+      id: "edit-profile-display-name"
+    timeout: 10000
+- tapOn:
+    id: "edit-profile-display-name"
+- eraseText
+- inputText: "Cicero Maestro"
+- hideKeyboard
+- assertVisible:
+    id: "edit-profile-display-name"
+    text: "Cicero Maestro"
+- scrollUntilVisible:
+    element:
+      id: "edit-profile-bio"
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+- tapOn:
+    id: "edit-profile-bio"
+- eraseText
+- inputText: "Temporary profile value from Maestro."
+- hideKeyboard
+- assertVisible:
+    id: "edit-profile-bio"
+    text: "Temporary profile value from Maestro."
+- tapOn: "Save Changes"
+- extendedWaitUntil:
+    visible: "Profile updated successfully"
+    timeout: 10000
+- tapOn: "OK"
+- tapOn:
+    id: "settings-back"
+- assertVisible: "Cicero Maestro"
+- assertVisible: "Temporary profile value from Maestro."
+
+# Restore the fixture so focused flows are repeatable without a database reset.
+- tapOn:
+    id: "profile-settings"
+- extendedWaitUntil:
+    visible:
+      id: "settings-edit-profile"
+    timeout: 10000
+- tapOn:
+    id: "settings-edit-profile"
+- tapOn:
+    id: "edit-profile-display-name"
+- eraseText
+- inputText: "Cicero"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "edit-profile-bio"
+    direction: DOWN
+    timeout: 10000
+    centerElement: true
+- tapOn:
+    id: "edit-profile-bio"
+- eraseText
+- inputText: "Usually outside or planning the next trip."
+- hideKeyboard
+- assertVisible:
+    id: "edit-profile-display-name"
+    text: "Cicero"
+- assertVisible:
+    id: "edit-profile-bio"
+    text: "Usually outside or planning the next trip."
+- tapOn: "Save Changes"
+- extendedWaitUntil:
+    visible: "Profile updated successfully"
+    timeout: 10000
+- tapOn: "OK"
+- tapOn:
+    id: "settings-back"
+- assertVisible: "Cicero"
+- assertVisible: "Usually outside or planning the next trip."

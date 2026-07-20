@@ -64,16 +64,27 @@ npm run typecheck    # tsc --noEmit
 npm run lint         # expo lint
 ```
 
-With an iOS development build installed, start the seeded stack in one terminal:
+Run the complete visual acceptance suite with:
 
 ```bash
-npm run dev-start:reset
+npm run test:e2e
 ```
 
-Then run Maestro flows from another terminal:
+This opens a visible iOS Simulator, installs the development app if needed,
+starts and resets the seeded local Supabase stack, starts Metro, and runs every
+Maestro flow in a deterministic order. Docker, Xcode, and Maestro must be
+installed. See `e2e/maestro/README.md` for the coverage map and focused commands.
+
+Focused commands use the same visible Simulator and deterministic bootstrap,
+but run only the selected journey:
 
 ```bash
+npm run test:e2e:auth
 npm run test:e2e:comments
+npm run test:e2e:photo-post
+npm run test:e2e:photos
+npm run test:e2e:posts
+npm run test:e2e:profile
 npm run test:e2e:search-follow
 npm run test:e2e:privacy
 ```

@@ -1,25 +1,15 @@
 appId: com.proxy.ripple
 name: Private post is visible to its owner
+tags:
+  - private-post-owner
 ---
-- launchApp:
-    clearState: true
-    clearKeychain: true
+- runFlow:
+    file: subflows/login.yaml
+    env:
+      EMAIL: "cicero@gmail.com"
 
-- extendedWaitUntil:
-    visible: "you@example.com"
-    timeout: 15000
-- tapOn: "you@example.com"
-- inputText: "cicero@gmail.com"
-- tapOn: "Enter your password"
-- inputText: "12345678"
-- hideKeyboard
-- tapOn: "Sign In"
-- extendedWaitUntil:
-    visible:
-      id: "feed-list"
-    timeout: 15000
-
-- tapOn: "Profile.*tab.*"
+- tapOn:
+    id: "profile-tab"
 - extendedWaitUntil:
     visible: "@cicero"
     timeout: 10000
@@ -29,3 +19,27 @@ name: Private post is visible to its owner
     direction: DOWN
     timeout: 15000
 - assertVisible: "Post is private. Change privacy"
+
+# Exercise both privacy mutation directions and restore the seed state.
+- scrollUntilVisible:
+    element:
+      id: "post-privacy-10000000-0000-4000-8000-000000000007"
+    direction: UP
+    timeout: 15000
+    centerElement: true
+- tapOn:
+    id: "post-privacy-10000000-0000-4000-8000-000000000007"
+- tapOn: "Make private"
+- extendedWaitUntil:
+    visible:
+      id: "post-privacy-10000000-0000-4000-8000-000000000007"
+      text: "Post is private.*"
+    timeout: 10000
+- tapOn:
+    id: "post-privacy-10000000-0000-4000-8000-000000000007"
+- tapOn: "Make public"
+- extendedWaitUntil:
+    visible:
+      id: "post-privacy-10000000-0000-4000-8000-000000000007"
+      text: "Post is public.*"
+    timeout: 10000

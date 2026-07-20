@@ -171,6 +171,7 @@ export default function EditProfileScreen() {
                 style={styles.input}
                 value={displayName}
                 onChangeText={setDisplayName}
+                testID="edit-profile-display-name"
                 placeholder="Your display name"
                 placeholderTextColor={colors.gray[400]}
                 maxLength={50}
@@ -191,6 +192,7 @@ export default function EditProfileScreen() {
                 style={[styles.input, styles.bioInput]}
                 value={bio}
                 onChangeText={setBio}
+                testID="edit-profile-bio"
                 placeholder="Write a short bio..."
                 placeholderTextColor={colors.gray[400]}
                 multiline

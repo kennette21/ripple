@@ -143,7 +143,12 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>Profile</Text>
-        <TouchableOpacity onPress={() => router.push('/(main)/(profile)/settings')}>
+        <TouchableOpacity
+          onPress={() => router.push('/(main)/(profile)/settings')}
+          testID="profile-settings"
+          accessibilityRole="button"
+          accessibilityLabel="Open settings"
+        >
           <Ionicons name="settings-outline" size={24} color={colors.gray[600]} />
         </TouchableOpacity>
       </View>

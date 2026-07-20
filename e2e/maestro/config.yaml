@@ -1,0 +1,22 @@
+flows:
+  - "e2e/maestro/auth.yaml"
+  - "e2e/maestro/photo-viewer.yaml"
+  - "e2e/maestro/comments.yaml"
+  - "e2e/maestro/search-follow.yaml"
+  - "e2e/maestro/private-post-owner.yaml"
+  - "e2e/maestro/private-post-visitor.yaml"
+  - "e2e/maestro/profile-edit.yaml"
+  - "e2e/maestro/photo-post.yaml"
+  - "e2e/maestro/post-lifecycle.yaml"
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - auth
+    - photo-viewer
+    - comments
+    - search-follow
+    - private-post-owner
+    - private-post-visitor
+    - profile-edit
+    - photo-post
+    - post-lifecycle
