@@ -88,6 +88,10 @@ The backend is a hosted Supabase project. The schema lives in `supabase/migratio
 | `20260713193011_storage_buckets.sql` | Storage buckets (`avatars`, `post-images`) and their `storage.objects` policies — maintained by hand since `db pull` doesn't capture them |
 | `20260713193012_storage_delete_policies.sql` | Adds the missing delete-own-object policies so `supabase.storage.remove()` works |
 | `20260718140000_soft_delete_posts.sql` | Keeps deleted posts recoverable for 30 days and schedules their final purge |
+| `20260723120000_notification_preferences.sql` | Replaces the legacy delivery fields with active notification preferences, per-author selections, and authenticated Expo push-device registration |
+| `20260723130000_add_new_post_notification_type.sql` | Adds the `new_post` notification type |
+| `20260723130100_create_new_post_notifications.sql` | Creates in-app new-post notifications from follow preferences |
+| `20260723140000_create_notification_push_webhook.sql` | Sends inserted notifications asynchronously to the push Edge Function using environment-specific Vault values |
 
 > **History note:** the original hand-written migrations (visible in git history before 2026-07-13) were never actually run against production — the live schema was built via the dashboard and had drifted (e.g. `friend_requests` existed only in prod; `usage_sessions`, `push_tokens` and friends existed only in the files). The baseline above replaced them with the real production schema, and the remote migration history table was repaired to match. From here on, all schema changes must go through migration files.
 

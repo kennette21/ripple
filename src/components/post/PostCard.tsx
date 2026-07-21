@@ -30,6 +30,9 @@ interface PostCardProps {
     onPositioned?: () => void
   ) => void;
   onCommentThreadActiveChange?: (postId: string | null) => void;
+  commentsInitiallyVisible?: boolean;
+  focusedCommentId?: string;
+  onFocusedCommentPositioned?: (comment: View) => void;
 }
 
 function PostCardComponent({
@@ -38,10 +41,15 @@ function PostCardComponent({
   isCommentThreadActive = false,
   onCommentComposerActivated,
   onCommentThreadActiveChange,
+  commentsInitiallyVisible = false,
+  focusedCommentId,
+  onFocusedCommentPositioned,
 }: PostCardProps) {
   const router = useRouter();
   const [showFullReflection, setShowFullReflection] = useState(false);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(
+    commentsInitiallyVisible || !!focusedCommentId
+  );
   const [isPrivate, setIsPrivate] = useState(post.is_private);
   const deletePost = useDeletePost();
   const updatePrivacy = useUpdatePostPrivacy();
@@ -49,6 +57,12 @@ function PostCardComponent({
   useEffect(() => {
     setIsPrivate(post.is_private);
   }, [post.is_private]);
+
+  useEffect(() => {
+    if (commentsInitiallyVisible || focusedCommentId) {
+      setShowComments(true);
+    }
+  }, [commentsInitiallyVisible, focusedCommentId]);
 
   // created_at is nullable in the schema but always set by the DB default
   const timeAgo = formatDistanceToNow(new Date(post.created_at!), { addSuffix: true });
@@ -326,6 +340,8 @@ function PostCardComponent({
           isThreadActive={isCommentThreadActive}
           onComposerActivated={onCommentComposerActivated}
           onThreadActiveChange={handleCommentThreadActiveChange}
+          focusedCommentId={focusedCommentId}
+          onFocusedCommentPositioned={onFocusedCommentPositioned}
         />
       )}
     </View>

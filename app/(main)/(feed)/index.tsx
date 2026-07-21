@@ -21,8 +21,47 @@ import { PostCard } from '@/components/post/PostCard';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/lib/query/keys';
 import { EmptyState } from '@components/common';
-import { Skeleton } from '@components/ui';
+import { DotBadge, Skeleton } from '@components/ui';
+import { useUnseenNotificationCount } from '@/hooks/notifications';
 import { colors, spacing, typography } from '@constants/theme';
+
+function FeedHeader({ userId }: { userId: string | undefined }) {
+  const { data: unseenNotificationCount = 0 } = useUnseenNotificationCount(userId);
+
+  return (
+    <View style={styles.header}>
+      <View style={styles.headerSpacer} />
+      <Text style={styles.logo}>Ripple</Text>
+      <View style={styles.headerActions}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => router.push('/(main)/(notifications)')}
+          accessibilityRole="button"
+          accessibilityLabel="Notifications"
+        >
+          <Ionicons
+            name="notifications-outline"
+            size={24}
+            color={colors.gray[600]}
+          />
+          <DotBadge
+            visible={unseenNotificationCount > 0}
+            variant="primary"
+            style={styles.notificationDot}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => router.push('/friends')}
+          accessibilityRole="button"
+          accessibilityLabel="Find friends"
+        >
+          <Ionicons name="people-outline" size={24} color={colors.gray[600]} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
 
 export default function FeedScreen() {
   const { user } = useAuth();
@@ -116,9 +155,7 @@ export default function FeedScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.logo}>Ripple</Text>
-        </View>
+        <FeedHeader userId={user?.id} />
         <View style={styles.loadingContainer}>
           {[1, 2, 3].map((i) => (
             <View key={i} style={styles.skeletonPost}>
@@ -139,16 +176,7 @@ export default function FeedScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <View style={styles.headerSpacer} />
-        <Text style={styles.logo}>Ripple</Text>
-        <TouchableOpacity
-          style={styles.findFriendsButton}
-          onPress={() => router.push('/friends')}
-        >
-          <Ionicons name="people-outline" size={24} color={colors.gray[600]} />
-        </TouchableOpacity>
-      </View>
+      <FeedHeader userId={user?.id} />
 
       <KeyboardAvoidingView
         style={styles.content}
@@ -212,15 +240,28 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.gray[100],
   },
   headerSpacer: {
-    width: 24,
+    width: 72,
+  },
+  headerActions: {
+    width: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
   },
   logo: {
     fontSize: typography.fontSizes.xl,
     fontWeight: typography.fontWeights.bold,
     color: colors.primary[500],
   },
-  findFriendsButton: {
+  headerButton: {
     padding: spacing.xs,
+    position: 'relative',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
   },
   loadingContainer: {
     padding: spacing.md,

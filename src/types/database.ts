@@ -295,41 +295,23 @@ export type Database = {
       }
       notification_settings: {
         Row: {
-          batch_interval_minutes: number | null
-          batch_notifications: boolean | null
           comment_notifications: boolean | null
-          dnd_enabled: boolean | null
-          dnd_end_time: string | null
-          dnd_start_time: string | null
           follow_notifications: boolean | null
-          push_enabled: boolean | null
-          repost_notifications: boolean | null
+          new_post_mode: Database["public"]["Enums"]["new_post_notification_mode"]
           updated_at: string | null
           user_id: string
         }
         Insert: {
-          batch_interval_minutes?: number | null
-          batch_notifications?: boolean | null
           comment_notifications?: boolean | null
-          dnd_enabled?: boolean | null
-          dnd_end_time?: string | null
-          dnd_start_time?: string | null
           follow_notifications?: boolean | null
-          push_enabled?: boolean | null
-          repost_notifications?: boolean | null
+          new_post_mode?: Database["public"]["Enums"]["new_post_notification_mode"]
           updated_at?: string | null
           user_id: string
         }
         Update: {
-          batch_interval_minutes?: number | null
-          batch_notifications?: boolean | null
           comment_notifications?: boolean | null
-          dnd_enabled?: boolean | null
-          dnd_end_time?: string | null
-          dnd_start_time?: string | null
           follow_notifications?: boolean | null
-          push_enabled?: boolean | null
-          repost_notifications?: boolean | null
+          new_post_mode?: Database["public"]["Enums"]["new_post_notification_mode"]
           updated_at?: string | null
           user_id?: string
         }
@@ -352,6 +334,7 @@ export type Database = {
           post_id: string | null
           read: boolean | null
           recipient_id: string
+          seen_at: string | null
           type: Database["public"]["Enums"]["notification_type"]
         }
         Insert: {
@@ -362,6 +345,7 @@ export type Database = {
           post_id?: string | null
           read?: boolean | null
           recipient_id: string
+          seen_at?: string | null
           type: Database["public"]["Enums"]["notification_type"]
         }
         Update: {
@@ -372,6 +356,7 @@ export type Database = {
           post_id?: string | null
           read?: boolean | null
           recipient_id?: string
+          seen_at?: string | null
           type?: Database["public"]["Enums"]["notification_type"]
         }
         Relationships: [
@@ -399,6 +384,39 @@ export type Database = {
           {
             foreignKeyName: "notifications_recipient_id_fkey"
             columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_notification_subscriptions: {
+        Row: {
+          author_id: string
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          author_id: string
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          author_id?: string
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_notification_subscriptions_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_notification_subscriptions_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -445,6 +463,44 @@ export type Database = {
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_devices: {
+        Row: {
+          created_at: string
+          expo_push_token: string
+          last_registered_at: string
+          permission_status: string
+          platform: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expo_push_token: string
+          last_registered_at?: string
+          permission_status: string
+          platform: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expo_push_token?: string
+          last_registered_at?: string
+          permission_status?: string
+          platform?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_devices_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -593,10 +649,41 @@ export type Database = {
           thread_root_id: string | null
         }
       }
+      mark_notifications_seen: {
+        Args: { p_notification_ids: string[] }
+        Returns: number
+      }
+      register_push_device: {
+        Args: {
+          p_expo_push_token: string
+          p_permission_status: string
+          p_platform: string
+          p_previous_expo_push_token?: string | null
+        }
+        Returns: undefined
+      }
       restore_deleted_post: { Args: { p_post_id: string }; Returns: boolean }
+      set_all_post_notification_subscriptions: {
+        Args: { p_enabled: boolean }
+        Returns: undefined
+      }
+      set_new_post_notification_mode: {
+        Args: {
+          p_mode: Database["public"]["Enums"]["new_post_notification_mode"]
+        }
+        Returns: undefined
+      }
+      set_post_notification_subscription: {
+        Args: { p_author_id: string; p_enabled: boolean }
+        Returns: undefined
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       soft_delete_post: { Args: { p_post_id: string }; Returns: boolean }
+      unregister_push_device: {
+        Args: { p_expo_push_token: string }
+        Returns: undefined
+      }
       update_post: {
         Args: {
           p_caption: string
@@ -608,11 +695,13 @@ export type Database = {
       }
     }
     Enums: {
+      new_post_notification_mode: "all" | "selected" | "off"
       notification_type:
         | "follow"
         | "comment"
         | "comment_reply"
         | "repost"
+        | "new_post"
         | "mention"
       post_content_type: "caption" | "reflection" | "both"
     }
@@ -742,11 +831,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      new_post_notification_mode: ["all", "selected", "off"],
       notification_type: [
         "follow",
         "comment",
         "comment_reply",
         "repost",
+        "new_post",
         "mention",
       ],
       post_content_type: ["caption", "reflection", "both"],
@@ -761,6 +852,8 @@ export const Constants = {
 export type PostContentType = Database['public']['Enums']['post_content_type'];
 export type ContentType = PostContentType; // Alias for convenience
 export type NotificationType = Database['public']['Tables']['notifications']['Row']['type'];
+export type NewPostNotificationMode =
+  Database['public']['Enums']['new_post_notification_mode'];
 export type FriendRequestStatus = FriendRequest['status'];
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -780,3 +873,6 @@ export type Repost = Database['public']['Tables']['reposts']['Row'];
 export type Bookmark = Database['public']['Tables']['bookmarks']['Row'];
 export type Notification = Database['public']['Tables']['notifications']['Row'];
 export type NotificationSettings = Database['public']['Tables']['notification_settings']['Row'];
+export type PostNotificationSubscription =
+  Database['public']['Tables']['post_notification_subscriptions']['Row'];
+export type PushDevice = Database['public']['Tables']['push_devices']['Row'];

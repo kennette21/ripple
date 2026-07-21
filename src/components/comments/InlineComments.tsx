@@ -47,6 +47,8 @@ interface InlineCommentsProps {
     onPositioned?: () => void
   ) => void;
   onThreadActiveChange: (active: boolean) => void;
+  focusedCommentId?: string;
+  onFocusedCommentPositioned?: (comment: View) => void;
 }
 
 export function InlineComments({
@@ -55,6 +57,8 @@ export function InlineComments({
   isThreadActive,
   onComposerActivated,
   onThreadActiveChange,
+  focusedCommentId,
+  onFocusedCommentPositioned,
 }: InlineCommentsProps) {
   const router = useRouter();
   const { profile } = useAuth();
@@ -71,12 +75,16 @@ export function InlineComments({
   const updateComment = useUpdateComment();
   const deleteComment = useDeleteComment();
   const flatComments = useMemo(() => comments ?? [], [comments]);
+  const hasFocusedComment = !!focusedCommentId && flatComments.some(
+    (comment) => comment.id === focusedCommentId
+      || comment.replies?.some((reply) => reply.id === focusedCommentId)
+  );
   const totalCommentCount = flatComments.reduce(
     (total, comment) => total + 1 + (comment.replies?.length ?? 0),
     0
   );
   const isComposerVisible = isComposing && isThreadActive;
-  const isShowingAll = showAll && isThreadActive;
+  const isShowingAll = (showAll || hasFocusedComment) && isThreadActive;
   const visibleComments = isShowingAll
     ? flatComments
     : flatComments.slice(0, PREVIEW_COMMENT_COUNT);
@@ -125,6 +133,12 @@ export function InlineComments({
     setIsComposing(false);
     setShowAll(false);
   }, [isThreadActive]);
+
+  useEffect(() => {
+    if (hasFocusedComment && !isThreadActive) {
+      onThreadActiveChange(true);
+    }
+  }, [hasFocusedComment, isThreadActive, onThreadActiveChange]);
 
   const handleStartComposing = useCallback(() => {
     onThreadActiveChange(true);
@@ -411,6 +425,8 @@ export function InlineComments({
               onProfilePress={handleProfilePress}
               isThreadActive={isThreadActive}
               onThreadInteraction={() => onThreadActiveChange(true)}
+              focusedCommentId={focusedCommentId}
+              onFocusedCommentPositioned={onFocusedCommentPositioned}
             />
           ))}
 

@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, typography, borderRadius } from '@constants/theme';
+import { colors, spacing, typography } from '@constants/theme';
 import { useSignOut } from '@hooks/auth';
 
 interface SettingsItemProps {
@@ -27,7 +27,7 @@ function SettingsItem({ icon, title, onPress, showBorder = true }: SettingsItemP
 }
 
 export default function SettingsScreen() {
-  const { signOut, isLoading: signOutLoading } = useSignOut();
+  const { signOut } = useSignOut();
 
   const handleSignOut = () => {
     Alert.alert(
@@ -87,6 +87,22 @@ export default function SettingsScreen() {
               icon="log-out-outline"
               title="Sign Out"
               onPress={handleSignOut}
+              showBorder={false}
+            />
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Preferences</Text>
+          <View style={styles.sectionContent}>
+            <SettingsItem
+              icon="notifications-outline"
+              title="Notifications"
+              onPress={() =>
+                router.push(
+                  '/(main)/(profile)/settings/notifications' as Href
+                )
+              }
               showBorder={false}
             />
           </View>

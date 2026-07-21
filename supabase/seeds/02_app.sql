@@ -199,7 +199,8 @@ values
   ('30000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', now() - interval '5 days'),
   ('30000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000004', now() - interval '5 days'),
   -- Julius Caesar -> Seneca, Cicero, Augustus
-  ('30000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000005', now() - interval '5 days'),
+  -- The recent Seneca follow joins the notification expansion showcase below.
+  ('30000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000005', now() - interval '33 minutes'),
   ('30000000-0000-4000-8000-000000000008', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000004', now() - interval '5 days'),
   ('30000000-0000-4000-8000-000000000009', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003', now() - interval '5 days');
 
@@ -223,3 +224,69 @@ values
   ('50000000-0000-4000-8000-000000000007', '10000000-0000-4000-8000-000000000009', '00000000-0000-4000-8000-000000000002', null, 'The dramatic light is unreal.', 0, now() - interval '45 minutes'),
   ('50000000-0000-4000-8000-000000000008', '10000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000002', null, 'The second one is wonderfully strange.', 0, now() - interval '1 hour 30 minutes'),
   ('50000000-0000-4000-8000-000000000009', '10000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000002', null, 'This works so well in black and white.', 0, now() - interval '2 hours 30 minutes');
+
+-- A richer set of local-only interactions makes Seneca's notification inbox
+-- demonstrate grouped stories, multiple actors, and seen versus unseen state.
+insert into public.follows (id, follower_id, following_id, created_at)
+values
+  ('30000000-0000-4000-8000-000000000010', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000005', now() - interval '26 minutes'),
+  ('30000000-0000-4000-8000-000000000011', '00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000005', now() - interval '18 minutes'),
+  ('30000000-0000-4000-8000-000000000012', '00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000005', now() - interval '9 minutes');
+
+insert into public.comments (
+  id,
+  post_id,
+  author_id,
+  parent_id,
+  content,
+  depth,
+  created_at
+)
+values
+  -- More activity on Seneca's post becomes one calm, multi-actor story.
+  ('50000000-0000-4000-8000-000000000010', '10000000-0000-4000-8000-000000000009', '00000000-0000-4000-8000-000000000003', null, 'The figures feel like they are about to step out of the frame.', 0, now() - interval '37 minutes'),
+  ('50000000-0000-4000-8000-000000000011', '10000000-0000-4000-8000-000000000009', '00000000-0000-4000-8000-000000000004', null, 'That diagonal light holds the entire scene together.', 0, now() - interval '23 minutes'),
+  ('50000000-0000-4000-8000-000000000012', '10000000-0000-4000-8000-000000000009', '00000000-0000-4000-8000-000000000001', null, 'I came back for another look and noticed a completely different story.', 0, now() - interval '7 minutes'),
+  -- Replies to Seneca's comment on Julius Caesar's post become a thread story.
+  ('50000000-0000-4000-8000-000000000013', '10000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000002', '50000000-0000-4000-8000-000000000001', 'Exactly. The little ship makes the whole storm feel enormous.', 1, now() - interval '3 hours'),
+  ('50000000-0000-4000-8000-000000000014', '10000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000003', '50000000-0000-4000-8000-000000000001', 'And somehow hopeful, despite all of that weather.', 1, now() - interval '2 hours 20 minutes');
+
+insert into public.reposts (
+  id,
+  original_post_id,
+  reposter_id,
+  commentary,
+  created_at
+)
+values
+  ('60000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000009', '00000000-0000-4000-8000-000000000003', 'The light in this one stays with you.', now() - interval '31 minutes'),
+  ('60000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000009', '00000000-0000-4000-8000-000000000004', null, now() - interval '15 minutes');
+
+-- Notification triggers run at seed time, so align generated notification
+-- timestamps with the interactions that caused them.
+update public.notifications notification
+set created_at = comment.created_at
+from public.comments comment
+where notification.comment_id = comment.id;
+
+update public.notifications notification
+set created_at = follow.created_at
+from public.follows follow
+where notification.type = 'follow'
+  and notification.actor_id = follow.follower_id
+  and notification.recipient_id = follow.following_id;
+
+update public.notifications notification
+set created_at = repost.created_at
+from public.reposts repost
+where notification.type = 'repost'
+  and notification.post_id = repost.original_post_id
+  and notification.actor_id = repost.reposter_id;
+
+-- Older stories have already been observed; recent stories remain new.
+update public.notifications
+set
+  read = true,
+  seen_at = created_at
+where recipient_id = '00000000-0000-4000-8000-000000000005'
+  and created_at < now() - interval '90 minutes';
