@@ -21,6 +21,8 @@ export const queryKeys = {
     detail: (userId: string) => ['profiles', 'detail', userId] as const,
   },
   social: {
+    connectionCounts: (userId: string) =>
+      ['social', 'connectionCounts', userId] as const,
     followers: (userId: string) => ['social', 'followers', userId] as const,
     following: (userId: string) => ['social', 'following', userId] as const,
     followStatus: (userId: string, targetId: string) =>
@@ -48,6 +50,8 @@ export const queryKeys = {
     all: ['notifications'] as const,
     list: (userId: string) => ['notifications', 'list', userId] as const,
     unreadCount: (userId: string) => ['notifications', 'unreadCount', userId] as const,
+    preferences: (userId: string) =>
+      ['notifications', 'preferences', userId] as const,
   },
   wellness: {
     dailyUsage: (userId: string, date: string) =>

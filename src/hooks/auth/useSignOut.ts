@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { signOut as supabaseSignOut } from '@lib/supabase';
 import { queryClient } from '@lib/queryClient';
+import { unregisterCurrentPushDevice } from '@/lib/notifications/deviceNotifications';
 
 interface UseSignOutResult {
   signOut: () => Promise<void>;
@@ -17,6 +18,12 @@ export function useSignOut(): UseSignOutResult {
     setError(null);
 
     try {
+      try {
+        await unregisterCurrentPushDevice();
+      } catch (pushError) {
+        console.warn('Could not unregister push device during sign out:', pushError);
+      }
+
       const { error: authError } = await supabaseSignOut();
 
       if (authError) {
@@ -25,7 +32,7 @@ export function useSignOut(): UseSignOutResult {
         // Clear all cached queries on sign out
         queryClient.clear();
       }
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);

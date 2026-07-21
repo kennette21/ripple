@@ -38,6 +38,8 @@ interface CommentItemProps {
   isThreadActive?: boolean;
   onThreadInteraction?: () => void;
   isReply?: boolean;
+  focusedCommentId?: string;
+  onFocusedCommentPositioned?: (comment: View) => void;
 }
 
 export function CommentItem({
@@ -50,6 +52,8 @@ export function CommentItem({
   isThreadActive = false,
   onThreadInteraction,
   isReply = false,
+  focusedCommentId,
+  onFocusedCommentPositioned,
 }: CommentItemProps) {
   const router = useRouter();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -62,12 +66,18 @@ export function CommentItem({
   const commentAuthorId = (comment).author_id;
   const isOwnComment = commentAuthorId === currentUserId;
   const replies = comment.replies ?? [];
+  const isFocused = comment.id === focusedCommentId;
+  const containsFocusedReply = replies.some(
+    (reply) => reply.id === focusedCommentId
+  );
+  const isReferenceConversation = !isReply && (isFocused || containsFocusedReply);
   const hasReplies = replies.length > 0;
   const remainingReplyCount = Math.max(
     replies.length - DEFAULT_VISIBLE_REPLY_COUNT,
     0
   );
-  const areAllRepliesVisible = showAllReplies && isThreadActive;
+  const areAllRepliesVisible = (showAllReplies || containsFocusedReply)
+    && isThreadActive;
   const visibleReplies = areAllRepliesVisible
     ? replies
     : replies.slice(0, DEFAULT_VISIBLE_REPLY_COUNT);
@@ -77,6 +87,12 @@ export function CommentItem({
       setShowAllReplies(false);
     }
   }, [isThreadActive, showAllReplies]);
+
+  const handleCommentLayout = () => {
+    if (isFocused && commentBodyRef.current) {
+      onFocusedCommentPositioned?.(commentBodyRef.current);
+    }
+  };
 
   const handleProfilePress = () => {
     if (onProfilePress) {
@@ -115,7 +131,16 @@ export function CommentItem({
   };
 
   return (
-    <View style={[styles.container, isReply && styles.replyContainer]}>
+    <View
+      style={[
+        styles.container,
+        isReply && styles.replyContainer,
+      ]}
+      onLayout={handleCommentLayout}
+    >
+      {isReferenceConversation && (
+        <View style={styles.referenceThreadRail} pointerEvents="none" />
+      )}
       <Pressable onPress={handleProfilePress}>
         <Avatar
           uri={comment.author.avatar_url}
@@ -129,7 +154,12 @@ export function CommentItem({
           <Pressable
             onLongPress={handleLongPress}
             delayLongPress={450}
-            accessibilityHint={isOwnComment ? 'Long press to show comment actions' : undefined}
+            accessibilityHint={isFocused
+              ? 'Referenced from the notification'
+              : isOwnComment
+                ? 'Long press to show comment actions'
+                : undefined
+            }
             style={({ pressed }) => [
               styles.commentBody,
               pressed && isOwnComment && styles.commentBodyPressed,
@@ -201,6 +231,8 @@ export function CommentItem({
                 isThreadActive={isThreadActive}
                 onThreadInteraction={onThreadInteraction}
                 isReply
+                focusedCommentId={focusedCommentId}
+                onFocusedCommentPositioned={onFocusedCommentPositioned}
               />
             ))}
 
@@ -271,12 +303,22 @@ export function CommentItem({
 
 const styles = StyleSheet.create({
   container: {
+    position: 'relative',
     flexDirection: 'row',
     paddingVertical: spacing.sm,
   },
   replyContainer: {
     marginLeft: spacing.xs,
     paddingTop: spacing.sm,
+  },
+  referenceThreadRail: {
+    position: 'absolute',
+    top: spacing.xs,
+    bottom: spacing.xs,
+    left: -8,
+    width: 2,
+    borderRadius: 1,
+    backgroundColor: colors.primary[500],
   },
   content: {
     flex: 1,

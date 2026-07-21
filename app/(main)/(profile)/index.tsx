@@ -22,6 +22,7 @@ import { EmptyState } from '@components/common';
 import { PostCard } from '@/components/post/PostCard';
 import { useAuth } from '@providers/AuthProvider';
 import { useUserPosts } from '@/hooks/profile/useUserPosts';
+import { useConnectionCounts } from '@/hooks/social';
 import { useCommentThreadController } from '@/hooks/comments/useCommentThreadController';
 import { getAvatarUrl } from '@/lib/supabase/storage';
 import { useImageZoomActive } from '@/providers/ImageZoomProvider';
@@ -47,6 +48,10 @@ export default function ProfileScreen() {
     isFetchingNextPage,
     isLoading: postsLoading,
   } = useUserPosts(user?.id, user?.id);
+  const {
+    data: connectionCounts,
+    isLoading: connectionCountsLoading,
+  } = useConnectionCounts(user?.id);
 
   const posts = useMemo(
     () => postsData?.pages.flatMap((page) => page.posts) ?? [],
@@ -83,6 +88,61 @@ export default function ProfileScreen() {
             <Text style={styles.displayName}>{profile?.display_name}</Text>
             <Text style={styles.username}>@{profile?.username}</Text>
             {profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
+            <View style={styles.connectionLinks}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.connectionLink,
+                  pressed && styles.connectionLinkPressed,
+                ]}
+                onPress={() => router.push({
+                  pathname: '/(main)/(profile)/connections',
+                  params: { tab: 'following' },
+                })}
+                accessibilityRole="button"
+                accessibilityLabel={`${
+                  connectionCountsLoading
+                    ? 'Loading'
+                    : connectionCounts?.following ?? 0
+                } following`}
+                hitSlop={6}
+              >
+                <Text style={styles.connectionLinkText}>
+                  <Text style={styles.connectionCount}>
+                    {connectionCountsLoading
+                      ? '…'
+                      : connectionCounts?.following ?? 0}
+                  </Text>{' '}
+                  Following
+                </Text>
+              </Pressable>
+              <Text style={styles.connectionSeparator}>·</Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.connectionLink,
+                  pressed && styles.connectionLinkPressed,
+                ]}
+                onPress={() => router.push({
+                  pathname: '/(main)/(profile)/connections',
+                  params: { tab: 'followers' },
+                })}
+                accessibilityRole="button"
+                accessibilityLabel={`${
+                  connectionCountsLoading
+                    ? 'Loading'
+                    : connectionCounts?.followers ?? 0
+                } followers`}
+                hitSlop={6}
+              >
+                <Text style={styles.connectionLinkText}>
+                  <Text style={styles.connectionCount}>
+                    {connectionCountsLoading
+                      ? '…'
+                      : connectionCounts?.followers ?? 0}
+                  </Text>{' '}
+                  Followers
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </View>
@@ -255,6 +315,32 @@ const styles = StyleSheet.create({
     color: colors.gray[700],
     marginTop: spacing.xs,
     lineHeight: 22,
+  },
+  connectionLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginTop: spacing.sm,
+    gap: spacing.xs,
+  },
+  connectionLink: {
+    minHeight: 32,
+    justifyContent: 'center',
+    borderRadius: 6,
+  },
+  connectionLinkPressed: {
+    opacity: 0.6,
+  },
+  connectionLinkText: {
+    fontSize: typography.fontSizes.sm,
+    color: colors.gray[600],
+  },
+  connectionCount: {
+    fontWeight: typography.fontWeights.bold,
+    color: colors.gray[900],
+  },
+  connectionSeparator: {
+    color: colors.gray[400],
   },
   divider: {
     height: 1,

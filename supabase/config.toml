@@ -65,3 +65,6 @@ s3_host = ""
 
 [functions.purge-deleted-posts]
 verify_jwt = false
+
+[functions.send-notification-push]
+verify_jwt = false

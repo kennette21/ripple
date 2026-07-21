@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as Notifications from 'expo-notifications';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
@@ -11,6 +13,11 @@ import { ThemeProvider } from '@providers/ThemeProvider';
 import { LoadingScreen } from '@components/common';
 import { DevTools } from '@components/dev/DevAccountSwitcher';
 import { supabase } from '@lib/supabase';
+import {
+  configureForegroundNotifications,
+  getNotificationDestination,
+  syncPushDeviceRegistration,
+} from '@/lib/notifications/deviceNotifications';
 
 function handleSplashScreenError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -44,6 +51,50 @@ function RootLayoutNav() {
   const segments = useSegments();
   const router = useRouter();
   const hasHiddenSplash = useRef(false);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    configureForegroundNotifications();
+
+    const handleNotificationResponse = (
+      response: Notifications.NotificationResponse
+    ) => {
+      if (!isAuthenticated) return;
+
+      const destination = getNotificationDestination(response);
+      if (!destination) return;
+
+      router.push(destination);
+      Notifications.clearLastNotificationResponse();
+    };
+
+    const lastResponse = Notifications.getLastNotificationResponse();
+    if (lastResponse) {
+      handleNotificationResponse(lastResponse);
+    }
+
+    const subscription =
+      Notifications.addNotificationResponseReceivedListener(
+        handleNotificationResponse
+      );
+
+    return () => subscription.remove();
+  }, [isAuthenticated, router]);
+
+  useEffect(() => {
+    if (
+      Platform.OS === 'web' ||
+      !isAuthenticated ||
+      needsOnboarding
+    ) {
+      return;
+    }
+
+    void syncPushDeviceRegistration().catch((error) => {
+      console.warn('Could not sync push notification registration:', error);
+    });
+  }, [isAuthenticated, needsOnboarding]);
 
   // Handle deep links with auth tokens
   useEffect(() => {
@@ -91,7 +142,7 @@ function RootLayoutNav() {
       // User is signed in and has completed onboarding, go to main app
       router.replace('/(main)/(feed)');
     }
-  }, [isLoading, isAuthenticated, needsOnboarding, segments]);
+  }, [isLoading, isAuthenticated, needsOnboarding, router, segments]);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -104,6 +155,7 @@ function RootLayoutNav() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(main)" />
         <Stack.Screen name="friends" />
+        <Stack.Screen name="post/[id]" />
         <Stack.Screen
           name="edit-post"
           options={{
