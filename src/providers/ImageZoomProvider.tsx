@@ -65,32 +65,32 @@ function ImageZoomOverlay({ zoom }: { zoom: ImageZoomRequest }) {
   const imageSource = useMemo(() => ({ uri: zoom.uri }), [zoom.uri]);
 
   useEffect(() => () => {
-    if (liftedInstance.value === zoom.instanceId) {
-      liftedInstance.value = 0;
+    if (liftedInstance.get() === zoom.instanceId) {
+      liftedInstance.set(0);
     }
-    if (readyInstance.value === zoom.instanceId) {
-      readyInstance.value = 0;
+    if (readyInstance.get() === zoom.instanceId) {
+      readyInstance.set(0);
     }
   }, [liftedInstance, readyInstance, zoom.instanceId]);
 
   const handleImageDisplay = useCallback(() => {
-    if (activeInstance.value === zoom.instanceId) {
-      readyInstance.value = zoom.instanceId;
-      liftedInstance.value = zoom.instanceId;
+    if (activeInstance.get() === zoom.instanceId) {
+      readyInstance.set(zoom.instanceId);
+      liftedInstance.set(zoom.instanceId);
     }
   }, [activeInstance, liftedInstance, readyInstance, zoom.instanceId]);
 
   const backdropStyle = useAnimatedStyle(() => ({
-    opacity: liftedInstance.value === zoom.instanceId
-      ? backdropOpacity.value
+    opacity: liftedInstance.get() === zoom.instanceId
+      ? backdropOpacity.get()
       : 0,
   }));
   const imageStyle = useAnimatedStyle(() => ({
-    opacity: liftedInstance.value === zoom.instanceId ? 1 : 0,
+    opacity: liftedInstance.get() === zoom.instanceId ? 1 : 0,
     transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: scale.value },
+      { translateX: translateX.get() },
+      { translateY: translateY.get() },
+      { scale: scale.get() },
     ],
   }));
 
@@ -153,7 +153,7 @@ export function ImageZoomProvider({ children }: PropsWithChildren) {
   const backdropOpacity = useSharedValue(0);
 
   const beginZoom = useCallback((request: ImageZoomRequest) => {
-    if (activeInstance.value !== request.instanceId) return;
+    if (activeInstance.get() !== request.instanceId) return;
     setActiveZoom(request);
   }, [activeInstance]);
 

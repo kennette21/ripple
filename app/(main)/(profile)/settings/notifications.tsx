@@ -158,6 +158,8 @@ export default function NotificationSettingsScreen() {
   }, []);
 
   useEffect(() => {
+    // Keep the loading indicator while reading OS permission and registering push.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshDevicePermission();
 
     const subscription = AppState.addEventListener('change', (state) => {

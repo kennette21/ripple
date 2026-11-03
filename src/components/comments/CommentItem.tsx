@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -83,11 +83,9 @@ export function CommentItem({
     ? replies
     : replies.slice(0, DEFAULT_VISIBLE_REPLY_COUNT);
 
-  useEffect(() => {
-    if (!isThreadActive && showAllReplies) {
-      setShowAllReplies(false);
-    }
-  }, [isThreadActive, showAllReplies]);
+  if (!isThreadActive && showAllReplies) {
+    setShowAllReplies(false);
+  }
 
   const handleCommentLayout = () => {
     if (isFocused && commentBodyRef.current) {

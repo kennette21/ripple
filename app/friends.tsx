@@ -90,6 +90,8 @@ export default function FriendsScreen() {
   }, [userId]);
 
   useEffect(() => {
+    // Show loading immediately while synchronizing this tab with Supabase.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (activeTab === 'all') loadAllUsers();
   }, [activeTab, loadAllUsers]);
 

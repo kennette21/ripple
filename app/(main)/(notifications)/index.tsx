@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -160,14 +160,14 @@ function ExpansionChevron({ isExpanded }: { isExpanded: boolean }) {
   const progress = useSharedValue(isExpanded ? 1 : 0);
 
   useEffect(() => {
-    progress.value = withTiming(
+    progress.set(withTiming(
       isExpanded ? 1 : 0,
       expansionTiming(isExpanded)
-    );
+    ));
   }, [isExpanded, progress]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${progress.value * 180}deg` }],
+    transform: [{ rotate: `${progress.get() * 180}deg` }],
   }));
 
   return (
@@ -193,40 +193,40 @@ function CollapsiblePeople({
   const progress = useSharedValue(isExpanded ? 1 : 0);
 
   useEffect(() => {
-    progress.value = withTiming(
+    progress.set(withTiming(
       isExpanded ? 1 : 0,
       expansionTiming(isExpanded)
-    );
+    ));
   }, [isExpanded, progress]);
 
   const clipStyle = useAnimatedStyle(() => ({
     height: interpolate(
-      progress.value,
+      progress.get(),
       [0, 1],
-      [previewHeight.value, gridHeight.value]
+      [previewHeight.get(), gridHeight.get()]
     ),
   }));
 
   const previewStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, 0.65, 1], [1, 0, 0]),
+    opacity: interpolate(progress.get(), [0, 0.65, 1], [1, 0, 0]),
     transform: [
-      { translateY: interpolate(progress.value, [0, 1], [0, -4]) },
+      { translateY: interpolate(progress.get(), [0, 1], [0, -4]) },
     ],
   }));
 
   const gridStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, 0.25, 1], [0, 0, 1]),
+    opacity: interpolate(progress.get(), [0, 0.25, 1], [0, 0, 1]),
     transform: [
-      { translateY: interpolate(progress.value, [0, 1], [4, 0]) },
+      { translateY: interpolate(progress.get(), [0, 1], [4, 0]) },
     ],
   }));
 
   const handlePreviewLayout = (event: LayoutChangeEvent) => {
-    previewHeight.value = event.nativeEvent.layout.height;
+    previewHeight.set(event.nativeEvent.layout.height);
   };
 
   const handleGridLayout = (event: LayoutChangeEvent) => {
-    gridHeight.value = event.nativeEvent.layout.height;
+    gridHeight.set(event.nativeEvent.layout.height);
   };
 
   return (
@@ -353,14 +353,23 @@ function StoryRow({
 
 export default function NotificationsScreen() {
   const { user } = useAuth();
+  return <NotificationsContent key={user?.id ?? 'signed-out'} userId={user?.id} />;
+}
+
+const VIEWABILITY_CONFIG = {
+  itemVisiblePercentThreshold: 60,
+  minimumViewTime: 500,
+};
+
+function NotificationsContent({ userId }: { userId: string | undefined }) {
   const {
     data: notifications = [],
     isError,
     isLoading,
     isRefetching,
     refetch,
-  } = useNotifications(user?.id);
-  const markSeen = useMarkNotificationsSeen(user?.id);
+  } = useNotifications(userId);
+  const markSeen = useMarkNotificationsSeen(userId);
   const [newAtEntryIds, setNewAtEntryIds] = useState<Set<string> | null>(null);
   const [expandedStoryKeys, setExpandedStoryKeys] = useState<Set<string>>(
     new Set()
@@ -368,34 +377,29 @@ export default function NotificationsScreen() {
   const markedSeenIdsRef = useRef(new Set<string>());
   const markSeenRef = useRef(markSeen.mutate);
 
-  markSeenRef.current = markSeen.mutate;
+  useLayoutEffect(() => {
+    markSeenRef.current = markSeen.mutate;
+  }, [markSeen.mutate]);
 
-  useEffect(() => {
-    setNewAtEntryIds(null);
-    setExpandedStoryKeys(new Set());
-    markedSeenIdsRef.current.clear();
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (isLoading || newAtEntryIds !== null) return;
-
+  // Keep the entry snapshot after marking items seen or refetching the list.
+  if (!isLoading && newAtEntryIds === null) {
     setNewAtEntryIds(new Set(
       notifications
         .filter((notification) => notification.seen_at === null)
         .map((notification) => notification.id)
     ));
-  }, [isLoading, newAtEntryIds, notifications]);
+  }
 
   const stories = useMemo(() => {
-    if (!user?.id) return [];
+    if (!userId) return [];
 
-    return groupNotificationsByStory(notifications, user.id).map((story) => ({
+    return groupNotificationsByStory(notifications, userId).map((story) => ({
       ...story,
       isNew: story.isNew || story.notificationIds.some(
         (notificationId) => newAtEntryIds?.has(notificationId)
       ),
     }));
-  }, [newAtEntryIds, notifications, user?.id]);
+  }, [newAtEntryIds, notifications, userId]);
 
   const sections = useMemo<StorySection[]>(() => {
     const newStories = stories.filter((story) => story.isNew);
@@ -407,7 +411,7 @@ export default function NotificationsScreen() {
     ].filter((section) => section.data.length > 0);
   }, [stories]);
 
-  const onViewableItemsChanged = useRef(({
+  const onViewableItemsChanged = useCallback(({
     viewableItems,
   }: {
     viewableItems: NotificationViewToken[];
@@ -428,12 +432,7 @@ export default function NotificationsScreen() {
     if (notificationIds.length > 0) {
       markSeenRef.current(notificationIds);
     }
-  }).current;
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 60,
-    minimumViewTime: 500,
-  }).current;
+  }, []);
 
   const handleActorPress = (profileId: string) => {
     router.push(`/user/${profileId}`);
@@ -542,7 +541,7 @@ export default function NotificationsScreen() {
           />
         }
         onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
+        viewabilityConfig={VIEWABILITY_CONFIG}
         stickySectionHeadersEnabled={false}
         showsVerticalScrollIndicator={false}
       />

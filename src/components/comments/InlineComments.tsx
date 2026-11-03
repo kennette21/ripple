@@ -71,6 +71,19 @@ export function InlineComments({
   const [editingComment, setEditingComment] = useState<CommentWithAuthor | null>(null);
   const [replyingTo, setReplyingTo] = useState<CommentWithAuthor | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [previousThreadActive, setPreviousThreadActive] = useState(isThreadActive);
+
+  // Reset before rendering the collapsed thread, so reopening starts fresh.
+  if (isThreadActive !== previousThreadActive) {
+    setPreviousThreadActive(isThreadActive);
+    if (!isThreadActive) {
+      setCommentText('');
+      setEditingComment(null);
+      setReplyingTo(null);
+      setIsComposing(false);
+      setShowAll(false);
+    }
+  }
 
   const { data: comments, isLoading } = useComments(postId);
   const createComment = useCreateComment();
@@ -125,16 +138,6 @@ export function InlineComments({
 
     return () => cancelAnimationFrame(frame);
   }, [composerModeKey, isComposerVisible, positionAndFocusComposer]);
-
-  useEffect(() => {
-    if (isThreadActive) return;
-
-    setCommentText('');
-    setEditingComment(null);
-    setReplyingTo(null);
-    setIsComposing(false);
-    setShowAll(false);
-  }, [isThreadActive]);
 
   useEffect(() => {
     if (hasFocusedComment && !isThreadActive) {

@@ -89,14 +89,14 @@ export function DevTools() {
   const dragStartY = useSharedValue(0);
 
   useEffect(() => {
-    buttonX.value = Math.min(
+    buttonX.set(Math.min(
       maximumButtonX,
-      Math.max(minimumButtonX, buttonX.value),
-    );
-    buttonY.value = Math.min(
+      Math.max(minimumButtonX, buttonX.get()),
+    ));
+    buttonY.set(Math.min(
       maximumButtonY,
-      Math.max(minimumButtonY, buttonY.value),
-    );
+      Math.max(minimumButtonY, buttonY.get()),
+    ));
   }, [
     buttonX,
     buttonY,
@@ -110,23 +110,23 @@ export function DevTools() {
     .maxPointers(1)
     .minDistance(5)
     .onStart(() => {
-      dragStartX.value = buttonX.value;
-      dragStartY.value = buttonY.value;
+      dragStartX.set(buttonX.get());
+      dragStartY.set(buttonY.get());
     })
     .onUpdate((event) => {
-      buttonX.value = Math.min(
+      buttonX.set(Math.min(
         maximumButtonX,
-        Math.max(minimumButtonX, dragStartX.value + event.translationX),
-      );
-      buttonY.value = Math.min(
+        Math.max(minimumButtonX, dragStartX.get() + event.translationX),
+      ));
+      buttonY.set(Math.min(
         maximumButtonY,
-        Math.max(minimumButtonY, dragStartY.value + event.translationY),
-      );
+        Math.max(minimumButtonY, dragStartY.get() + event.translationY),
+      ));
     });
 
   const animatedButtonStyle = useAnimatedStyle(() => ({
-    left: buttonX.value,
-    top: buttonY.value,
+    left: buttonX.get(),
+    top: buttonY.get(),
   }));
 
   if (!isEnabled) return null;

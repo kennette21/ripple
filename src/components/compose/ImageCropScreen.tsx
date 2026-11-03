@@ -131,10 +131,10 @@ export default function ImageCropScreen({
     'worklet';
     const halfImageWidth = (displayWidth * nextZoom) / 2;
     const halfImageHeight = (displayHeight * nextZoom) / 2;
-    const minX = cropX.value + cropWidth.value - halfImageWidth - stageWidth / 2;
-    const maxX = cropX.value + halfImageWidth - stageWidth / 2;
-    const minY = cropY.value + cropHeight.value - halfImageHeight - stageHeight / 2;
-    const maxY = cropY.value + halfImageHeight - stageHeight / 2;
+    const minX = cropX.get() + cropWidth.get() - halfImageWidth - stageWidth / 2;
+    const maxX = cropX.get() + halfImageWidth - stageWidth / 2;
+    const minY = cropY.get() + cropHeight.get() - halfImageHeight - stageHeight / 2;
+    const maxY = cropY.get() + halfImageHeight - stageHeight / 2;
 
     return {
       x: clamp(nextX, minX, maxX),
@@ -144,18 +144,18 @@ export default function ImageCropScreen({
 
   const settleCrop = () => {
     'worklet';
-    const oldWidth = cropWidth.value;
-    const oldHeight = cropHeight.value;
+    const oldWidth = cropWidth.get();
+    const oldHeight = cropHeight.get();
     const ratio = oldWidth / oldHeight;
     const targetWidth =
       ratio > availableRatio ? availableWidth : availableHeight * ratio;
     const targetHeight =
       ratio > availableRatio ? availableWidth / ratio : availableHeight;
     const scaleDelta = targetWidth / oldWidth;
-    const oldCenterX = cropX.value + oldWidth / 2;
-    const oldCenterY = cropY.value + oldHeight / 2;
-    const imageCenterX = stageWidth / 2 + translateX.value;
-    const imageCenterY = stageHeight / 2 + translateY.value;
+    const oldCenterX = cropX.get() + oldWidth / 2;
+    const oldCenterY = cropY.get() + oldHeight / 2;
+    const imageCenterX = stageWidth / 2 + translateX.get();
+    const imageCenterY = stageHeight / 2 + translateY.get();
     const animation = {
       duration: SETTLE_DURATION,
       easing: Easing.out(Easing.cubic),
@@ -164,189 +164,191 @@ export default function ImageCropScreen({
     // Move the old crop center to the stage center and scale the image by the
     // same amount as the crop. This keeps the selected source pixels stable
     // throughout the familiar Photos-style settle animation.
-    translateX.value = withTiming(
+    translateX.set(withTiming(
       scaleDelta * (imageCenterX - oldCenterX),
       animation
-    );
-    translateY.value = withTiming(
+    ));
+    translateY.set(withTiming(
       scaleDelta * (imageCenterY - oldCenterY),
       animation
-    );
-    zoom.value = withTiming(zoom.value * scaleDelta, animation);
-    cropX.value = withTiming((stageWidth - targetWidth) / 2, animation);
-    cropY.value = withTiming((stageHeight - targetHeight) / 2, animation);
-    cropWidth.value = withTiming(targetWidth, animation);
-    cropHeight.value = withTiming(targetHeight, animation);
+    ));
+    zoom.set(withTiming(zoom.get() * scaleDelta, animation));
+    cropX.set(withTiming((stageWidth - targetWidth) / 2, animation));
+    cropY.set(withTiming((stageHeight - targetHeight) / 2, animation));
+    cropWidth.set(withTiming(targetWidth, animation));
+    cropHeight.set(withTiming(targetHeight, animation));
   };
 
   const panGesture = Gesture.Pan()
     .maxPointers(1)
     .onStart((event) => {
-      startZoom.value = zoom.value;
-      startTranslateX.value = translateX.value;
-      startTranslateY.value = translateY.value;
-      startCropX.value = cropX.value;
-      startCropY.value = cropY.value;
-      startCropWidth.value = cropWidth.value;
-      startCropHeight.value = cropHeight.value;
+      startZoom.set(zoom.get());
+      startTranslateX.set(translateX.get());
+      startTranslateY.set(translateY.get());
+      startCropX.set(cropX.get());
+      startCropY.set(cropY.get());
+      startCropWidth.set(cropWidth.get());
+      startCropHeight.set(cropHeight.get());
 
-      const left = cropX.value;
-      const top = cropY.value;
-      const right = left + cropWidth.value;
-      const bottom = top + cropHeight.value;
+      const left = cropX.get();
+      const top = cropY.get();
+      const right = left + cropWidth.get();
+      const bottom = top + cropHeight.get();
       const nearLeft = Math.abs(event.x - left) <= HANDLE_HIT_RADIUS;
       const nearRight = Math.abs(event.x - right) <= HANDLE_HIT_RADIUS;
       const nearTop = Math.abs(event.y - top) <= HANDLE_HIT_RADIUS;
       const nearBottom = Math.abs(event.y - bottom) <= HANDLE_HIT_RADIUS;
 
-      if (nearLeft && nearTop) activeHandle.value = HANDLE_TOP_LEFT;
-      else if (nearRight && nearTop) activeHandle.value = HANDLE_TOP_RIGHT;
-      else if (nearLeft && nearBottom) activeHandle.value = HANDLE_BOTTOM_LEFT;
-      else if (nearRight && nearBottom) activeHandle.value = HANDLE_BOTTOM_RIGHT;
-      else activeHandle.value = HANDLE_NONE;
+      if (nearLeft && nearTop) activeHandle.set(HANDLE_TOP_LEFT);
+      else if (nearRight && nearTop) activeHandle.set(HANDLE_TOP_RIGHT);
+      else if (nearLeft && nearBottom) activeHandle.set(HANDLE_BOTTOM_LEFT);
+      else if (nearRight && nearBottom) activeHandle.set(HANDLE_BOTTOM_RIGHT);
+      else activeHandle.set(HANDLE_NONE);
     })
     .onUpdate((event) => {
-      if (activeHandle.value === HANDLE_NONE) {
+      if (activeHandle.get() === HANDLE_NONE) {
         const clamped = clampImageTranslation(
-          startTranslateX.value + event.translationX,
-          startTranslateY.value + event.translationY,
-          zoom.value
+          startTranslateX.get() + event.translationX,
+          startTranslateY.get() + event.translationY,
+          zoom.get()
         );
-        translateX.value = clamped.x;
-        translateY.value = clamped.y;
+        translateX.set(clamped.x);
+        translateY.set(clamped.y);
         return;
       }
 
-      const startLeft = startCropX.value;
-      const startTop = startCropY.value;
-      const startRight = startLeft + startCropWidth.value;
-      const startBottom = startTop + startCropHeight.value;
-      const imageHalfWidth = (displayWidth * startZoom.value) / 2;
-      const imageHalfHeight = (displayHeight * startZoom.value) / 2;
-      const imageLeft = stageWidth / 2 + startTranslateX.value - imageHalfWidth;
-      const imageRight = stageWidth / 2 + startTranslateX.value + imageHalfWidth;
-      const imageTop = stageHeight / 2 + startTranslateY.value - imageHalfHeight;
-      const imageBottom = stageHeight / 2 + startTranslateY.value + imageHalfHeight;
+      const startLeft = startCropX.get();
+      const startTop = startCropY.get();
+      const startRight = startLeft + startCropWidth.get();
+      const startBottom = startTop + startCropHeight.get();
+      const imageHalfWidth = (displayWidth * startZoom.get()) / 2;
+      const imageHalfHeight = (displayHeight * startZoom.get()) / 2;
+      const imageLeft = stageWidth / 2 + startTranslateX.get() - imageHalfWidth;
+      const imageRight = stageWidth / 2 + startTranslateX.get() + imageHalfWidth;
+      const imageTop = stageHeight / 2 + startTranslateY.get() - imageHalfHeight;
+      const imageBottom = stageHeight / 2 + startTranslateY.get() + imageHalfHeight;
       const minimumLeft = Math.max(EDGE_INSET, imageLeft);
       const maximumRight = Math.min(stageWidth - EDGE_INSET, imageRight);
       const minimumTop = Math.max(EDGE_INSET, imageTop);
       const maximumBottom = Math.min(stageHeight - EDGE_INSET, imageBottom);
 
       if (
-        activeHandle.value === HANDLE_TOP_LEFT ||
-        activeHandle.value === HANDLE_BOTTOM_LEFT
+        activeHandle.get() === HANDLE_TOP_LEFT ||
+        activeHandle.get() === HANDLE_BOTTOM_LEFT
       ) {
         const nextLeft = clamp(
           startLeft + event.translationX,
           minimumLeft,
           startRight - MIN_CROP_SIZE
         );
-        cropX.value = nextLeft;
-        cropWidth.value = startRight - nextLeft;
+        cropX.set(nextLeft);
+        cropWidth.set(startRight - nextLeft);
       } else {
-        cropWidth.value =
+        cropWidth.set(
           clamp(
             startRight + event.translationX,
             startLeft + MIN_CROP_SIZE,
             maximumRight
-          ) - startLeft;
+          ) - startLeft
+        );
       }
 
       if (
-        activeHandle.value === HANDLE_TOP_LEFT ||
-        activeHandle.value === HANDLE_TOP_RIGHT
+        activeHandle.get() === HANDLE_TOP_LEFT ||
+        activeHandle.get() === HANDLE_TOP_RIGHT
       ) {
         const nextTop = clamp(
           startTop + event.translationY,
           minimumTop,
           startBottom - MIN_CROP_SIZE
         );
-        cropY.value = nextTop;
-        cropHeight.value = startBottom - nextTop;
+        cropY.set(nextTop);
+        cropHeight.set(startBottom - nextTop);
       } else {
-        cropHeight.value =
+        cropHeight.set(
           clamp(
             startBottom + event.translationY,
             startTop + MIN_CROP_SIZE,
             maximumBottom
-          ) - startTop;
+          ) - startTop
+        );
       }
     })
     .onEnd(() => {
-      if (activeHandle.value !== HANDLE_NONE) settleCrop();
-      activeHandle.value = HANDLE_NONE;
+      if (activeHandle.get() !== HANDLE_NONE) settleCrop();
+      activeHandle.set(HANDLE_NONE);
     })
     .onFinalize(() => {
-      activeHandle.value = HANDLE_NONE;
+      activeHandle.set(HANDLE_NONE);
     });
 
   const pinchGesture = Gesture.Pinch()
     .onStart((event) => {
-      startZoom.value = zoom.value;
-      startTranslateX.value = translateX.value;
-      startTranslateY.value = translateY.value;
-      startFocalX.value = event.focalX;
-      startFocalY.value = event.focalY;
+      startZoom.set(zoom.get());
+      startTranslateX.set(translateX.get());
+      startTranslateY.set(translateY.get());
+      startFocalX.set(event.focalX);
+      startFocalY.set(event.focalY);
     })
     .onUpdate((event) => {
       const minimumZoom = Math.max(
-        cropWidth.value / displayWidth,
-        cropHeight.value / displayHeight
+        cropWidth.get() / displayWidth,
+        cropHeight.get() / displayHeight
       );
       const nextZoom = clamp(
-        startZoom.value * event.scale,
+        startZoom.get() * event.scale,
         minimumZoom,
         MAX_ZOOM
       );
-      const scaleDelta = nextZoom / startZoom.value;
-      const oldCenterX = stageWidth / 2 + startTranslateX.value;
-      const oldCenterY = stageHeight / 2 + startTranslateY.value;
+      const scaleDelta = nextZoom / startZoom.get();
+      const oldCenterX = stageWidth / 2 + startTranslateX.get();
+      const oldCenterY = stageHeight / 2 + startTranslateY.get();
       const nextCenterX =
-        startFocalX.value + scaleDelta * (oldCenterX - startFocalX.value);
+        startFocalX.get() + scaleDelta * (oldCenterX - startFocalX.get());
       const nextCenterY =
-        startFocalY.value + scaleDelta * (oldCenterY - startFocalY.value);
+        startFocalY.get() + scaleDelta * (oldCenterY - startFocalY.get());
       const clamped = clampImageTranslation(
         nextCenterX - stageWidth / 2,
         nextCenterY - stageHeight / 2,
         nextZoom
       );
 
-      zoom.value = nextZoom;
-      translateX.value = clamped.x;
-      translateY.value = clamped.y;
+      zoom.set(nextZoom);
+      translateX.set(clamped.x);
+      translateY.set(clamped.y);
     });
 
   const cropGesture = Gesture.Simultaneous(pinchGesture, panGesture);
 
   const animatedImageStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: zoom.value },
+      { translateX: translateX.get() },
+      { translateY: translateY.get() },
+      { scale: zoom.get() },
     ],
   }));
 
   const topMaskStyle = useAnimatedStyle(() => ({
-    height: cropY.value,
+    height: cropY.get(),
   }));
   const bottomMaskStyle = useAnimatedStyle(() => ({
-    top: cropY.value + cropHeight.value,
+    top: cropY.get() + cropHeight.get(),
   }));
   const leftMaskStyle = useAnimatedStyle(() => ({
-    top: cropY.value,
-    width: cropX.value,
-    height: cropHeight.value,
+    top: cropY.get(),
+    width: cropX.get(),
+    height: cropHeight.get(),
   }));
   const rightMaskStyle = useAnimatedStyle(() => ({
-    top: cropY.value,
-    left: cropX.value + cropWidth.value,
-    height: cropHeight.value,
+    top: cropY.get(),
+    left: cropX.get() + cropWidth.get(),
+    height: cropHeight.get(),
   }));
   const cropOverlayStyle = useAnimatedStyle(() => ({
-    left: cropX.value,
-    top: cropY.value,
-    width: cropWidth.value,
-    height: cropHeight.value,
+    left: cropX.get(),
+    top: cropY.get(),
+    width: cropWidth.get(),
+    height: cropHeight.get(),
   }));
 
   const resetTransforms = () => {
@@ -354,13 +356,13 @@ export default function ImageCropScreen({
       duration: SETTLE_DURATION,
       easing: Easing.out(Easing.cubic),
     };
-    zoom.value = withTiming(1, animation);
-    translateX.value = withTiming(0, animation);
-    translateY.value = withTiming(0, animation);
-    cropX.value = withTiming(initialCropX, animation);
-    cropY.value = withTiming(initialCropY, animation);
-    cropWidth.value = withTiming(initialCropWidth, animation);
-    cropHeight.value = withTiming(initialCropHeight, animation);
+    zoom.set(withTiming(1, animation));
+    translateX.set(withTiming(0, animation));
+    translateY.set(withTiming(0, animation));
+    cropX.set(withTiming(initialCropX, animation));
+    cropY.set(withTiming(initialCropY, animation));
+    cropWidth.set(withTiming(initialCropWidth, animation));
+    cropHeight.set(withTiming(initialCropHeight, animation));
   };
 
   const handleCrop = async () => {
@@ -368,28 +370,28 @@ export default function ImageCropScreen({
     setIsCropping(true);
 
     try {
-      const effectiveScale = baseScale * zoom.value;
+      const effectiveScale = baseScale * zoom.get();
       const imageLeft =
-        stageWidth / 2 + translateX.value - (displayWidth * zoom.value) / 2;
+        stageWidth / 2 + translateX.get() - (displayWidth * zoom.get()) / 2;
       const imageTop =
-        stageHeight / 2 + translateY.value - (displayHeight * zoom.value) / 2;
+        stageHeight / 2 + translateY.get() - (displayHeight * zoom.get()) / 2;
       const sourceLeft = clamp(
-        (cropX.value - imageLeft) / effectiveScale,
+        (cropX.get() - imageLeft) / effectiveScale,
         0,
         sourceWidth
       );
       const sourceTop = clamp(
-        (cropY.value - imageTop) / effectiveScale,
+        (cropY.get() - imageTop) / effectiveScale,
         0,
         sourceHeight
       );
       const sourceRight = clamp(
-        (cropX.value + cropWidth.value - imageLeft) / effectiveScale,
+        (cropX.get() + cropWidth.get() - imageLeft) / effectiveScale,
         0,
         sourceWidth
       );
       const sourceBottom = clamp(
-        (cropY.value + cropHeight.value - imageTop) / effectiveScale,
+        (cropY.get() + cropHeight.get() - imageTop) / effectiveScale,
         0,
         sourceHeight
       );

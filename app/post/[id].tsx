@@ -49,10 +49,17 @@ export default function PostScreen() {
   const [isCommentThreadActive, setIsCommentThreadActive] = useState(
     !!focusedCommentId
   );
+  const [previousPostId, setPreviousPostId] = useState(postId);
+  const [previousFocusedCommentId, setPreviousFocusedCommentId] = useState(focusedCommentId);
+
+  if (postId !== previousPostId || focusedCommentId !== previousFocusedCommentId) {
+    setPreviousPostId(postId);
+    setPreviousFocusedCommentId(focusedCommentId);
+    setIsCommentThreadActive(!!focusedCommentId);
+  }
 
   useEffect(() => {
     positionedCommentRef.current = null;
-    setIsCommentThreadActive(!!focusedCommentId);
   }, [focusedCommentId, postId]);
 
   const revealView = useCallback((
