@@ -91,7 +91,7 @@ export function PinchableImage({
   const pressResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sourceStyle = useAnimatedStyle(() => ({
-    opacity: liftedInstance.value === instanceId ? 0 : 1,
+    opacity: liftedInstance.get() === instanceId ? 0 : 1,
   }));
 
   const startInteraction = useCallback(() => {
@@ -110,7 +110,7 @@ export function PinchableImage({
   }, []);
 
   const handlePress = useCallback(() => {
-    if (suppressPress.current || activeInstance.value !== 0) return;
+    if (suppressPress.current || activeInstance.get() !== 0) return;
     onPress();
   }, [activeInstance, onPress]);
 
@@ -125,20 +125,20 @@ export function PinchableImage({
 
   useEffect(() => () => {
     if (pressResetTimer.current) clearTimeout(pressResetTimer.current);
-    if (activeInstance.value === instanceId) {
+    if (activeInstance.get() === instanceId) {
       cancelAnimation(scale);
       cancelAnimation(translateX);
       cancelAnimation(translateY);
       cancelAnimation(backdropOpacity);
-      activeInstance.value = 0;
-      liftedInstance.value = 0;
-      readyInstance.value = 0;
-      scale.value = 1;
-      translateX.value = 0;
-      translateY.value = 0;
-      backdropOpacity.value = 0;
+      activeInstance.set(0);
+      liftedInstance.set(0);
+      readyInstance.set(0);
+      scale.set(1);
+      translateX.set(0);
+      translateY.set(0);
+      backdropOpacity.set(0);
     }
-    finishInteraction(session.value);
+    finishInteraction(session.get());
   }, [
     activeInstance,
     backdropOpacity,
@@ -153,21 +153,24 @@ export function PinchableImage({
   ]);
 
   const pinchGesture = useMemo(() => Gesture.Pinch()
+    // RNGH registers these worklets; runOnJS accesses refs only when a gesture fires.
+    // eslint-disable-next-line react-hooks/refs
     .onTouchesDown((event) => {
       if (event.numberOfTouches === 2) {
-        interactionStarted.value = true;
+        interactionStarted.set(true);
         runOnJS(startInteraction)();
       }
     })
+    // eslint-disable-next-line react-hooks/refs -- measure and runOnJS run on gesture start.
     .onStart((event) => {
-      if (!interactionStarted.value) {
-        interactionStarted.value = true;
+      if (!interactionStarted.get()) {
+        interactionStarted.set(true);
         runOnJS(startInteraction)();
       }
 
       if (
-        activeInstance.value !== 0 &&
-        activeInstance.value !== instanceId
+        activeInstance.get() !== 0 &&
+        activeInstance.get() !== instanceId
       ) return;
 
       const frame = measure(imageRef);
@@ -178,24 +181,24 @@ export function PinchableImage({
       cancelAnimation(translateY);
       cancelAnimation(backdropOpacity);
 
-      activeInstance.value = instanceId;
-      session.value += 1;
-      gestureReady.value = true;
-      startFocalX.value = event.focalX;
-      startFocalY.value = event.focalY;
-      halfWidth.value = frame.width / 2;
-      halfHeight.value = frame.height / 2;
-      scale.value = 1;
-      translateX.value = 0;
-      translateY.value = 0;
-      backdropOpacity.value = 0;
-      if (readyInstance.value === instanceId) {
-        liftedInstance.value = instanceId;
+      activeInstance.set(instanceId);
+      session.set(session.get() + 1);
+      gestureReady.set(true);
+      startFocalX.set(event.focalX);
+      startFocalY.set(event.focalY);
+      halfWidth.set(frame.width / 2);
+      halfHeight.set(frame.height / 2);
+      scale.set(1);
+      translateX.set(0);
+      translateY.set(0);
+      backdropOpacity.set(0);
+      if (readyInstance.get() === instanceId) {
+        liftedInstance.set(instanceId);
       }
 
       runOnJS(beginZoom)({
         instanceId,
-        session: session.value,
+        session: session.get(),
         uri,
         borderRadius,
         frame: {
@@ -207,74 +210,77 @@ export function PinchableImage({
       });
     })
     .onUpdate((event) => {
-      if (!gestureReady.value) return;
+      if (!gestureReady.get()) return;
 
       const nextScale = clamp(event.scale, 1, MAX_SCALE);
-      const focalDeltaX = event.focalX - startFocalX.value;
-      const focalDeltaY = event.focalY - startFocalY.value;
+      const focalDeltaX = event.focalX - startFocalX.get();
+      const focalDeltaY = event.focalY - startFocalY.get();
 
-      scale.value = nextScale;
-      translateX.value =
+      scale.set(nextScale);
+      translateX.set(
         focalDeltaX +
-        (1 - nextScale) * (startFocalX.value - halfWidth.value);
-      translateY.value =
+        (1 - nextScale) * (startFocalX.get() - halfWidth.get())
+      );
+      translateY.set(
         focalDeltaY +
-        (1 - nextScale) * (startFocalY.value - halfHeight.value);
-      backdropOpacity.value = clamp(
+        (1 - nextScale) * (startFocalY.get() - halfHeight.get())
+      );
+      backdropOpacity.set(clamp(
         ((nextScale - 1) / 1.5) * MAX_BACKDROP_OPACITY,
         0,
         MAX_BACKDROP_OPACITY
-      );
+      ));
     })
+    // eslint-disable-next-line react-hooks/refs -- runOnJS runs when the gesture finishes.
     .onFinalize(() => {
-      if (!interactionStarted.value) return;
-      interactionStarted.value = false;
+      if (!interactionStarted.get()) return;
+      interactionStarted.set(false);
       runOnJS(markPinchFinished)();
 
       if (
-        !gestureReady.value ||
-        activeInstance.value !== instanceId
+        !gestureReady.get() ||
+        activeInstance.get() !== instanceId
       ) {
         runOnJS(finishInteraction)();
         return;
       }
 
-      const completedSession = session.value;
-      gestureReady.value = false;
-      returnAnimationsCompleted.value = 0;
+      const completedSession = session.get();
+      gestureReady.set(false);
+      returnAnimationsCompleted.set(0);
 
       const completeReturnAnimation = (finished?: boolean) => {
         'worklet';
-        if (!finished || session.value !== completedSession) return;
+        if (!finished || session.get() !== completedSession) return;
 
-        returnAnimationsCompleted.value += 1;
-        if (returnAnimationsCompleted.value === 4) {
-          activeInstance.value = 0;
-          liftedInstance.value = 0;
+        returnAnimationsCompleted.set(returnAnimationsCompleted.get() + 1);
+        if (returnAnimationsCompleted.get() === 4) {
+          activeInstance.set(0);
+          liftedInstance.set(0);
           runOnJS(finishInteraction)(completedSession);
         }
       };
 
-      translateX.value = withSpring(
+      translateX.set(withSpring(
         0,
         RETURN_SPRING,
         completeReturnAnimation
-      );
-      translateY.value = withSpring(
+      ));
+      translateY.set(withSpring(
         0,
         RETURN_SPRING,
         completeReturnAnimation
-      );
-      backdropOpacity.value = withTiming(
+      ));
+      backdropOpacity.set(withTiming(
         0,
         { duration: 180 },
         completeReturnAnimation
-      );
-      scale.value = withSpring(
+      ));
+      scale.set(withSpring(
         1,
         RETURN_SPRING,
         completeReturnAnimation
-      );
+      ));
     }), [
     activeInstance,
     backdropOpacity,

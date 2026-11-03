@@ -50,6 +50,7 @@ export function ImageGallery({ images }: ImageGalleryProps) {
     useState(false);
   const [lightboxVisible, setLightboxVisible] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [scrollCorrection, setScrollCorrection] = useState<{ index: number } | null>(null);
   const scrollViewRef = useRef<ScrollViewInstance>(null);
 
   const sortedImages = useMemo(() =>
@@ -61,20 +62,21 @@ export function ImageGallery({ images }: ImageGalleryProps) {
     sortedImages.map((img) => ({ uri: getImageUrl(img.storage_path) })),
     [sortedImages]
   );
+  const lastIndex = Math.max(0, sortedImages.length - 1);
+
+  if (activeIndex > lastIndex) {
+    setActiveIndex(lastIndex);
+    setScrollCorrection({ index: lastIndex });
+  }
+  if (lightboxIndex > lastIndex) setLightboxIndex(lastIndex);
 
   useEffect(() => {
-    const lastIndex = Math.max(0, sortedImages.length - 1);
-
-    if (activeIndex > lastIndex) {
-      setActiveIndex(lastIndex);
-      scrollViewRef.current?.scrollTo({
-        x: lastIndex * CAROUSEL_SNAP_INTERVAL,
-        animated: false,
-      });
-    }
-
-    setLightboxIndex((currentIndex) => Math.min(currentIndex, lastIndex));
-  }, [activeIndex, sortedImages.length]);
+    if (!scrollCorrection) return;
+    scrollViewRef.current?.scrollTo({
+      x: scrollCorrection.index * CAROUSEL_SNAP_INTERVAL,
+      animated: false,
+    });
+  }, [scrollCorrection]);
 
   const openLightbox = (index: number) => {
     setLightboxIndex(index);

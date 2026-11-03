@@ -29,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading,
     setInitialized,
   } = useAuthStore();
+  const userId = user?.id;
 
   // Fetch user profile from database
   const fetchProfile = useCallback(async (userId: string) => {
@@ -53,10 +54,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Refresh profile (can be called after profile updates)
   const refreshProfile = useCallback(async () => {
-    if (user?.id) {
-      await fetchProfile(user.id);
+    if (userId) {
+      await fetchProfile(userId);
     }
-  }, [user?.id, fetchProfile]);
+  }, [userId, fetchProfile]);
 
   // Initialize auth state
   useEffect(() => {

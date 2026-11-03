@@ -67,6 +67,8 @@ export default function DiscoverScreen() {
   }, [userId]);
 
   useEffect(() => {
+    // This request updates state after awaiting Supabase, including its finally block.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadUsers();
   }, [loadUsers]);
 

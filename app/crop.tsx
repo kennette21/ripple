@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import ImageCropScreen from '@components/compose/ImageCropScreen';
@@ -9,8 +9,7 @@ import {
 import { colors } from '@/constants/theme';
 
 export default function CropRoute() {
-  const sessionRef = useRef(getImageCropSession());
-  const session = sessionRef.current;
+  const [session] = useState(getImageCropSession);
 
   useEffect(() => {
     if (!session) router.back();
