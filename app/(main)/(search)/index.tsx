@@ -14,7 +14,7 @@ import { EmptyState } from '@components/common';
 import { useAuth } from '@providers/AuthProvider';
 import { useSearch, type SearchUser } from '@/hooks/social/useSearch';
 import { useFollow } from '@/hooks/social/useFollow';
-import { colors, spacing, typography, borderRadius } from '@constants/theme';
+import { colors, spacing, typography } from '@constants/theme';
 
 function UserRow({ profile, currentUserId }: { profile: SearchUser; currentUserId: string }) {
   const router = useRouter();

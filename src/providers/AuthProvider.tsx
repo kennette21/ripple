@@ -24,7 +24,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     profile,
     isLoading,
-    isInitialized,
     setSession,
     setProfile,
     setLoading,
@@ -110,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [setSession, setProfile, setLoading, setInitialized, fetchProfile]);
+  }, [setSession, setProfile, setLoading, setInitialized, fetchProfile, router]);
 
   const isAuthenticated = !!session?.user;
   const needsOnboarding = isAuthenticated && (!profile || !profile.onboarding_completed);

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Alert, Linking, Platform } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import * as Contacts from 'expo-contacts';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';

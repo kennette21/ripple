@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   Pressable,
   ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -24,24 +23,21 @@ interface UserWithFollowStatus extends Profile {
 
 export default function DiscoverScreen() {
   const { user, refreshProfile } = useAuth();
+  const userId = user?.id;
   const queryClient = useQueryClient();
   const [users, setUsers] = useState<UserWithFollowStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    loadUsers();
-  }, [user?.id]);
-
-  const loadUsers = async () => {
-    if (!user?.id) return;
+  const loadUsers = useCallback(async () => {
+    if (!userId) return;
 
     try {
       // Get all users except current user
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
-        .neq('id', user.id)
+        .neq('id', userId)
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
@@ -50,7 +46,7 @@ export default function DiscoverScreen() {
       const { data: follows, error: followsError } = await supabase
         .from('follows')
         .select('following_id')
-        .eq('follower_id', user.id);
+        .eq('follower_id', userId);
 
       if (followsError) throw followsError;
 
@@ -68,7 +64,11 @@ export default function DiscoverScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   const handleToggleFollow = async (targetUserId: string) => {
     if (!user?.id) return;

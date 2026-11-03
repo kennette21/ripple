@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   Pressable,
   ActivityIndicator,
   TouchableOpacity,
@@ -48,7 +47,7 @@ export default function FindPeopleScreen() {
 
   useEffect(() => {
     checkPermission();
-  }, []);
+  }, [checkPermission]);
 
   const friendIds = new Set(friends?.map((f) => f.id) || []);
   const pendingReceiverIds = new Set(incomingRequests?.map((r) => r.sender.id) || []);
