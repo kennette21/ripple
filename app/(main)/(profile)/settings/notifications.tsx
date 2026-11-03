@@ -75,7 +75,7 @@ const PERMISSION_COPY: Record<
   unsupported: {
     action: null,
     title: 'Device notifications unavailable',
-    description: 'Push notifications are supported in the iOS and Android apps.',
+    description: 'Push notifications require an installed Ripple build on iOS or Android.',
   },
 };
 

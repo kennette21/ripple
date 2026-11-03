@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Pressable,
   Keyboard,
+  type ViewInstance,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
@@ -26,13 +27,13 @@ interface PostCardProps {
   currentUserId?: string;
   isCommentThreadActive?: boolean;
   onCommentComposerActivated?: (
-    composer: View,
+    composer: ViewInstance,
     onPositioned?: () => void
   ) => void;
   onCommentThreadActiveChange?: (postId: string | null) => void;
   commentsInitiallyVisible?: boolean;
   focusedCommentId?: string;
-  onFocusedCommentPositioned?: (comment: View) => void;
+  onFocusedCommentPositioned?: (comment: ViewInstance) => void;
 }
 
 function PostCardComponent({

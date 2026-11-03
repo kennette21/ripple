@@ -1,11 +1,16 @@
-import Constants from 'expo-constants';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Linking from 'expo-linking';
 import * as Notifications from 'expo-notifications';
+import { AndroidImportance, IosAuthorizationStatus } from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase/client';
 
 const PUSH_TOKEN_STORAGE_KEY = 'ripple.expo-push-token';
+
+export const supportsDeviceNotifications =
+  (Platform.OS === 'android' || Platform.OS === 'ios') &&
+  Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
 
 export type DeviceNotificationPermission =
   | 'denied'
@@ -28,8 +33,8 @@ function mapPermission(
   const iosStatus = permission.ios?.status;
 
   if (
-    iosStatus === Notifications.IosAuthorizationStatus.PROVISIONAL ||
-    iosStatus === Notifications.IosAuthorizationStatus.EPHEMERAL
+    iosStatus === IosAuthorizationStatus.PROVISIONAL ||
+    iosStatus === IosAuthorizationStatus.EPHEMERAL
   ) {
     return 'provisional';
   }
@@ -40,7 +45,7 @@ function mapPermission(
 }
 
 export function configureForegroundNotifications() {
-  if (Platform.OS === 'web') return;
+  if (!supportsDeviceNotifications) return;
 
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -53,20 +58,20 @@ export function configureForegroundNotifications() {
 }
 
 export async function ensureAndroidNotificationChannels() {
-  if (Platform.OS !== 'android') return;
+  if (!supportsDeviceNotifications || Platform.OS !== 'android') return;
 
   await Promise.all([
     Notifications.setNotificationChannelAsync('new-posts', {
       name: 'New posts',
       description: 'New posts from people you follow',
-      importance: Notifications.AndroidImportance.DEFAULT,
+      importance: AndroidImportance.DEFAULT,
       showBadge: true,
       sound: 'default',
     }),
     Notifications.setNotificationChannelAsync('activity', {
       name: 'Activity',
       description: 'Comments, replies, and new followers',
-      importance: Notifications.AndroidImportance.DEFAULT,
+      importance: AndroidImportance.DEFAULT,
       showBadge: true,
       sound: 'default',
     }),
@@ -75,14 +80,14 @@ export async function ensureAndroidNotificationChannels() {
 
 export async function getDeviceNotificationPermission():
   Promise<DeviceNotificationPermission> {
-  if (Platform.OS === 'web') return 'unsupported';
+  if (!supportsDeviceNotifications) return 'unsupported';
 
   const permission = await Notifications.getPermissionsAsync();
   return mapPermission(permission);
 }
 
 export async function unregisterCurrentPushDevice() {
-  if (Platform.OS === 'web') return;
+  if (!supportsDeviceNotifications) return;
 
   const token = await SecureStore.getItemAsync(PUSH_TOKEN_STORAGE_KEY);
   if (!token) return;
@@ -96,7 +101,7 @@ export async function unregisterCurrentPushDevice() {
 }
 
 export async function syncPushDeviceRegistration() {
-  if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
+  if (!supportsDeviceNotifications) {
     return 'unsupported' as const;
   }
 
@@ -138,7 +143,7 @@ export async function syncPushDeviceRegistration() {
 }
 
 export async function requestDeviceNotifications() {
-  if (Platform.OS === 'web') return 'unsupported' as const;
+  if (!supportsDeviceNotifications) return 'unsupported' as const;
 
   await ensureAndroidNotificationChannels();
   const permission = await Notifications.requestPermissionsAsync({
@@ -169,7 +174,7 @@ export async function openDeviceNotificationSettings() {
 export function getNotificationDestination(
   response: Notifications.NotificationResponse
 ) {
-  const data = response.notification.request.content.data;
+  const data = response.notification.request.content.data ?? {};
 
   if (typeof data.postId === 'string') {
     return {

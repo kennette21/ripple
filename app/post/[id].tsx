@@ -9,6 +9,8 @@ import {
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ScrollViewInstance,
+  type ViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,7 +43,7 @@ export default function PostScreen() {
   const { user } = useAuth();
   const isZoomActive = useImageZoomActive();
   const { data: post, isError, isLoading, refetch } = usePost(postId, user?.id);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const scrollOffsetRef = useRef(0);
   const positionedCommentRef = useRef<string | null>(null);
   const [isCommentThreadActive, setIsCommentThreadActive] = useState(
@@ -54,7 +56,7 @@ export default function PostScreen() {
   }, [focusedCommentId, postId]);
 
   const revealView = useCallback((
-    view: View,
+    view: ViewInstance,
     alignToTop: boolean,
     onPositioned?: () => void
   ) => {
@@ -93,7 +95,7 @@ export default function PostScreen() {
     });
   }, []);
 
-  const handleFocusedCommentPositioned = useCallback((comment: View) => {
+  const handleFocusedCommentPositioned = useCallback((comment: ViewInstance) => {
     if (
       !focusedCommentId
       || positionedCommentRef.current === focusedCommentId
@@ -106,7 +108,7 @@ export default function PostScreen() {
   }, [focusedCommentId, revealView]);
 
   const handleCommentComposerActivated = useCallback((
-    composer: View,
+    composer: ViewInstance,
     onPositioned?: () => void
   ) => {
     revealView(composer, false, onPositioned);

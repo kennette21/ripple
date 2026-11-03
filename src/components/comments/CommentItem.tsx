@@ -6,6 +6,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type ViewInstance,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
@@ -39,7 +40,7 @@ interface CommentItemProps {
   onThreadInteraction?: () => void;
   isReply?: boolean;
   focusedCommentId?: string;
-  onFocusedCommentPositioned?: (comment: View) => void;
+  onFocusedCommentPositioned?: (comment: ViewInstance) => void;
 }
 
 export function CommentItem({
@@ -57,7 +58,7 @@ export function CommentItem({
 }: CommentItemProps) {
   const router = useRouter();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const commentBodyRef = useRef<View>(null);
+  const commentBodyRef = useRef<ViewInstance>(null);
   const [showAllReplies, setShowAllReplies] = useState(false);
   const [deleteMenuPosition, setDeleteMenuPosition] = useState<MenuPosition | null>(null);
 

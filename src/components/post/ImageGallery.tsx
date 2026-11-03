@@ -11,6 +11,7 @@ import {
   Dimensions,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  type ScrollViewInstance,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { FullscreenImageViewer } from '@/components/ui/FullscreenImageViewer';
@@ -49,7 +50,7 @@ export function ImageGallery({ images }: ImageGalleryProps) {
     useState(false);
   const [lightboxVisible, setLightboxVisible] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
 
   const sortedImages = useMemo(() =>
     [...images].sort((a, b) => a.position - b.position),

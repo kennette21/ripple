@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  type ScrollViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -69,7 +70,7 @@ function clearSelectedImagePreparation(image: SelectedImage) {
 export default function ComposeScreen() {
   const { profile, user } = useAuth();
   const createPost = useCreatePost();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const imagesRef = useRef<SelectedImage[]>([]);
 
   const [contentType, setContentType] = useState<ContentType>('caption');

@@ -6,7 +6,7 @@ import {
   FlatList,
   Dimensions,
   Pressable,
-  type ViewToken,
+  type ListViewToken,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -354,7 +354,7 @@ export default function ManifestoScreen() {
     }
   };
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ListViewToken[] }) => {
     if (viewableItems.length > 0) {
       setCurrentIndex(viewableItems[0].index || 0);
     }
