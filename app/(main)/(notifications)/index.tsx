@@ -8,7 +8,7 @@ import {
   Text,
   View,
   type LayoutChangeEvent,
-  type ViewToken,
+  type ListViewToken,
 } from 'react-native';
 import Animated, {
   Easing,
@@ -37,6 +37,10 @@ interface StorySection {
   title: string;
   data: NotificationStoryGroup[];
 }
+
+type NotificationViewToken = Omit<ListViewToken, 'item'> & {
+  item: NotificationStoryGroup;
+};
 
 const EXPAND_DURATION = 340;
 const COLLAPSE_DURATION = 270;
@@ -406,7 +410,7 @@ export default function NotificationsScreen() {
   const onViewableItemsChanged = useRef(({
     viewableItems,
   }: {
-    viewableItems: ViewToken<NotificationStoryGroup>[];
+    viewableItems: NotificationViewToken[];
   }) => {
     const notificationIds: string[] = [];
 

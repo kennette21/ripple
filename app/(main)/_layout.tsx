@@ -30,7 +30,7 @@ export default function MainLayout() {
         options={{
           title: 'Feed',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+            <Ionicons name="home-outline" size={size} color={typeof color === 'string' ? color : colors.gray[400]} />
           ),
         }}
       />
@@ -46,7 +46,7 @@ export default function MainLayout() {
         options={{
           title: 'Post',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="add-circle-outline" size={size} color={color} />
+            <Ionicons name="add-circle-outline" size={size} color={typeof color === 'string' ? color : colors.gray[400]} />
           ),
         }}
       />
@@ -61,7 +61,7 @@ export default function MainLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
+            <Ionicons name="person-outline" size={size} color={typeof color === 'string' ? color : colors.gray[400]} />
           ),
         }}
       />

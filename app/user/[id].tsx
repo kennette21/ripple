@@ -198,7 +198,7 @@ export default function UserProfileScreen() {
                   : "This user hasn't posted anything yet."
                 }
               />
-            ) : null
+            ) : undefined
           }
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.5}

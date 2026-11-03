@@ -11,6 +11,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -56,7 +57,7 @@ function EditPostContent() {
   const postQuery = useEditablePost(postId, user?.id);
   const updatePost = useUpdatePost();
   const initializedPostId = useRef<string | null>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const [caption, setCaption] = useState('');
   const [reflection, setReflection] = useState('');
   const [images, setImages] = useState<EditablePostImage[]>([]);

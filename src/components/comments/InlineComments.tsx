@@ -8,6 +8,8 @@ import {
   Text,
   TextInput,
   View,
+  type ViewInstance,
+  type TextInputInstance,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -43,12 +45,12 @@ interface InlineCommentsProps {
   currentUserId?: string;
   isThreadActive: boolean;
   onComposerActivated?: (
-    composer: View,
+    composer: ViewInstance,
     onPositioned?: () => void
   ) => void;
   onThreadActiveChange: (active: boolean) => void;
   focusedCommentId?: string;
-  onFocusedCommentPositioned?: (comment: View) => void;
+  onFocusedCommentPositioned?: (comment: ViewInstance) => void;
 }
 
 export function InlineComments({
@@ -62,8 +64,8 @@ export function InlineComments({
 }: InlineCommentsProps) {
   const router = useRouter();
   const { profile } = useAuth();
-  const composerRef = useRef<View>(null);
-  const inputRef = useRef<TextInput>(null);
+  const composerRef = useRef<ViewInstance>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const [commentText, setCommentText] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const [editingComment, setEditingComment] = useState<CommentWithAuthor | null>(null);

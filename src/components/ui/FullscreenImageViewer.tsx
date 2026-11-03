@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   header: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'flex-end',
   },
   closeButton: {
