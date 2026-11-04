@@ -39,6 +39,7 @@ let nextInstanceId = 1;
 
 interface PinchableImageProps extends PropsWithChildren {
   uri: string;
+  previewUri?: string;
   borderRadius: number;
   style: StyleProp<ViewStyle>;
   onPress: () => void;
@@ -55,6 +56,7 @@ function clamp(value: number, minimum: number, maximum: number) {
 
 export function PinchableImage({
   uri,
+  previewUri,
   borderRadius,
   style,
   onPress,
@@ -200,6 +202,7 @@ export function PinchableImage({
         instanceId,
         session: session.get(),
         uri,
+        previewUri,
         borderRadius,
         frame: {
           x: frame.pageX,
@@ -304,6 +307,7 @@ export function PinchableImage({
     startFocalY,
     translateX,
     translateY,
+    previewUri,
     uri,
   ]);
 

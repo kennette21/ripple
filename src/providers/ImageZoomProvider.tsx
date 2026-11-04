@@ -28,6 +28,7 @@ interface ImageZoomRequest {
   instanceId: number;
   session: number;
   uri: string;
+  previewUri?: string;
   borderRadius: number;
   frame: ImageZoomFrame;
 }
@@ -63,6 +64,7 @@ function ImageZoomOverlay({ zoom }: { zoom: ImageZoomRequest }) {
   } =
     useImageZoomControls();
   const imageSource = useMemo(() => ({ uri: zoom.uri }), [zoom.uri]);
+  const [originalReady, setOriginalReady] = useState(false);
 
   useEffect(() => () => {
     if (liftedInstance.get() === zoom.instanceId) {
@@ -120,14 +122,27 @@ function ImageZoomOverlay({ zoom }: { zoom: ImageZoomRequest }) {
             { borderRadius: zoom.borderRadius },
           ]}
         >
+          {zoom.previewUri && !originalReady && (
+            <Image
+              source={{ uri: zoom.previewUri }}
+              style={styles.image}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={0}
+              onDisplay={handleImageDisplay}
+            />
+          )}
           <Image
             source={imageSource}
-            style={styles.image}
+            style={[styles.image, zoom.previewUri && StyleSheet.absoluteFill]}
             contentFit="cover"
             cachePolicy="memory-disk"
             priority="high"
             transition={0}
-            onDisplay={handleImageDisplay}
+            onDisplay={() => {
+              setOriginalReady(true);
+              handleImageDisplay();
+            }}
           />
         </View>
       </Animated.View>

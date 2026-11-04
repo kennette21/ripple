@@ -18,6 +18,7 @@ import { FullscreenImageViewer } from '@/components/ui/FullscreenImageViewer';
 import { PinchableImage } from '@/components/ui/PinchableImage';
 import { spacing, borderRadius, colors } from '@/constants/theme';
 import { supabase } from '@/lib/supabase/client';
+import { getPostPreviewUrl } from '@/lib/supabase/storage';
 
 const { width: screenWidth } = Dimensions.get('window');
 const IMAGE_WIDTH = screenWidth - spacing.md * 2;
@@ -42,6 +43,27 @@ interface ImageGalleryProps {
 function getImageUrl(storagePath: string): string {
   const { data } = supabase.storage.from('post-images').getPublicUrl(storagePath);
   return data.publicUrl;
+}
+
+function FeedImage({ image, shouldLoad = true }: {
+  image: PostImageData;
+  shouldLoad?: boolean;
+}) {
+  const [failedPreview, setFailedPreview] = useState(false);
+  return (
+    <Image
+      source={shouldLoad ? { uri: failedPreview
+        ? getImageUrl(image.storage_path)
+        : getPostPreviewUrl(image.storage_path) } : null}
+      style={styles.image}
+      placeholder={image.blurhash || undefined}
+      contentFit="cover"
+      enforceEarlyResizing
+      cachePolicy="memory-disk"
+      transition={200}
+      onError={() => setFailedPreview(true)}
+    />
+  );
 }
 
 export function ImageGallery({ images }: ImageGalleryProps) {
@@ -99,20 +121,14 @@ export function ImageGallery({ images }: ImageGalleryProps) {
       <View style={styles.container}>
         <PinchableImage
           uri={lightboxImages[0].uri}
+          previewUri={getPostPreviewUrl(image.storage_path)}
           borderRadius={borderRadius.md}
           style={styles.postImage}
           onPress={() => openLightbox(0)}
           accessibilityLabel="Post photo"
           testID={`post-image-${image.id}`}
         >
-          <Image
-            source={lightboxImages[0]}
-            style={styles.image}
-            placeholder={image.blurhash || undefined}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-            transition={200}
-          />
+          <FeedImage key={image.storage_path} image={image} />
         </PinchableImage>
         <FullscreenImageViewer
           images={lightboxImages}
@@ -143,6 +159,7 @@ export function ImageGallery({ images }: ImageGalleryProps) {
           <PinchableImage
             key={img.id}
             uri={lightboxImages[index].uri}
+            previewUri={getPostPreviewUrl(img.storage_path)}
             borderRadius={borderRadius.md}
             style={styles.postImage}
             onPress={() => openLightbox(index)}
@@ -150,13 +167,10 @@ export function ImageGallery({ images }: ImageGalleryProps) {
             accessibilityLabel={`Post photo ${index + 1} of ${sortedImages.length}`}
             testID={`post-image-${img.id}`}
           >
-            <Image
-              source={lightboxImages[index]}
-              style={styles.image}
-              placeholder={img.blurhash || undefined}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              transition={200}
+            <FeedImage
+              key={img.storage_path}
+              image={img}
+              shouldLoad={Math.abs(index - activeIndex) <= 1}
             />
           </PinchableImage>
         ))}

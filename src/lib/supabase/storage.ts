@@ -44,6 +44,14 @@ export function getPublicUrl(bucket: string, path: string): string {
   return data.publicUrl;
 }
 
+// Keep one cacheable feed size; full-screen viewers continue to use the original.
+export function getPostPreviewUrl(path: string): string {
+  const { data } = supabase.storage.from(BUCKETS.POST_IMAGES).getPublicUrl(path, {
+    transform: { width: 1200, height: 1200, resize: 'contain', quality: 75 },
+  });
+  return data.publicUrl;
+}
+
 // // TODO: deprecated; remove URL passthrough once all environments complete
 // migration `20260714120000_store_avatar_paths.sql` and `profiles.avatar_url`
 // only stores object paths.

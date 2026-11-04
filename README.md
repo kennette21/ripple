@@ -70,6 +70,8 @@ Press `i` in Metro to open the installed app in the simulator, and `j` to open R
 
 For a build with Metro already running, use `npm run inspect:ios -- --no-bundler`. Additional Expo iOS options can be passed after `--`, such as `--device "iPhone 17 Pro"`.
 
+Feed photos request a cacheable 1200 × 1200 bounding-box version at quality 75 using Supabase Storage Image Transformations (enabled in production). Aspect ratio is preserved. Only the current and adjacent carousel photos load; fullscreen and pinch-zoom views use the original source. If a transformation fails, that photo falls back to its original URL. Upload compression is unchanged. On iOS, `enforceEarlyResizing` also reduces synchronous native resizing and memory use. Keep cold/first-scroll and warm-scroll measurements separate. Local Instruments traces and benchmark results belong under `.expo/profiling/`, which is ignored by Git. Simulator callback timing helps investigate main-thread stalls; validate GPU frame presentation and device-specific behavior on a physical iPhone.
+
 Xcode 27 displays simulators in **Device Hub** (`/Applications/Xcode.app/Contents/Applications/DeviceHub.app`). If Expo reports an `osascript` / System Events error after the build succeeds, the app may already be installed. Open its simulator window in Device Hub, keep `inspect:start` running, and launch the installed development build directly:
 
 ```bash
