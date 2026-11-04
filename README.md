@@ -40,7 +40,7 @@ LOCAL_SUPABASE_HOST=192.168.1.10 npm run dev-start
 
 Replace `192.168.1.10` with the Mac's Wi-Fi IPv4 address. Keep the Mac and device on the same trusted Wi-Fi, allow local network access when prompted, and scan Metro's QR code to open the project in Expo Go. After an SDK upgrade, stop the previous Metro process with Ctrl+C before starting it again.
 
-Expo Go is suitable for checking the app's screens and local data. Ripple skips device push registration in Expo Go; in-app notifications still use Supabase. Testing push delivery, app-specific permissions, icons, and splash behavior requires an installed native Ripple build. `expo-dev-client` is optional and is not installed in this project. TestFlight distributes packaged beta builds, which do not load edits from the local Metro server.
+Expo Go is suitable for checking the app's screens and local data. Ripple skips device push registration in Expo Go; in-app notifications still use Supabase. Testing push delivery, app-specific permissions, icons, and splash behavior requires an installed native Ripple build. `expo-dev-client` is installed for native development builds and network inspection. TestFlight distributes packaged beta builds, which do not load edits from the local Metro server.
 
 For a native iOS simulator build, open Xcode and complete its license/setup prompts first. Start `npm run dev-start` in one terminal, then run this in another:
 
@@ -49,6 +49,34 @@ npm run ios -- --no-bundler   # builds and installs Ripple using the running Met
 ```
 
 After the first native build, day-to-day JS changes only need Metro running. Rebuild after changing native dependencies or config plugins. SDK 58 requires iOS/iPadOS 16.4 or later.
+
+### Inspecting iOS against production
+
+Build and open a native development build in an iPhone simulator:
+
+```bash
+npm run inspect:ios
+```
+
+This uses the hosted Supabase URL and public anon key from the `production` profile in `eas.json`, and clears local Supabase overrides without changing `.env`. Sign in with an existing Ripple account. Posts, edits, and other actions use real production data. The build uses the current checkout; use the source revision of the shipped build when reproducing a release-specific issue.
+
+Once the native build is installed, restart just Metro with:
+
+```bash
+npm run inspect:start
+```
+
+Press `i` in Metro to open the installed app in the simulator, and `j` to open React Native DevTools. Use **Expo Network / Network** to inspect requests and **Profiler / Performance** to record component rendering and JavaScript work. Check that image requests appear; native networking coverage can differ from JavaScript fetch coverage. Open DevTools before reproducing a request, and record the same scroll with cold and warm image caches separately.
+
+For a build with Metro already running, use `npm run inspect:ios -- --no-bundler`. Additional Expo iOS options can be passed after `--`, such as `--device "iPhone 17 Pro"`.
+
+Xcode 27 displays simulators in **Device Hub** (`/Applications/Xcode.app/Contents/Applications/DeviceHub.app`). If Expo reports an `osascript` / System Events error after the build succeeds, the app may already be installed. Open its simulator window in Device Hub, keep `inspect:start` running, and launch the installed development build directly:
+
+```bash
+xcrun simctl openurl booted 'exp+ripple://?__expo_url=http%3A%2F%2F127.0.0.1%3A8081'
+```
+
+Development builds and simulator hardware are useful for diagnosis. Validate scrolling performance with a Release build on a physical iPhone and Xcode Instruments; React Native DevTools is a development tool. For that build, run `npm run inspect:ios -- --configuration Release --device`. After CocoaPods installation creates `ios/Ripple.xcworkspace`, open it in Xcode, select the device and Ripple scheme, and choose **Product → Profile**. The scheme's Profile action uses Release configuration. Keep the production environment set when rebuilding from Xcode, since the inspection script's environment applies only to its own process and children.
 
 ### with seeded data
 

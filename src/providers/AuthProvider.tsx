@@ -62,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Initialize auth state
   useEffect(() => {
     let mounted = true;
+    let profileRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 
     async function initialize() {
       try {
@@ -89,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
         if (!mounted) return;
 
         console.log('Auth event:', event);
@@ -99,8 +100,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // User clicked a password reset link — navigate to reset screen
           router.replace('/(auth)/reset-password');
         } else if (event === 'SIGNED_IN' && newSession?.user) {
-          await fetchProfile(newSession.user.id);
+          // Supabase holds its auth lock while notifying subscribers. A profile
+          // request needs that lock too, so start it after this callback returns.
+          if (profileRefreshTimer) clearTimeout(profileRefreshTimer);
+          profileRefreshTimer = setTimeout(() => {
+            profileRefreshTimer = undefined;
+            if (mounted) void fetchProfile(newSession.user.id);
+          }, 0);
         } else if (event === 'SIGNED_OUT') {
+          if (profileRefreshTimer) clearTimeout(profileRefreshTimer);
+          profileRefreshTimer = undefined;
           setProfile(null);
         }
       }
@@ -108,6 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
+      if (profileRefreshTimer) clearTimeout(profileRefreshTimer);
       subscription.unsubscribe();
     };
   }, [setSession, setProfile, setLoading, setInitialized, fetchProfile, router]);
