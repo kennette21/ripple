@@ -19,7 +19,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar } from '@components/ui';
@@ -362,13 +362,14 @@ const VIEWABILITY_CONFIG = {
 };
 
 function NotificationsContent({ userId }: { userId: string | undefined }) {
+  const isFocused = useIsFocused();
   const {
     data: notifications = [],
     isError,
     isLoading,
     isRefetching,
     refetch,
-  } = useNotifications(userId);
+  } = useNotifications(userId, isFocused);
   const markSeen = useMarkNotificationsSeen(userId);
   const [newAtEntryIds, setNewAtEntryIds] = useState<Set<string> | null>(null);
   const [expandedStoryKeys, setExpandedStoryKeys] = useState<Set<string>>(

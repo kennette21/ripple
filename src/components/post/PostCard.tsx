@@ -347,6 +347,7 @@ function PostCardComponent({
       {showComments && (
         <InlineComments
           postId={post.id}
+          commentCount={post.comment_count}
           currentUserId={currentUserId}
           isThreadActive={isCommentThreadActive}
           onComposerActivated={onCommentComposerActivated}

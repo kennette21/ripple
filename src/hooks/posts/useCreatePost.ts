@@ -5,6 +5,8 @@ import { preparePostImage } from '@/lib/postImageUpload';
 import { queryKeys } from '@/lib/query/keys';
 import type { ContentType } from '@/types/database';
 
+const MAX_UPLOAD_CONCURRENCY = 3;
+
 interface ImageToUpload {
   uri: string;
   width: number;
@@ -111,45 +113,48 @@ async function createPost(input: CreatePostInput, userId: string) {
   const uploadedImages: UploadedImage[] = [];
 
   try {
-    const uploadResults = await Promise.all(
-      preparedImages.map(async (image, index) => {
-        const { path, error } = await uploadPostImage(
-          userId,
-          post.id,
-          index,
-          image.uri
-        );
+    // Wait for each bounded batch before starting more uploads or rolling back.
+    for (let offset = 0; offset < preparedImages.length; offset += MAX_UPLOAD_CONCURRENCY) {
+      const uploadResults = await Promise.all(
+        preparedImages.slice(offset, offset + MAX_UPLOAD_CONCURRENCY).map(async (image, index) => {
+          const { path, error } = await uploadPostImage(
+            userId,
+            post.id,
+            offset + index,
+            image.uri
+          );
 
-        if (error || !path) {
+          if (error || !path) {
+            return {
+              error: error || new Error('Failed to upload image'),
+              uploadedImage: null,
+            };
+          }
+
           return {
-            error: error || new Error('Failed to upload image'),
-            uploadedImage: null,
-          };
-        }
-
-        return {
-          error: null,
-          uploadedImage: {
-            storagePath: path,
-            row: {
-              post_id: post.id,
-              storage_path: path,
-              blurhash: image.blurhash || null,
-              width: image.width,
-              height: image.height,
-              position: index,
+            error: null,
+            uploadedImage: {
+              storagePath: path,
+              row: {
+                post_id: post.id,
+                storage_path: path,
+                blurhash: image.blurhash || null,
+                width: image.width,
+                height: image.height,
+                position: offset + index,
+              },
             },
-          },
-        };
-      })
-    );
+          };
+        })
+      );
 
-    for (const result of uploadResults) {
-      if (result.uploadedImage) uploadedImages.push(result.uploadedImage);
+      for (const result of uploadResults) {
+        if (result.uploadedImage) uploadedImages.push(result.uploadedImage);
+      }
+
+      const failedUpload = uploadResults.find((result) => result.error);
+      if (failedUpload?.error) throw failedUpload.error;
     }
-
-    const failedUpload = uploadResults.find((result) => result.error);
-    if (failedUpload?.error) throw failedUpload.error;
 
     const { error: imageError } = await supabase
       .from('post_images')

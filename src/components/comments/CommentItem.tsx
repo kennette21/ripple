@@ -15,7 +15,7 @@ import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Avatar } from '@/components/ui/Avatar';
 import { borderRadius, colors, shadows, spacing } from '@/constants/theme';
-import type { CommentWithAuthor } from '@/hooks/comments/useComments';
+import { useCommentReplies, type CommentWithAuthor } from '@/hooks/comments/useComments';
 
 const DELETE_MENU_MAX_WIDTH = 220;
 const DELETE_MENU_HEIGHT = 54;
@@ -40,6 +40,7 @@ interface CommentItemProps {
   onThreadInteraction?: () => void;
   isReply?: boolean;
   focusedCommentId?: string;
+  revealedCommentId?: string;
   onFocusedCommentPositioned?: (comment: ViewInstance) => void;
 }
 
@@ -54,6 +55,7 @@ export function CommentItem({
   onThreadInteraction,
   isReply = false,
   focusedCommentId,
+  revealedCommentId,
   onFocusedCommentPositioned,
 }: CommentItemProps) {
   const router = useRouter();
@@ -66,22 +68,38 @@ export function CommentItem({
   const timeAgo = formatDistanceToNow(new Date(comment.created_at!), { addSuffix: true });
   const commentAuthorId = (comment).author_id;
   const isOwnComment = commentAuthorId === currentUserId;
-  const replies = comment.replies ?? [];
+  const previewReplies = comment.replies ?? [];
+  const containsRevealedReply = previewReplies.some(
+    (reply) => reply.id === revealedCommentId || reply.id === focusedCommentId
+  );
+  const repliesQuery = useCommentReplies(comment, !isReply);
+  const loadedReplies = repliesQuery.data?.pages.flatMap((page) => page.replies);
+  const replies = loadedReplies ? [
+    ...loadedReplies,
+    ...previewReplies.filter((reply) => !loadedReplies.some((loaded) => loaded.id === reply.id)),
+  ] : previewReplies;
   const isFocused = comment.id === focusedCommentId;
   const containsFocusedReply = replies.some(
     (reply) => reply.id === focusedCommentId
   );
   const isReferenceConversation = !isReply && (isFocused || containsFocusedReply);
-  const hasReplies = replies.length > 0;
+  const hasReplies = (repliesQuery.data?.pages[0]?.total ?? replies.length) > 0;
   const remainingReplyCount = Math.max(
-    replies.length - DEFAULT_VISIBLE_REPLY_COUNT,
+    (repliesQuery.data?.pages[0]?.total ?? replies.length) - DEFAULT_VISIBLE_REPLY_COUNT,
     0
   );
-  const areAllRepliesVisible = (showAllReplies || containsFocusedReply)
+  const areAllRepliesVisible = (showAllReplies || containsFocusedReply || containsRevealedReply)
     && isThreadActive;
   const visibleReplies = areAllRepliesVisible
     ? replies
     : replies.slice(0, DEFAULT_VISIBLE_REPLY_COUNT);
+  const repliesDisclosureLabel = repliesQuery.isFetching
+    ? 'Loading replies…'
+    : repliesQuery.isError
+      ? 'Could not load replies. Tap to retry.'
+      : areAllRepliesVisible
+        ? repliesQuery.hasNextPage ? 'Load more replies' : 'Show fewer replies'
+        : `View ${remainingReplyCount} more ${remainingReplyCount === 1 ? 'reply' : 'replies'}`;
 
   if (!isThreadActive && showAllReplies) {
     setShowAllReplies(false);
@@ -216,7 +234,7 @@ export function CommentItem({
         </View>
 
         {/* Replies */}
-        {hasReplies && (
+        {(hasReplies || (!isReply && repliesQuery.isError)) && (
           <View style={styles.repliesSection}>
             {visibleReplies.map((reply) => (
               <CommentItem
@@ -231,30 +249,37 @@ export function CommentItem({
                 onThreadInteraction={onThreadInteraction}
                 isReply
                 focusedCommentId={focusedCommentId}
+                revealedCommentId={revealedCommentId}
                 onFocusedCommentPositioned={onFocusedCommentPositioned}
               />
             ))}
 
-            {remainingReplyCount > 0 && (
+            {(remainingReplyCount > 0 || repliesQuery.isError) && (
               <Pressable
                 onPress={() => {
+                  if (repliesQuery.isError) {
+                    void repliesQuery.refetch();
+                    return;
+                  }
+                  if (areAllRepliesVisible && repliesQuery.hasNextPage) {
+                    if (!repliesQuery.isFetching) void repliesQuery.fetchNextPage();
+                    return;
+                  }
                   if (!areAllRepliesVisible) {
                     onThreadInteraction?.();
                   }
+                  if (!areAllRepliesVisible && repliesQuery.hasNextPage && !repliesQuery.isFetching) {
+                    void repliesQuery.fetchNextPage();
+                  }
                   setShowAllReplies(!areAllRepliesVisible);
                 }}
+                disabled={repliesQuery.isFetching}
                 accessibilityRole="button"
-                accessibilityLabel={areAllRepliesVisible
-                  ? 'Show fewer replies'
-                  : `View ${remainingReplyCount} more ${remainingReplyCount === 1 ? 'reply' : 'replies'}`
-                }
+                accessibilityLabel={repliesDisclosureLabel}
                 accessibilityState={{ expanded: areAllRepliesVisible }}
               >
                 <Text style={styles.showReplies}>
-                  {areAllRepliesVisible
-                    ? 'Show fewer replies'
-                    : `View ${remainingReplyCount} more ${remainingReplyCount === 1 ? 'reply' : 'replies'}`
-                  }
+                  {repliesDisclosureLabel}
                 </Text>
               </Pressable>
             )}
