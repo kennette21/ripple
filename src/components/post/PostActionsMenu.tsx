@@ -6,6 +6,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type ViewInstance,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -37,7 +38,7 @@ export function PostActionsMenu({
   onDelete,
 }: PostActionsMenuProps) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const triggerRef = useRef<View>(null);
+  const triggerRef = useRef<ViewInstance>(null);
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
 
   const handleOpen = () => {

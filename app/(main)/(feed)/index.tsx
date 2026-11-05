@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@providers/AuthProvider';
-import { useFeed, type FeedPost } from '@/hooks/feed/useFeed';
+import { refreshFeed, useFeed, type FeedPost } from '@/hooks/feed/useFeed';
 import { useCommentThreadController } from '@/hooks/comments/useCommentThreadController';
 import { useImageZoomActive } from '@/providers/ImageZoomProvider';
 import { PostCard } from '@/components/post/PostCard';
@@ -81,7 +81,6 @@ export default function FeedScreen() {
     isFetchingNextPage,
     isLoading,
     isRefetching,
-    refetch,
   } = useFeed(user?.id);
 
   const posts = useMemo(
@@ -138,10 +137,11 @@ export default function FeedScreen() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleRefresh = useCallback(async () => {
+    if (!user?.id) return;
     setIsRefreshingComments(true);
     try {
       await Promise.all([
-        refetch(),
+        refreshFeed(queryClient, user.id),
         queryClient.invalidateQueries({
           queryKey: queryKeys.comments.all,
           refetchType: 'active',
@@ -150,7 +150,7 @@ export default function FeedScreen() {
     } finally {
       setIsRefreshingComments(false);
     }
-  }, [refetch]);
+  }, [user?.id]);
 
   if (isLoading) {
     return (

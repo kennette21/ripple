@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -21,17 +21,19 @@ import { colors, spacing, typography, borderRadius } from '@constants/theme';
 
 export default function EditProfileScreen() {
   const { user, profile, refreshProfile } = useAuth();
-  const [displayName, setDisplayName] = useState('');
-  const [bio, setBio] = useState('');
+  const [previousProfile, setPreviousProfile] = useState(profile);
+  const [displayName, setDisplayName] = useState(profile?.display_name || '');
+  const [bio, setBio] = useState(profile?.bio || '');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
+  if (profile !== previousProfile) {
+    setPreviousProfile(profile);
     if (profile) {
       setDisplayName(profile.display_name || '');
       setBio(profile.bio || '');
     }
-  }, [profile]);
+  }
 
   const pickImage = async () => {
     const permissionResult =
@@ -46,7 +48,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,

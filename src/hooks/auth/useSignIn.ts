@@ -25,7 +25,7 @@ export function useSignIn(): UseSignInResult {
       if (authError) {
         setError(authError.message);
       }
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
@@ -45,7 +45,7 @@ export function useSignIn(): UseSignInResult {
       } else {
         setMagicLinkSent(true);
       }
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);

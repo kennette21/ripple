@@ -8,6 +8,8 @@ import {
   Text,
   TextInput,
   View,
+  type ViewInstance,
+  type TextInputInstance,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -40,19 +42,21 @@ function normalizeCommentContent(value: string) {
 
 interface InlineCommentsProps {
   postId: string;
+  commentCount: number;
   currentUserId?: string;
   isThreadActive: boolean;
   onComposerActivated?: (
-    composer: View,
+    composer: ViewInstance,
     onPositioned?: () => void
   ) => void;
   onThreadActiveChange: (active: boolean) => void;
   focusedCommentId?: string;
-  onFocusedCommentPositioned?: (comment: View) => void;
+  onFocusedCommentPositioned?: (comment: ViewInstance) => void;
 }
 
 export function InlineComments({
   postId,
+  commentCount,
   currentUserId,
   isThreadActive,
   onComposerActivated,
@@ -62,15 +66,32 @@ export function InlineComments({
 }: InlineCommentsProps) {
   const router = useRouter();
   const { profile } = useAuth();
-  const composerRef = useRef<View>(null);
-  const inputRef = useRef<TextInput>(null);
+  const composerRef = useRef<ViewInstance>(null);
+  const inputRef = useRef<TextInputInstance>(null);
   const [commentText, setCommentText] = useState('');
   const [isComposing, setIsComposing] = useState(false);
   const [editingComment, setEditingComment] = useState<CommentWithAuthor | null>(null);
   const [replyingTo, setReplyingTo] = useState<CommentWithAuthor | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [previousThreadActive, setPreviousThreadActive] = useState(isThreadActive);
 
-  const { data: comments, isLoading } = useComments(postId);
+  // Reset before rendering the collapsed thread, so reopening starts fresh.
+  if (isThreadActive !== previousThreadActive) {
+    setPreviousThreadActive(isThreadActive);
+    if (!isThreadActive) {
+      setCommentText('');
+      setEditingComment(null);
+      setReplyingTo(null);
+      setIsComposing(false);
+      setShowAll(false);
+    }
+  }
+
+  const [submittedCommentId, setSubmittedCommentId] = useState<string>();
+  const {
+    comments, total: totalRootCount, isLoading, isError,
+    hasNextPage, fetchNextPage, isFetchingNextPage, refetch,
+  } = useComments(postId, focusedCommentId ?? submittedCommentId);
   const createComment = useCreateComment();
   const updateComment = useUpdateComment();
   const deleteComment = useDeleteComment();
@@ -79,19 +100,21 @@ export function InlineComments({
     (comment) => comment.id === focusedCommentId
       || comment.replies?.some((reply) => reply.id === focusedCommentId)
   );
-  const totalCommentCount = flatComments.reduce(
-    (total, comment) => total + 1 + (comment.replies?.length ?? 0),
-    0
-  );
+  const totalCommentCount = commentCount;
   const isComposerVisible = isComposing && isThreadActive;
   const isShowingAll = (showAll || hasFocusedComment) && isThreadActive;
   const visibleComments = isShowingAll
     ? flatComments
     : flatComments.slice(0, PREVIEW_COMMENT_COUNT);
   const hiddenCommentCount = Math.max(
-    flatComments.length - PREVIEW_COMMENT_COUNT,
+    totalRootCount - PREVIEW_COMMENT_COUNT,
     0
   );
+  const commentsDisclosureLabel = isFetchingNextPage
+    ? 'Loading comments…'
+    : isShowingAll
+      ? hasNextPage ? 'Load more comments' : 'Show fewer comments'
+      : `View ${hiddenCommentCount} more ${hiddenCommentCount === 1 ? 'comment' : 'comments'}`;
   const composerModeKey = editingComment
     ? `edit:${editingComment.id}`
     : replyingTo
@@ -123,16 +146,6 @@ export function InlineComments({
 
     return () => cancelAnimationFrame(frame);
   }, [composerModeKey, isComposerVisible, positionAndFocusComposer]);
-
-  useEffect(() => {
-    if (isThreadActive) return;
-
-    setCommentText('');
-    setEditingComment(null);
-    setReplyingTo(null);
-    setIsComposing(false);
-    setShowAll(false);
-  }, [isThreadActive]);
 
   useEffect(() => {
     if (hasFocusedComment && !isThreadActive) {
@@ -182,6 +195,12 @@ export function InlineComments({
   }, [onThreadActiveChange, showAll]);
 
   const handleCommentsDisclosurePress = useCallback(() => {
+    if (hasNextPage) {
+      onThreadActiveChange(true);
+      setShowAll(true);
+      if (!isFetchingNextPage) void fetchNextPage();
+      return;
+    }
     if (showAll) {
       if (isComposing) {
         handleCancel();
@@ -193,7 +212,7 @@ export function InlineComments({
 
     onThreadActiveChange(true);
     setShowAll(true);
-  }, [handleCancel, isComposing, onThreadActiveChange, showAll]);
+  }, [fetchNextPage, handleCancel, hasNextPage, isComposing, isFetchingNextPage, onThreadActiveChange, showAll]);
 
   const handleSubmit = useCallback(async () => {
     const content = normalizeCommentContent(commentText);
@@ -207,11 +226,12 @@ export function InlineComments({
           content,
         });
       } else {
-        await createComment.mutateAsync({
+        const created = await createComment.mutateAsync({
           postId,
           content,
           parentId: replyingTo?.id,
         });
+        setSubmittedCommentId(created?.id);
       }
       Keyboard.dismiss();
       setCommentText('');
@@ -237,10 +257,10 @@ export function InlineComments({
       {
         text: 'Delete',
         style: 'destructive',
-        onPress: () => deleteComment.mutate(commentId),
+        onPress: () => deleteComment.mutate({ commentId, postId }),
       },
     ]);
-  }, [deleteComment]);
+  }, [deleteComment, postId]);
 
   const handleProfilePress = useCallback((userId: string) => {
     if (userId === currentUserId) {
@@ -410,6 +430,10 @@ export function InlineComments({
         <View style={styles.loading}>
           <ActivityIndicator size="small" color={colors.primary[500]} />
         </View>
+      ) : isError && flatComments.length === 0 ? (
+        <Pressable onPress={() => void refetch()} accessibilityRole="button">
+          <Text style={styles.emptyText}>Could not load comments. Tap to retry.</Text>
+        </Pressable>
       ) : flatComments.length === 0 ? (
         <Text style={styles.emptyText}>No comments yet. Start the conversation.</Text>
       ) : (
@@ -426,6 +450,7 @@ export function InlineComments({
               isThreadActive={isThreadActive}
               onThreadInteraction={() => onThreadActiveChange(true)}
               focusedCommentId={focusedCommentId}
+              revealedCommentId={submittedCommentId}
               onFocusedCommentPositioned={onFocusedCommentPositioned}
             />
           ))}
@@ -437,17 +462,12 @@ export function InlineComments({
                 pressed && styles.moreButtonPressed,
               ]}
               onPress={handleCommentsDisclosurePress}
+              disabled={isFetchingNextPage}
               accessibilityRole="button"
-              accessibilityLabel={isShowingAll
-                ? 'Show fewer comments'
-                : `View ${hiddenCommentCount} more ${hiddenCommentCount === 1 ? 'comment' : 'comments'}`
-              }
+              accessibilityLabel={commentsDisclosureLabel}
             >
               <Text style={styles.moreLabel}>
-                {isShowingAll
-                  ? 'Show fewer comments'
-                  : `View ${hiddenCommentCount} more ${hiddenCommentCount === 1 ? 'comment' : 'comments'}`
-                }
+                {commentsDisclosureLabel}
               </Text>
             </Pressable>
           )}

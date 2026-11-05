@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -41,6 +41,7 @@ type SectionData = {
 
 export default function FriendsScreen() {
   const { user, profile } = useAuth();
+  const userId = user?.id;
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>('all');
 
@@ -60,24 +61,20 @@ export default function FriendsScreen() {
 
   useEffect(() => {
     checkPermission();
-  }, []);
+  }, [checkPermission]);
 
-  useEffect(() => {
-    if (activeTab === 'all') loadAllUsers();
-  }, [activeTab, user?.id]);
-
-  const loadAllUsers = async () => {
-    if (!user?.id) return;
+  const loadAllUsers = useCallback(async () => {
+    if (!userId) return;
     setAllUsersLoading(true);
     try {
       const [{ data: profiles }, { data: follows }] = await Promise.all([
         supabase.from('profiles')
           .select('*')
-          .neq('id', user.id)
+          .neq('id', userId)
           .order('created_at', { ascending: false }),
         supabase.from('follows')
           .select('following_id')
-          .eq('follower_id', user.id),
+          .eq('follower_id', userId),
       ]);
 
       const followingSet = new Set<string>(follows?.map((follow) => follow.following_id) || []);
@@ -90,7 +87,13 @@ export default function FriendsScreen() {
     } finally {
       setAllUsersLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    // Show loading immediately while synchronizing this tab with Supabase.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (activeTab === 'all') loadAllUsers();
+  }, [activeTab, loadAllUsers]);
 
   const handleToggleFollow = async (targetUserId: string) => {
     if (!user?.id) return;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Pressable,
   Keyboard,
+  type ViewInstance,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
@@ -26,13 +27,13 @@ interface PostCardProps {
   currentUserId?: string;
   isCommentThreadActive?: boolean;
   onCommentComposerActivated?: (
-    composer: View,
+    composer: ViewInstance,
     onPositioned?: () => void
   ) => void;
   onCommentThreadActiveChange?: (postId: string | null) => void;
   commentsInitiallyVisible?: boolean;
   focusedCommentId?: string;
-  onFocusedCommentPositioned?: (comment: View) => void;
+  onFocusedCommentPositioned?: (comment: ViewInstance) => void;
 }
 
 function PostCardComponent({
@@ -51,18 +52,28 @@ function PostCardComponent({
     commentsInitiallyVisible || !!focusedCommentId
   );
   const [isPrivate, setIsPrivate] = useState(post.is_private);
+  const [previousPrivacy, setPreviousPrivacy] = useState(post.is_private);
+  const [previousCommentsInitiallyVisible, setPreviousCommentsInitiallyVisible] =
+    useState(commentsInitiallyVisible);
+  const [previousFocusedCommentId, setPreviousFocusedCommentId] = useState(focusedCommentId);
   const deletePost = useDeletePost();
   const updatePrivacy = useUpdatePostPrivacy();
 
-  useEffect(() => {
+  if (post.is_private !== previousPrivacy) {
+    setPreviousPrivacy(post.is_private);
     setIsPrivate(post.is_private);
-  }, [post.is_private]);
+  }
 
-  useEffect(() => {
+  if (
+    commentsInitiallyVisible !== previousCommentsInitiallyVisible ||
+    focusedCommentId !== previousFocusedCommentId
+  ) {
+    setPreviousCommentsInitiallyVisible(commentsInitiallyVisible);
+    setPreviousFocusedCommentId(focusedCommentId);
     if (commentsInitiallyVisible || focusedCommentId) {
       setShowComments(true);
     }
-  }, [commentsInitiallyVisible, focusedCommentId]);
+  }
 
   // created_at is nullable in the schema but always set by the DB default
   const timeAgo = formatDistanceToNow(new Date(post.created_at!), { addSuffix: true });
@@ -336,6 +347,7 @@ function PostCardComponent({
       {showComments && (
         <InlineComments
           postId={post.id}
+          commentCount={post.comment_count}
           currentUserId={currentUserId}
           isThreadActive={isCommentThreadActive}
           onComposerActivated={onCommentComposerActivated}

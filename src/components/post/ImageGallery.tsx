@@ -11,12 +11,14 @@ import {
   Dimensions,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  type ScrollViewInstance,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { FullscreenImageViewer } from '@/components/ui/FullscreenImageViewer';
 import { PinchableImage } from '@/components/ui/PinchableImage';
 import { spacing, borderRadius, colors } from '@/constants/theme';
 import { supabase } from '@/lib/supabase/client';
+import { getPostPreviewUrl } from '@/lib/supabase/storage';
 
 const { width: screenWidth } = Dimensions.get('window');
 const IMAGE_WIDTH = screenWidth - spacing.md * 2;
@@ -43,13 +45,35 @@ function getImageUrl(storagePath: string): string {
   return data.publicUrl;
 }
 
+function FeedImage({ image, shouldLoad = true }: {
+  image: PostImageData;
+  shouldLoad?: boolean;
+}) {
+  const [failedPreview, setFailedPreview] = useState(false);
+  return (
+    <Image
+      source={shouldLoad ? { uri: failedPreview
+        ? getImageUrl(image.storage_path)
+        : getPostPreviewUrl(image.storage_path) } : null}
+      style={styles.image}
+      placeholder={image.blurhash || undefined}
+      contentFit="cover"
+      enforceEarlyResizing
+      cachePolicy="memory-disk"
+      transition={200}
+      onError={() => setFailedPreview(true)}
+    />
+  );
+}
+
 export function ImageGallery({ images }: ImageGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isCarouselInteractionActive, setIsCarouselInteractionActive] =
     useState(false);
   const [lightboxVisible, setLightboxVisible] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const [scrollCorrection, setScrollCorrection] = useState<{ index: number } | null>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
 
   const sortedImages = useMemo(() =>
     [...images].sort((a, b) => a.position - b.position),
@@ -60,20 +84,21 @@ export function ImageGallery({ images }: ImageGalleryProps) {
     sortedImages.map((img) => ({ uri: getImageUrl(img.storage_path) })),
     [sortedImages]
   );
+  const lastIndex = Math.max(0, sortedImages.length - 1);
+
+  if (activeIndex > lastIndex) {
+    setActiveIndex(lastIndex);
+    setScrollCorrection({ index: lastIndex });
+  }
+  if (lightboxIndex > lastIndex) setLightboxIndex(lastIndex);
 
   useEffect(() => {
-    const lastIndex = Math.max(0, sortedImages.length - 1);
-
-    if (activeIndex > lastIndex) {
-      setActiveIndex(lastIndex);
-      scrollViewRef.current?.scrollTo({
-        x: lastIndex * CAROUSEL_SNAP_INTERVAL,
-        animated: false,
-      });
-    }
-
-    setLightboxIndex((currentIndex) => Math.min(currentIndex, lastIndex));
-  }, [activeIndex, sortedImages.length]);
+    if (!scrollCorrection) return;
+    scrollViewRef.current?.scrollTo({
+      x: scrollCorrection.index * CAROUSEL_SNAP_INTERVAL,
+      animated: false,
+    });
+  }, [scrollCorrection]);
 
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
@@ -96,20 +121,14 @@ export function ImageGallery({ images }: ImageGalleryProps) {
       <View style={styles.container}>
         <PinchableImage
           uri={lightboxImages[0].uri}
+          previewUri={getPostPreviewUrl(image.storage_path)}
           borderRadius={borderRadius.md}
           style={styles.postImage}
           onPress={() => openLightbox(0)}
           accessibilityLabel="Post photo"
           testID={`post-image-${image.id}`}
         >
-          <Image
-            source={lightboxImages[0]}
-            style={styles.image}
-            placeholder={image.blurhash || undefined}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-            transition={200}
-          />
+          <FeedImage key={image.storage_path} image={image} />
         </PinchableImage>
         <FullscreenImageViewer
           images={lightboxImages}
@@ -140,6 +159,7 @@ export function ImageGallery({ images }: ImageGalleryProps) {
           <PinchableImage
             key={img.id}
             uri={lightboxImages[index].uri}
+            previewUri={getPostPreviewUrl(img.storage_path)}
             borderRadius={borderRadius.md}
             style={styles.postImage}
             onPress={() => openLightbox(index)}
@@ -147,13 +167,10 @@ export function ImageGallery({ images }: ImageGalleryProps) {
             accessibilityLabel={`Post photo ${index + 1} of ${sortedImages.length}`}
             testID={`post-image-${img.id}`}
           >
-            <Image
-              source={lightboxImages[index]}
-              style={styles.image}
-              placeholder={img.blurhash || undefined}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              transition={200}
+            <FeedImage
+              key={img.storage_path}
+              image={img}
+              shouldLoad={Math.abs(index - activeIndex) <= 1}
             />
           </PinchableImage>
         ))}

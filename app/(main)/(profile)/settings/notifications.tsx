@@ -75,7 +75,7 @@ const PERMISSION_COPY: Record<
   unsupported: {
     action: null,
     title: 'Device notifications unavailable',
-    description: 'Push notifications are supported in the iOS and Android apps.',
+    description: 'Push notifications require an installed Ripple build on iOS or Android.',
   },
 };
 
@@ -158,6 +158,8 @@ export default function NotificationSettingsScreen() {
   }, []);
 
   useEffect(() => {
+    // Keep the loading indicator while reading OS permission and registering push.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshDevicePermission();
 
     const subscription = AppState.addEventListener('change', (state) => {

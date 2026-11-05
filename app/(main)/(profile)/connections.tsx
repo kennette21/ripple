@@ -273,7 +273,7 @@ export default function ConnectionsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={isRefetching && !isFetchingNextPage}
-              onRefresh={refetch}
+              onRefresh={() => { void refetch(); }}
               tintColor={colors.primary[500]}
             />
           }
@@ -283,7 +283,7 @@ export default function ConnectionsScreen() {
               <View style={styles.footer}>
                 <ActivityIndicator color={colors.primary[500]} />
               </View>
-            ) : null
+            ) : undefined
           }
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.5}

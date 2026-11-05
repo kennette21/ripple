@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  type ScrollViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -69,7 +70,7 @@ function clearSelectedImagePreparation(image: SelectedImage) {
 export default function ComposeScreen() {
   const { profile, user } = useAuth();
   const createPost = useCreatePost();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const imagesRef = useRef<SelectedImage[]>([]);
 
   const [contentType, setContentType] = useState<ContentType>('caption');
@@ -83,7 +84,9 @@ export default function ComposeScreen() {
   const maxLength = contentType === 'caption' ? LIMITS.captionMaxLength : LIMITS.reflectionMaxLength;
   const canPost = body.trim().length > 0 && body.length <= maxLength;
 
-  imagesRef.current = images;
+  useLayoutEffect(() => {
+    imagesRef.current = images;
+  }, [images]);
 
   useEffect(() => {
     return () => {

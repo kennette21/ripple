@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -55,8 +56,8 @@ function EditPostContent() {
   const postId = Array.isArray(rawPostId) ? rawPostId[0] : rawPostId;
   const postQuery = useEditablePost(postId, user?.id);
   const updatePost = useUpdatePost();
-  const initializedPostId = useRef<string | null>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const [initializedPostId, setInitializedPostId] = useState<string | null>(null);
+  const scrollViewRef = useRef<ScrollViewInstance>(null);
   const [caption, setCaption] = useState('');
   const [reflection, setReflection] = useState('');
   const [images, setImages] = useState<EditablePostImage[]>([]);
@@ -80,7 +81,7 @@ function EditPostContent() {
   );
   const hasChanges = Boolean(
     post &&
-      initializedPostId.current === post.id &&
+      initializedPostId === post.id &&
       (caption !== (post.caption ?? '') ||
         reflection !== (post.reflection ?? '') ||
         imagesHaveChanged)
@@ -97,14 +98,13 @@ function EditPostContent() {
       ? REFLECTION_TITLE_MAX_LENGTH
       : LIMITS.captionMaxLength);
 
-  useEffect(() => {
-    if (!post || initializedPostId.current === post.id) return;
-
-    initializedPostId.current = post.id;
+  // Initialize once per post; background refetches must not overwrite a draft.
+  if (post && initializedPostId !== post.id) {
+    setInitializedPostId(post.id);
     setCaption(post.caption ?? '');
     setReflection(post.reflection ?? '');
     setImages([...post.images].sort((a, b) => a.position - b.position));
-  }, [post]);
+  }
 
   const moveImage = (fromIndex: number, direction: 'left' | 'right') => {
     const toIndex = direction === 'left' ? fromIndex - 1 : fromIndex + 1;
