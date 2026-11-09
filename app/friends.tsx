@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,15 @@ import {
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
-import { Avatar, Button } from '@components/ui';
+import { Avatar, Button, Input } from '@components/ui';
+import { EmptyState } from '@components/common';
 import { useAuth } from '@providers/AuthProvider';
-import { supabase } from '@/lib/supabase/client';
-import { queryKeys } from '@/lib/query/keys';
+import { useFollow } from '@/hooks/social/useFollow';
+import {
+  normalizePeopleSearch,
+  useCommunityPeople,
+  type CommunityPerson,
+} from '@/hooks/social/useCommunityPeople';
 import { useContactsOnRipple, useRequestContactsPermission, type ContactMatch } from '@/hooks/social/useContacts';
 import {
   useFriends,
@@ -39,10 +43,45 @@ type SectionData = {
   type: 'requests' | 'contacts' | 'friends';
 };
 
+function CommunityPersonRow({ person, userId }: { person: CommunityPerson; userId: string }) {
+  const follow = useFollow();
+  const name = person.display_name || person.username;
+
+  return (
+    <View style={styles.userRow}>
+      <Pressable
+        style={styles.personProfile}
+        onPress={() => router.push(`/user/${person.id}`)}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${name}'s profile`}
+      >
+        <Avatar uri={person.avatar_url} name={name} size="md" />
+        <View style={styles.userInfo}>
+          <Text style={styles.displayName} numberOfLines={1}>{name}</Text>
+          <Text style={styles.username} numberOfLines={1}>@{person.username}</Text>
+        </View>
+      </Pressable>
+      <Button
+        title={person.isFollowing ? 'Following' : 'Follow'}
+        variant={person.isFollowing ? 'outline' : 'primary'}
+        size="sm"
+        loading={follow.isPending}
+        accessibilityLabel={`${person.isFollowing ? 'Unfollow' : 'Follow'} ${name}`}
+        onPress={() => follow.mutate({
+          followerId: userId,
+          followingId: person.id,
+          isFollowing: person.isFollowing,
+        }, {
+          onError: (error) => Alert.alert('Could not update follow', getErrorMessage(error, 'Please try again.')),
+        })}
+      />
+    </View>
+  );
+}
+
 export default function FriendsScreen() {
   const { user, profile } = useAuth();
   const userId = user?.id;
-  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>('all');
 
   // --- Contacts tab state ---
@@ -55,79 +94,21 @@ export default function FriendsScreen() {
   const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
 
   // --- All People tab state ---
-  const [allUsers, setAllUsers] = useState<(Profile & { isFollowing: boolean })[]>([]);
-  const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
-  const [allUsersLoading, setAllUsersLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const normalizedQuery = normalizePeopleSearch(searchQuery);
+  const isSearchPending = normalizedQuery !== debouncedQuery;
+  const peopleQuery = useCommunityPeople(debouncedQuery, userId, activeTab === 'all');
+  const allUsers = peopleQuery.data?.pages.flatMap((page) => page.people) ?? [];
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedQuery(normalizedQuery), 250);
+    return () => clearTimeout(timeout);
+  }, [normalizedQuery]);
 
   useEffect(() => {
     checkPermission();
   }, [checkPermission]);
-
-  const loadAllUsers = useCallback(async () => {
-    if (!userId) return;
-    setAllUsersLoading(true);
-    try {
-      const [{ data: profiles }, { data: follows }] = await Promise.all([
-        supabase.from('profiles')
-          .select('*')
-          .neq('id', userId)
-          .order('created_at', { ascending: false }),
-        supabase.from('follows')
-          .select('following_id')
-          .eq('follower_id', userId),
-      ]);
-
-      const followingSet = new Set<string>(follows?.map((follow) => follow.following_id) || []);
-      setFollowingIds(followingSet);
-      setAllUsers(
-        (profiles || []).map((p: Profile) => ({ ...p, isFollowing: followingSet.has(p.id) }))
-      );
-    } catch (error) {
-      console.error('Error loading users:', error);
-    } finally {
-      setAllUsersLoading(false);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    // Show loading immediately while synchronizing this tab with Supabase.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (activeTab === 'all') loadAllUsers();
-  }, [activeTab, loadAllUsers]);
-
-  const handleToggleFollow = async (targetUserId: string) => {
-    if (!user?.id) return;
-    const isCurrentlyFollowing = followingIds.has(targetUserId);
-
-    // Optimistic update
-    setFollowingIds((prev) => {
-      const next = new Set(prev);
-      if (isCurrentlyFollowing) {
-        next.delete(targetUserId);
-      } else {
-        next.add(targetUserId);
-      }
-      return next;
-    });
-    setAllUsers((prev) =>
-      prev.map((u) => u.id === targetUserId ? { ...u, isFollowing: !isCurrentlyFollowing } : u)
-    );
-
-    try {
-      if (isCurrentlyFollowing) {
-        await supabase.from('follows')
-          .delete()
-          .eq('follower_id', user.id)
-          .eq('following_id', targetUserId);
-      } else {
-        await supabase.from('follows')
-          .insert({ follower_id: user.id, following_id: targetUserId });
-      }
-      queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
-    } catch {
-      loadAllUsers();
-    }
-  };
 
   // --- Contacts tab helpers ---
   const friendIds = new Set(friends?.map((f) => f.id) || []);
@@ -227,27 +208,6 @@ export default function FriendsScreen() {
     return renderFriend(item);
   };
 
-  const renderAllUser = ({ item }: { item: Profile & { isFollowing: boolean } }) => {
-    const isFollowing = followingIds.has(item.id);
-    return (
-      <View style={styles.userRow}>
-        <Avatar uri={item.avatar_url} name={item.display_name || item.username} size="md" />
-        <View style={styles.userInfo}>
-          <Text style={styles.displayName}>{item.display_name || item.username}</Text>
-          <Text style={styles.username}>@{item.username}</Text>
-        </View>
-        <Pressable
-          style={[styles.addButton, isFollowing && styles.sentButton]}
-          onPress={() => handleToggleFollow(item.id)}
-        >
-          <Text style={[styles.addButtonText, isFollowing && styles.sentButtonText]}>
-            {isFollowing ? 'Following' : 'Follow'}
-          </Text>
-        </Pressable>
-      </View>
-    );
-  };
-
   // --- Contacts tab content ---
   const renderContactsTab = () => {
     if (contactsTabLoading) {
@@ -334,7 +294,7 @@ export default function FriendsScreen() {
 
   // --- All People tab content ---
   const renderAllPeopleTab = () => {
-    if (allUsersLoading) {
+    if (peopleQuery.isLoading || isSearchPending) {
       return (
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={colors.primary[500]} />
@@ -342,23 +302,53 @@ export default function FriendsScreen() {
       );
     }
 
+    if (peopleQuery.isError && allUsers.length === 0) {
+      return (
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Couldn't load people"
+          description="Please try again."
+          actionLabel="Try Again"
+          onAction={() => void peopleQuery.refetch()}
+        />
+      );
+    }
+
     if (allUsers.length === 0) {
       return (
         <View style={styles.promptContainer}>
           <Ionicons name="people-outline" size={48} color={colors.gray[300]} />
-          <Text style={styles.promptTitle}>No other users yet</Text>
-          <Text style={styles.promptText}>Invite your friends to join Ripple!</Text>
+          <Text style={styles.promptTitle}>{debouncedQuery ? 'No people found' : 'No other users yet'}</Text>
+          <Text style={styles.promptText}>
+            {debouncedQuery
+              ? `No names or usernames match “${debouncedQuery}”.`
+              : 'Invite your friends to join Ripple!'}
+          </Text>
         </View>
       );
     }
 
     return (
       <FlatList
+        key={debouncedQuery}
         data={allUsers}
-        renderItem={renderAllUser}
+        renderItem={({ item }) => <CommunityPersonRow person={item} userId={userId!} />}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        onEndReached={() => {
+          if (peopleQuery.hasNextPage && !peopleQuery.isFetching && !peopleQuery.isError) {
+            void peopleQuery.fetchNextPage();
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={peopleQuery.isFetchingNextPage
+          ? <ActivityIndicator style={styles.listFooter} color={colors.primary[500]} />
+          : peopleQuery.isError
+            ? <Button title="Try Again" variant="ghost" onPress={() => void peopleQuery.fetchNextPage()} />
+            : undefined}
       />
     );
   };
@@ -403,6 +393,22 @@ export default function FriendsScreen() {
         </Pressable>
       </View>
 
+      {activeTab === 'all' && (
+        <View style={styles.searchContainer}>
+          <Input
+            placeholder="Search by name or username"
+            accessibilityLabel="Search All People"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            leftIcon="search-outline"
+            autoCapitalize="none"
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+            containerStyle={styles.searchInput}
+          />
+        </View>
+      )}
       {activeTab === 'contacts' ? renderContactsTab() : renderAllPeopleTab()}
     </SafeAreaView>
   );
@@ -412,6 +418,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+  },
+  searchContainer: {
+    padding: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+  },
+  searchInput: {
+    marginBottom: 0,
+  },
+  personProfile: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: spacing.sm,
+  },
+  listFooter: {
+    padding: spacing.md,
   },
   header: {
     flexDirection: 'row',

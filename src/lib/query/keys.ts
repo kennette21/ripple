@@ -39,6 +39,8 @@ export const queryKeys = {
   },
   search: {
     all: ['search'] as const,
+    community: (query: string, userId: string) =>
+      ['search', 'community', userId, query] as const,
     users: (query: string, userId: string) =>
       ['search', 'users', userId, query] as const,
   },

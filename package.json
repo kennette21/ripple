@@ -9,6 +9,7 @@
     "dev-start:reset": "node scripts/dev-start.js --reset-db",
     "test:notifications": "node --test scripts/device-notifications.test.js",
     "test:posts": "node --test scripts/photo-only-posts.test.js",
+    "test:community": "node --test scripts/community-people.test.js",
     "test:performance": "node --test scripts/performance-regressions.test.js",
     "android": "expo run:android",
     "ios": "expo run:ios",

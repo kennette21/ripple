@@ -16,6 +16,7 @@ interface ButtonProps {
   size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
   loading?: boolean;
+  accessibilityLabel?: string;
   style?: ViewStyle;
   textStyle?: TextStyle;
 }
@@ -27,6 +28,7 @@ export function Button({
   size = 'md',
   disabled = false,
   loading = false,
+  accessibilityLabel = title,
   style,
   textStyle,
 }: ButtonProps) {
@@ -34,6 +36,9 @@ export function Button({
 
   return (
     <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
       onPress={onPress}
       disabled={isDisabled}
       style={[

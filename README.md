@@ -104,6 +104,7 @@ npm run typecheck    # tsc --noEmit
 npm run lint         # expo lint
 npm run test:notifications
 npm run test:posts    # photo-only creation and content rules
+npm run test:community # community search and pagination
 ```
 
 With an iOS development build installed, start the seeded stack in one terminal:
