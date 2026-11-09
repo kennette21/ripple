@@ -103,6 +103,7 @@ Before committing, run:
 npm run typecheck    # tsc --noEmit
 npm run lint         # expo lint
 npm run test:notifications
+npm run test:posts    # photo-only creation and content rules
 ```
 
 With an iOS development build installed, start the seeded stack in one terminal:
@@ -117,6 +118,18 @@ Then run Maestro flows from another terminal:
 npm run test:e2e:comments
 npm run test:e2e:search-follow
 npm run test:e2e:privacy
+```
+
+Photo-only post editing requires migration `20261109120000_photo_only_post_edits.sql`
+before shipping the updated client. Creation stores an empty caption to remain
+compatible with the existing `has_content` constraint. The edit RPC permits an
+empty caption only when retaining at least one image from the same post.
+
+To check that migration against the running local database (fixtures are rolled back):
+
+```bash
+npx --yes supabase@2.109.1 migration up --local
+docker exec -i supabase_db_ripple psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/photo_only_posts.sql
 ```
 
 ### Native projects and SDK compatibility

@@ -51,6 +51,7 @@ function hookModules(db, queryClient, captures = []) {
     '@/lib/supabase/client': { supabase: db },
     '@/lib/query/keys': { queryKeys: keys },
     '@/lib/query/postCache': cache,
+    '@/lib/postContent': load('src/lib/postContent.ts', {}),
   };
 }
 const postRows = () => Array.from({ length: 20 }, (_, i) => ({ id: `post-${i}`,
@@ -191,7 +192,7 @@ function uploads(failAt) {
     },
   };
   const hook = load('src/hooks/posts/useCreatePost.ts', modules).useCreatePost();
-  return { run: () => hook.mutationFn({ userId: 'viewer', input: { contentType: 'photo',
+  return { run: () => hook.mutationFn({ userId: 'viewer', input: { contentType: 'caption',
     images: Array.from({ length: 8 }, (_, i) => ({ uri: `photo-${i}`, width: 100, height: 100 })) } }),
     attempts, removed, rows, peak: () => peak, active: () => active };
 }

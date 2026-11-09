@@ -27,6 +27,7 @@ import { Button, Avatar } from '@components/ui';
 import { useAuth } from '@providers/AuthProvider';
 import { useCreatePost } from '@/hooks/posts/useCreatePost';
 import { getErrorMessage } from '@/lib/errors';
+import { hasPostContent } from '@/lib/postContent';
 import { startImageCropSession } from '@/lib/imageCropSession';
 import {
   clearPostImagePreparation,
@@ -82,7 +83,7 @@ export default function ComposeScreen() {
   const [isReordering, setIsReordering] = useState(false);
 
   const maxLength = contentType === 'caption' ? LIMITS.captionMaxLength : LIMITS.reflectionMaxLength;
-  const canPost = body.trim().length > 0 && body.length <= maxLength;
+  const canPost = hasPostContent(contentType, body, images.length) && body.length <= maxLength;
 
   useLayoutEffect(() => {
     imagesRef.current = images;

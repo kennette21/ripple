@@ -33,6 +33,7 @@ import {
   type EditablePostImage,
 } from '@/hooks/posts';
 import { getErrorMessage } from '@/lib/errors';
+import { hasPostContent } from '@/lib/postContent';
 import { BUCKETS, getPublicUrl } from '@/lib/supabase/storage';
 import { borderRadius, colors, spacing, typography } from '@/constants/theme';
 import { LIMITS } from '@/constants/config';
@@ -86,9 +87,11 @@ function EditPostContent() {
         reflection !== (post.reflection ?? '') ||
         imagesHaveChanged)
   );
-  const hasRequiredContent = isReflection
-    ? reflection.trim().length > 0
-    : caption.trim().length > 0;
+  const hasRequiredContent = post && hasPostContent(
+    post.content_type,
+    primaryContent,
+    images.length
+  );
   const canSave =
     isOwner &&
     hasChanges &&

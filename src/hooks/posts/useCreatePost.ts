@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase/client';
 import { BUCKETS, uploadPostImage } from '@/lib/supabase/storage';
 import { preparePostImage } from '@/lib/postImageUpload';
 import { queryKeys } from '@/lib/query/keys';
+import { hasPostContent } from '@/lib/postContent';
 import type { ContentType } from '@/types/database';
 
 const MAX_UPLOAD_CONCURRENCY = 3;
@@ -91,6 +92,12 @@ async function rollbackCreatedPost(
 }
 
 async function createPost(input: CreatePostInput, userId: string) {
+  const body = input.contentType === 'caption' ? input.caption : input.reflection;
+  if (!hasPostContent(input.contentType, body ?? '', input.images?.length ?? 0)) {
+    throw new Error(input.contentType === 'caption'
+      ? 'Add a photo or write a caption before posting.'
+      : 'Write a reflection before posting.');
+  }
   const preparedImages = await prepareImages(input.images ?? []);
 
   // Create the post first
@@ -98,7 +105,9 @@ async function createPost(input: CreatePostInput, userId: string) {
     .from('posts')
     .insert({
       author_id: userId,
-      caption: input.caption || null,
+      // The legacy has_content constraint requires a non-null text field.
+      // An empty caption represents a photo-only post; content is checked above.
+      caption: input.contentType === 'caption' ? (input.caption?.trim() ?? '') : (input.caption || null),
       reflection: input.reflection || null,
       content_type: input.contentType,
       is_private: input.isPrivate || false,
