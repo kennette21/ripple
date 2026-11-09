@@ -51,12 +51,6 @@ export default function MainLayout() {
         }}
       />
       <Tabs.Screen
-        name="(notifications)"
-        options={{
-          href: null, // Hides from tab bar
-        }}
-      />
-      <Tabs.Screen
         name="(profile)"
         options={{
           title: 'Profile',

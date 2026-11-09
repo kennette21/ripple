@@ -191,7 +191,7 @@ export function getNotificationDestination(
   }
 
   if (data.screen === 'notifications') {
-    return '/(main)/(notifications)' as const;
+    return '/notifications' as const;
   }
 
   return null;

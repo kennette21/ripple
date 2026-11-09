@@ -111,3 +111,10 @@ test('notification responses without custom data do not navigate', () => {
     notification: { request: { content: {} } },
   }), null);
 });
+
+test('a notification without a post or profile target opens the activity screen', () => {
+  const { notifications } = loadNotifications({ platform: 'ios', environment: 'standalone' });
+  assert.equal(notifications.getNotificationDestination({
+    notification: { request: { content: { data: { screen: 'notifications' } } } },
+  }), '/notifications');
+});

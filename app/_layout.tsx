@@ -155,6 +155,7 @@ function RootLayoutNav() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(main)" />
         <Stack.Screen name="friends" />
+        <Stack.Screen name="notifications" />
         <Stack.Screen name="post/[id]" />
         <Stack.Screen
           name="edit-post"

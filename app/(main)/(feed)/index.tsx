@@ -35,7 +35,7 @@ function FeedHeader({ userId }: { userId: string | undefined }) {
       <View style={styles.headerActions}>
         <TouchableOpacity
           style={styles.headerButton}
-          onPress={() => router.push('/(main)/(notifications)')}
+          onPress={() => router.push('/notifications')}
           accessibilityRole="button"
           accessibilityLabel="Notifications"
         >
