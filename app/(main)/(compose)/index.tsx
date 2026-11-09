@@ -10,7 +10,6 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
-  Switch,
   type ScrollViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,6 +23,7 @@ import DraggableFlatList, {
   ScaleDecorator,
 } from 'react-native-draggable-flatlist';
 import { Button, Avatar } from '@components/ui';
+import { PostAudiencePicker } from '@/components/post/PostAudiencePicker';
 import { useAuth } from '@providers/AuthProvider';
 import { useCreatePost } from '@/hooks/posts/useCreatePost';
 import { getErrorMessage } from '@/lib/errors';
@@ -268,7 +268,7 @@ export default function ComposeScreen() {
       // Clear the form after successful post
       resetForm();
 
-      Alert.alert('Success', 'Your post has been shared!', [
+      Alert.alert('Success', isPrivate ? 'Saved to your profile. Only you can see it.' : 'Your post has been shared!', [
         { text: 'OK', onPress: () => router.navigate('/(main)/(feed)') }
       ]);
     } catch (error) {
@@ -362,6 +362,14 @@ export default function ComposeScreen() {
             <View style={styles.authorInfo}>
               <Text style={styles.authorName}>{profile?.display_name}</Text>
               <Text style={styles.authorUsername}>@{profile?.username}</Text>
+              <View style={styles.audience}>
+                <PostAudiencePicker
+                  isPrivate={isPrivate}
+                  onChange={setIsPrivate}
+                  disabled={createPost.isPending}
+                  testID="compose-audience-picker"
+                />
+              </View>
             </View>
           </View>
 
@@ -462,32 +470,6 @@ export default function ComposeScreen() {
               <Text style={styles.imageCount}>{images.length}/{LIMITS.maxImagesPerPost}</Text>
             )}
           </Pressable>
-
-          <Pressable
-            style={styles.privateToggle}
-            onPress={() => setIsPrivate(!isPrivate)}
-          >
-            <Ionicons
-              name={isPrivate ? 'lock-closed' : 'globe-outline'}
-              size={18}
-              color={isPrivate ? colors.primary[500] : colors.gray[500]}
-            />
-            <Text style={[
-              styles.privateText,
-              isPrivate && styles.privateTextActive,
-            ]}>
-              {isPrivate
-                ? 'Private'
-                : 'Public'}
-            </Text>
-            <Switch
-              value={isPrivate}
-              onValueChange={setIsPrivate}
-              trackColor={{ false: colors.gray[200], true: colors.primary[200] }}
-              thumbColor={isPrivate ? colors.primary[500] : colors.gray[400]}
-              style={styles.switch}
-            />
-          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -550,11 +532,15 @@ const styles = StyleSheet.create({
   },
   authorRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: spacing.md,
   },
   authorInfo: {
     marginLeft: spacing.sm,
+    flex: 1,
+  },
+  audience: {
+    marginTop: spacing.xs,
   },
   authorName: {
     fontSize: typography.fontSizes.md,
@@ -685,24 +671,5 @@ const styles = StyleSheet.create({
   imageCount: {
     fontSize: typography.fontSizes.sm,
     color: colors.gray[500],
-  },
-  privateToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    gap: spacing.xs,
-  },
-  privateText: {
-    fontSize: typography.fontSizes.sm,
-    color: colors.gray[500],
-    fontWeight: typography.fontWeights.medium,
-  },
-  privateTextActive: {
-    color: colors.primary[500],
-  },
-  switch: {
-    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
   },
 });

@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   View,
   Text,
@@ -16,6 +15,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { InlineComments } from '@/components/comments/InlineComments';
 import { ImageGallery } from './ImageGallery';
 import { PostActionsMenu } from './PostActionsMenu';
+import { PostAudiencePicker } from './PostAudiencePicker';
 import { useDeletePost } from '@/hooks/posts/useDeletePost';
 import { useUpdatePostPrivacy } from '@/hooks/posts/useUpdatePostPrivacy';
 import { getErrorMessage } from '@/lib/errors';
@@ -103,37 +103,14 @@ function PostCardComponent({
     onCommentThreadActiveChange?.(active ? post.id : null);
   }, [onCommentThreadActiveChange, post.id]);
 
-  const handlePrivacyToggle = () => {
+  const handleAudienceChange = async (nextPrivate: boolean) => {
     if (!isOwnPost || updatePrivacy.isPending) return;
-
-    const makePrivate = !isPrivate;
-    Alert.alert(
-      makePrivate ? 'Make this post private?' : 'Make this post public?',
-      makePrivate
-        ? 'Only you will be able to see it. It will be removed from everyone else\'s feed and your public profile.'
-        : 'People in your pond will be able to see it in their feeds and on your profile.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: makePrivate ? 'Make private' : 'Make public',
-          onPress: async () => {
-            try {
-              const updatedPost = await updatePrivacy.mutateAsync({
-                postId: post.id,
-                authorId: postAuthorId,
-                isPrivate: makePrivate,
-              });
-              setIsPrivate(updatedPost.is_private);
-            } catch (error) {
-              Alert.alert(
-                'Could not update privacy',
-                getErrorMessage(error, 'Please try again.')
-              );
-            }
-          },
-        },
-      ]
-    );
+    const updatedPost = await updatePrivacy.mutateAsync({
+      postId: post.id,
+      authorId: postAuthorId,
+      isPrivate: nextPrivate,
+    });
+    setIsPrivate(updatedPost.is_private);
   };
 
   const handleDeleteRequest = () => {
@@ -313,34 +290,13 @@ function PostCardComponent({
         </Pressable>
 
         {isOwnPost && (
-          <Pressable
-            style={({ pressed }) => [
-              styles.privacyButton,
-              isPrivate && styles.privacyButtonPrivate,
-              pressed && styles.actionButtonPressed,
-            ]}
-            onPress={handlePrivacyToggle}
+          <PostAudiencePicker
+            isPrivate={isPrivate}
+            onChange={handleAudienceChange}
+            confirmChange
             disabled={updatePrivacy.isPending}
-            accessibilityRole="button"
-            accessibilityLabel={`Post is ${isPrivate ? 'private' : 'public'}. Change privacy`}
-            accessibilityState={{ busy: updatePrivacy.isPending }}
-          >
-            {updatePrivacy.isPending ? (
-              <ActivityIndicator size="small" color={colors.gray[500]} />
-            ) : (
-              <Ionicons
-                name={isPrivate ? 'lock-closed' : 'globe-outline'}
-                size={15}
-                color={isPrivate ? colors.primary[600] : colors.gray[500]}
-              />
-            )}
-            <Text style={[
-              styles.privacyButtonText,
-              isPrivate && styles.privacyButtonTextPrivate,
-            ]}>
-              {isPrivate ? 'Private' : 'Public'}
-            </Text>
-          </Pressable>
+            testID={`post-audience-${post.id}`}
+          />
         )}
       </View>
 
@@ -459,25 +415,5 @@ const styles = StyleSheet.create({
   actionCountActive: {
     color: colors.primary[600],
     fontWeight: '600',
-  },
-  privacyButton: {
-    minHeight: 32,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: 999,
-    backgroundColor: colors.gray[100],
-  },
-  privacyButtonPrivate: {
-    backgroundColor: colors.primary[50],
-  },
-  privacyButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.gray[600],
-  },
-  privacyButtonTextPrivate: {
-    color: colors.primary[600],
   },
 });
