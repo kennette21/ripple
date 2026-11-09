@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   Alert,
   SectionList,
+  ScrollView,
+  Linking,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -79,14 +81,55 @@ function CommunityPersonRow({ person, userId }: { person: CommunityPerson; userI
   );
 }
 
+function ContactsPrompt({
+  icon, title, description, actionLabel, onAction, onSearch, onSettings, loading, privacyNote,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  title: string;
+  description: string;
+  actionLabel: string;
+  onAction: () => void;
+  onSearch?: () => void;
+  onSettings?: () => void;
+  loading?: boolean;
+  privacyNote?: boolean;
+}) {
+  return (
+    <ScrollView contentContainerStyle={styles.contactsPrompt}>
+      <View style={styles.contactsIcon}>
+        <Ionicons name={icon} size={26} color={colors.primary[500]} />
+      </View>
+      <Text style={styles.contactsTitle} accessibilityRole="header">{title}</Text>
+      <Text style={styles.contactsDescription}>{description}</Text>
+      <View style={styles.contactsActions}>
+        <Button title={actionLabel} onPress={onAction} loading={loading} />
+        {onSettings ? (
+          <Button title="Open Settings" variant="ghost" onPress={onSettings} />
+        ) : onSearch ? (
+          <Button title="Use search instead" variant="ghost" onPress={onSearch} />
+        ) : null}
+        {privacyNote && (
+          <Text style={styles.contactsNote}>
+            Matching happens on your device.{'\n'}You choose who to connect with.
+          </Text>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 export default function FriendsScreen() {
   const { user, profile } = useAuth();
   const userId = user?.id;
   const [activeTab, setActiveTab] = useState<Tab>('all');
 
   // --- Contacts tab state ---
-  const { hasPermission, requestPermission, checkPermission } = useRequestContactsPermission();
-  const { data: contactMatches, isLoading: contactsLoading, refetch: refetchContacts } = useContactsOnRipple(user?.id);
+  const { permission, isChecking, isRequesting, error: permissionError, requestPermission, checkPermission } = useRequestContactsPermission();
+  const contactsQuery = useContactsOnRipple(
+    userId,
+    activeTab === 'contacts' && !!profile?.phone_number && permission?.status === 'granted'
+  );
+  const { data: contactMatches, isLoading: contactsLoading } = contactsQuery;
   const { data: friends, isLoading: friendsLoading } = useFriends(user?.id);
   const { data: incomingRequests, isLoading: requestsLoading } = useIncomingFriendRequests(user?.id);
   const sendRequest = useSendFriendRequest();
@@ -105,10 +148,6 @@ export default function FriendsScreen() {
     const timeout = setTimeout(() => setDebouncedQuery(normalizedQuery), 250);
     return () => clearTimeout(timeout);
   }, [normalizedQuery]);
-
-  useEffect(() => {
-    checkPermission();
-  }, [checkPermission]);
 
   // --- Contacts tab helpers ---
   const friendIds = new Set(friends?.map((f) => f.id) || []);
@@ -210,63 +249,84 @@ export default function FriendsScreen() {
 
   // --- Contacts tab content ---
   const renderContactsTab = () => {
-    if (contactsTabLoading) {
-      return (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.primary[500]} />
-        </View>
-      );
-    }
-
     if (!profile?.phone_number) {
       return (
-        <View style={styles.promptContainer}>
-          <Ionicons name="call-outline" size={48} color={colors.gray[300]} />
-          <Text style={styles.promptTitle}>Add your phone number</Text>
-          <Text style={styles.promptText}>
-            Add your phone number so your friends can find you on Ripple.
-          </Text>
-          <Button
-            title="Add Phone Number"
-            onPress={() => {
-              router.back();
-              setTimeout(() => router.push('/(main)/(profile)/settings/phone-number'), 100);
-            }}
-            style={styles.promptButton}
-          />
-        </View>
+        <ContactsPrompt
+          icon="call-outline"
+          title="Add your phone number"
+          description="Add your number so friends can find you on Ripple."
+          actionLabel="Add Phone Number"
+          onAction={() => router.push('/(main)/(profile)/settings/phone-number')}
+          onSearch={() => setActiveTab('all')}
+        />
       );
     }
 
-    if (hasPermission === false) {
+    if (isChecking) {
+      return <View style={styles.loading}><ActivityIndicator color={colors.primary[500]} /></View>;
+    }
+
+    if (permissionError) {
       return (
-        <View style={styles.promptContainer}>
-          <Ionicons name="people-outline" size={48} color={colors.gray[300]} />
-          <Text style={styles.promptTitle}>Find your friends</Text>
-          <Text style={styles.promptText}>
-            Allow access to your contacts to see which of your friends are already on Ripple.
-          </Text>
-          <Button
-            title="Allow Contacts Access"
-            onPress={async () => {
-              const granted = await requestPermission();
-              if (granted) refetchContacts();
-            }}
-            style={styles.promptButton}
-          />
-        </View>
+        <ContactsPrompt
+          icon="alert-circle-outline"
+          title="Couldn't check contacts access"
+          description={getErrorMessage(permissionError, 'Please try again.')}
+          actionLabel="Try Again"
+          onAction={() => void checkPermission()}
+          onSearch={() => setActiveTab('all')}
+        />
+      );
+    }
+
+    if (permission?.status !== 'granted') {
+      const declined = permission?.status === 'denied';
+      return (
+        <ContactsPrompt
+          icon="people-outline"
+          title={declined ? 'Contacts are off' : 'Find people you know'}
+          description={declined
+            ? 'You can still find people by name or username. Contacts can be enabled later in Settings.'
+            : 'Look for friends who are already on Ripple using the contacts you choose to share.'}
+          actionLabel={declined ? 'Search All People' : 'Continue with Contacts'}
+          onAction={declined ? () => setActiveTab('all') : () => void requestPermission()}
+          loading={isRequesting}
+          onSearch={() => setActiveTab('all')}
+          onSettings={declined ? () => {
+            void Linking.openSettings().catch((error) => {
+              Alert.alert('Could not open Settings', getErrorMessage(error, 'Please try again.'));
+            });
+          } : undefined}
+          privacyNote={!declined}
+        />
+      );
+    }
+
+    if (contactsTabLoading) {
+      return <View style={styles.loading}><ActivityIndicator size="large" color={colors.primary[500]} /></View>;
+    }
+
+    if (contactsQuery.isError) {
+      return (
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Couldn't load contacts"
+          description="Please try again."
+          actionLabel="Try Again"
+          onAction={() => void contactsQuery.refetch()}
+        />
       );
     }
 
     if (sections.length === 0) {
       return (
-        <View style={styles.promptContainer}>
-          <Ionicons name="search-outline" size={48} color={colors.gray[300]} />
-          <Text style={styles.promptTitle}>No contacts found on Ripple</Text>
-          <Text style={styles.promptText}>
-            Invite your friends to join Ripple so you can connect!
-          </Text>
-        </View>
+        <ContactsPrompt
+          icon="search-outline"
+          title="No matches yet"
+          description="None of the contacts you shared are on Ripple yet. You can still find people in the community."
+          actionLabel="Search All People"
+          onAction={() => setActiveTab('all')}
+        />
       );
     }
 
@@ -354,7 +414,7 @@ export default function FriendsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.gray[600]} />
@@ -598,5 +658,40 @@ const styles = StyleSheet.create({
   promptButton: {
     marginTop: spacing.md,
     minWidth: 200,
+  },
+  contactsPrompt: {
+    flexGrow: 1,
+    padding: spacing.lg,
+  },
+  contactsIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  contactsTitle: {
+    fontSize: typography.fontSizes.xxl,
+    fontWeight: typography.fontWeights.bold,
+    color: colors.gray[900],
+  },
+  contactsDescription: {
+    fontSize: typography.fontSizes.sm,
+    color: colors.gray[500],
+    lineHeight: 22,
+    marginTop: spacing.sm,
+  },
+  contactsActions: {
+    marginTop: 'auto',
+    paddingTop: spacing.xl,
+  },
+  contactsNote: {
+    fontSize: typography.fontSizes.xs,
+    color: colors.gray[500],
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: spacing.sm,
   },
 });
