@@ -10,25 +10,21 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
-  type ScrollViewInstance,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import DraggableFlatList, {
-  RenderItemParams,
-  ScaleDecorator,
-} from 'react-native-draggable-flatlist';
 import { Button, Avatar } from '@components/ui';
 import { PostAudiencePicker } from '@/components/post/PostAudiencePicker';
 import { useAuth } from '@providers/AuthProvider';
 import { useCreatePost } from '@/hooks/posts/useCreatePost';
 import { getErrorMessage } from '@/lib/errors';
 import { hasPostContent } from '@/lib/postContent';
-import { startImageCropSession } from '@/lib/imageCropSession';
+import { PostAlbumGrid } from '@/components/compose/PostAlbumGrid';
+import { PostPhotoEditor } from '@/components/compose/PostPhotoEditor';
+import type { SelectedPostPhoto } from '@/types/postPhoto';
 import {
   clearPostImagePreparation,
   preparePostImage,
@@ -37,20 +33,10 @@ import { colors, spacing, typography, borderRadius } from '@constants/theme';
 import { LIMITS } from '@constants/config';
 
 type ContentType = 'caption' | 'reflection';
+const CAPTION_INPUT_MIN_HEIGHT = 56;
 const REFLECTION_INPUT_MIN_HEIGHT = 120;
 
-interface SelectedImage {
-  id: string;
-  uri: string;
-  width: number;
-  height: number;
-  isCropped: boolean;
-  sourceUri: string;
-  sourceWidth: number;
-  sourceHeight: number;
-}
-
-function clearSelectedImagePreparation(image: SelectedImage) {
+function clearSelectedPostPhotoPreparation(image: SelectedPostPhoto) {
   clearPostImagePreparation({
     uri: image.uri,
     width: image.width,
@@ -71,16 +57,15 @@ function clearSelectedImagePreparation(image: SelectedImage) {
 export default function ComposeScreen() {
   const { profile, user } = useAuth();
   const createPost = useCreatePost();
-  const scrollViewRef = useRef<ScrollViewInstance>(null);
-  const imagesRef = useRef<SelectedImage[]>([]);
+  const imagesRef = useRef<SelectedPostPhoto[]>([]);
 
   const [contentType, setContentType] = useState<ContentType>('caption');
   const [body, setBody] = useState('');
   const [reflectionTitle, setReflectionTitle] = useState('');
-  const [images, setImages] = useState<SelectedImage[]>([]);
-  const [inputHeight, setInputHeight] = useState(100);
+  const [images, setImages] = useState<SelectedPostPhoto[]>([]);
   const [isPrivate, setIsPrivate] = useState(false);
-  const [isReordering, setIsReordering] = useState(false);
+  const [editingPhoto, setEditingPhoto] = useState<{ id: string; startWithCrop: boolean } | null>(null);
+  const photoToEdit = images.find((photo) => photo.id === editingPhoto?.id);
 
   const maxLength = contentType === 'caption' ? LIMITS.captionMaxLength : LIMITS.reflectionMaxLength;
   const canPost = hasPostContent(contentType, body, images.length) && body.length <= maxLength;
@@ -91,11 +76,11 @@ export default function ComposeScreen() {
 
   useEffect(() => {
     return () => {
-      imagesRef.current.forEach(clearSelectedImagePreparation);
+      imagesRef.current.forEach(clearSelectedPostPhotoPreparation);
     };
   }, []);
 
-  const startPreparingImage = (image: SelectedImage) => {
+  const startPreparingImage = (image: SelectedPostPhoto) => {
     // The global preparation queue yields before doing native work, so this
     // warms the upload artifact without blocking the selection UI.
     void preparePostImage({
@@ -106,41 +91,19 @@ export default function ComposeScreen() {
     }).catch(() => {});
   };
 
-  const moveImage = (fromIndex: number, direction: 'left' | 'right') => {
-    const toIndex = direction === 'left' ? fromIndex - 1 : fromIndex + 1;
-    if (toIndex < 0 || toIndex >= images.length) return;
-    setImages((prev) => {
-      const next = [...prev];
-      [next[fromIndex], next[toIndex]] = [next[toIndex], next[fromIndex]];
-      return next;
-    });
+  const openPhotoEditor = (photo: SelectedPostPhoto, startWithCrop = false) => {
+    Keyboard.dismiss();
+    setEditingPhoto({ id: photo.id, startWithCrop });
   };
 
-  const openCrop = (image: SelectedImage) => {
-    startImageCropSession({
-      imageUri: image.sourceUri,
-      imageWidth: image.sourceWidth,
-      imageHeight: image.sourceHeight,
-      onCrop: (uri, width, height) => {
-        const croppedImage = {
-          ...image,
-          uri,
-          width,
-          height,
-          isCropped: true,
-        };
-        clearSelectedImagePreparation(image);
-        setImages((currentImages) =>
-          currentImages.map((currentImage) =>
-            currentImage.id === image.id
-              ? croppedImage
-              : currentImage
-          )
-        );
-        startPreparingImage(croppedImage);
-      },
-    });
-    router.push('/crop');
+  const applyPhotoEdit = (photo: SelectedPostPhoto) => {
+    const previous = images.find((image) => image.id === photo.id);
+    if (previous && previous.uri !== photo.uri) {
+      clearSelectedPostPhotoPreparation(previous);
+      startPreparingImage(photo);
+    }
+    setImages((current) => current.map((image) => image.id === photo.id ? photo : image));
+    setEditingPhoto(null);
   };
 
   const pickImages = async () => {
@@ -178,71 +141,13 @@ export default function ComposeScreen() {
     }
   };
 
-  const removeImage = (index: number) => {
-    const image = images[index];
-    if (image) clearSelectedImagePreparation(image);
-    setImages((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const renderImage = ({ item, getIndex, drag, isActive }: RenderItemParams<SelectedImage>) => {
-    const index = getIndex() ?? 0;
-    const accessibilityActions = [
-      ...(index > 0 ? [{ name: 'decrement' as const, label: 'Move photo left' }] : []),
-      ...(index < images.length - 1
-        ? [{ name: 'increment' as const, label: 'Move photo right' }]
-        : []),
-    ];
-
-    const startDrag = () => {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      drag();
-    };
-
-    return (
-      <ScaleDecorator activeScale={1.06}>
-        <View style={[styles.imageContainer, isActive && styles.imageContainerActive]}>
-          <Pressable
-            onPress={() => openCrop(item)}
-            onLongPress={images.length > 1 ? startDrag : undefined}
-            delayLongPress={200}
-            disabled={isActive || createPost.isPending}
-            accessibilityRole="imagebutton"
-            accessibilityLabel={`Photo ${index + 1} of ${images.length}`}
-            accessibilityHint={
-              images.length > 1
-                ? 'Tap to crop. Long press and drag to change its position.'
-                : 'Tap to crop.'
-            }
-            accessibilityActions={accessibilityActions}
-            onAccessibilityAction={(event) => {
-              if (event.nativeEvent.actionName === 'decrement') moveImage(index, 'left');
-              if (event.nativeEvent.actionName === 'increment') moveImage(index, 'right');
-            }}
-          >
-            <Image source={{ uri: item.uri }} style={styles.previewImage} />
-            <View style={styles.cropBadge} pointerEvents="none">
-              <Ionicons name="crop" size={14} color={colors.white} />
-            </View>
-          </Pressable>
-          <Pressable
-            style={styles.removeImage}
-            onPress={() => removeImage(index)}
-            disabled={createPost.isPending}
-            accessibilityRole="button"
-            accessibilityLabel={`Remove photo ${index + 1}`}
-          >
-            <Ionicons name="close-circle" size={24} color={colors.white} />
-          </Pressable>
-          <View style={styles.positionBadge} pointerEvents="none">
-            <Text style={styles.positionText}>{index + 1}</Text>
-          </View>
-        </View>
-      </ScaleDecorator>
-    );
+  const removeImage = (photo: SelectedPostPhoto) => {
+    clearSelectedPostPhotoPreparation(photo);
+    setImages((current) => current.filter((image) => image.id !== photo.id));
   };
 
   const resetForm = () => {
-    images.forEach(clearSelectedImagePreparation);
+    images.forEach(clearSelectedPostPhotoPreparation);
     setBody('');
     setReflectionTitle('');
     setImages([]);
@@ -346,9 +251,9 @@ export default function ComposeScreen() {
         style={styles.keyboardView}
       >
         <ScrollView
-          ref={scrollViewRef}
           style={styles.content}
-          scrollEnabled={!isReordering}
+          contentContainerStyle={styles.contentContainer}
+          testID="post-composer-scroll"
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           showsVerticalScrollIndicator={false}
@@ -384,14 +289,15 @@ export default function ComposeScreen() {
             />
           )}
 
+          {/* Native multiline sizing grows this field; only the page scrolls. */}
           <TextInput
             style={[
               styles.input,
               contentType === 'reflection' && styles.inputReflection,
               {
                 minHeight: contentType === 'reflection'
-                  ? Math.max(REFLECTION_INPUT_MIN_HEIGHT, inputHeight)
-                  : 100,
+                  ? REFLECTION_INPUT_MIN_HEIGHT
+                  : CAPTION_INPUT_MIN_HEIGHT,
               },
             ]}
             placeholder={
@@ -403,58 +309,25 @@ export default function ComposeScreen() {
             value={body}
             onChangeText={setBody}
             multiline
+            accessibilityLabel={contentType === 'caption' ? 'Post caption' : 'Post reflection'}
+            testID="post-body-input"
+            editable={!createPost.isPending}
             autoFocus
             scrollEnabled={false}
-            onContentSizeChange={(e) => {
-              const newHeight = e.nativeEvent.contentSize.height;
-              setInputHeight(newHeight);
-              // Auto-scroll when content grows
-              if (
-                contentType === 'reflection' &&
-                newHeight > REFLECTION_INPUT_MIN_HEIGHT
-              ) {
-                setTimeout(() => {
-                  scrollViewRef.current?.scrollToEnd({ animated: true });
-                }, 100);
-              }
-            }}
           />
 
-        <Text style={[styles.charCount, body.length > maxLength && styles.charCountOver]}>
-          {body.length}/{maxLength}
-        </Text>
+          <Text style={[styles.charCount, body.length > maxLength && styles.charCountOver]}>
+            {body.length}/{maxLength}
+          </Text>
 
-        {/* Selected images */}
-        {images.length > 0 && (
-          <View style={styles.imageOrderSection}>
-            {images.length > 1 && (
-              <View style={styles.reorderHint}>
-                <Ionicons name="reorder-three-outline" size={16} color={colors.gray[500]} />
-                <Text style={styles.reorderHintText}>Hold and drag · Photo 1 appears first</Text>
-              </View>
-            )}
-            <DraggableFlatList
-              horizontal
-              data={images}
-              keyExtractor={(item) => item.id}
-              renderItem={renderImage}
-              onDragBegin={() => setIsReordering(true)}
-              onRelease={() => setIsReordering(false)}
-              onDragEnd={({ data }) => {
-                setImages(data);
-                setIsReordering(false);
-                void Haptics.selectionAsync();
-              }}
-              autoscrollThreshold={60}
-              autoscrollSpeed={120}
-              dragItemOverflow
-              showsHorizontalScrollIndicator={false}
-              removeClippedSubviews={false}
-              style={styles.imagePreview}
-              contentContainerStyle={styles.imagePreviewContent}
-            />
-          </View>
-          )}
+          <PostAlbumGrid
+            photos={images}
+            onAdd={() => void pickImages()}
+            onEdit={openPhotoEditor}
+            onRemove={removeImage}
+            onReorder={setImages}
+            disabled={createPost.isPending}
+          />
 
         </ScrollView>
 
@@ -464,6 +337,8 @@ export default function ComposeScreen() {
             style={styles.toolButton}
             onPress={pickImages}
             disabled={createPost.isPending}
+            accessibilityRole="button"
+            accessibilityLabel="Add photos"
           >
             <Ionicons name="image-outline" size={24} color={colors.primary[500]} />
             {images.length > 0 && (
@@ -472,6 +347,15 @@ export default function ComposeScreen() {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
+      {photoToEdit && editingPhoto && (
+        <PostPhotoEditor
+          key={photoToEdit.id}
+          photo={photoToEdit}
+          startWithCrop={editingPhoto.startWithCrop}
+          onApply={applyPhotoEdit}
+          onClose={() => setEditingPhoto(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -528,7 +412,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     padding: spacing.md,
+    paddingBottom: spacing.xl,
   },
   authorRow: {
     flexDirection: 'row',
@@ -564,7 +451,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSizes.lg,
     color: colors.gray[900],
     lineHeight: 26,
-    minHeight: 100,
+    minHeight: CAPTION_INPUT_MIN_HEIGHT,
     textAlignVertical: 'top',
   },
   inputReflection: {
@@ -580,78 +467,6 @@ const styles = StyleSheet.create({
   },
   charCountOver: {
     color: colors.error.main,
-  },
-  imagePreview: {
-    height: 116,
-    flexGrow: 0,
-  },
-  imagePreviewContent: {
-    paddingTop: spacing.sm,
-    paddingRight: spacing.sm,
-  },
-  imageOrderSection: {
-    marginTop: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  reorderHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  reorderHintText: {
-    color: colors.gray[500],
-    fontSize: typography.fontSizes.xs,
-  },
-  imageContainer: {
-    marginRight: spacing.sm,
-    position: 'relative',
-    width: 100,
-    height: 100,
-    borderRadius: borderRadius.md,
-  },
-  imageContainerActive: {
-    opacity: 0.92,
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  previewImage: {
-    width: 100,
-    height: 100,
-    borderRadius: borderRadius.md,
-  },
-  removeImage: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 12,
-  },
-  cropBadge: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: borderRadius.sm,
-    padding: 2,
-  },
-  positionBadge: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: borderRadius.full,
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  positionText: {
-    color: colors.white,
-    fontSize: typography.fontSizes.xs,
-    fontWeight: typography.fontWeights.bold,
   },
   toolbar: {
     flexDirection: 'row',

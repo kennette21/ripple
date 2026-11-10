@@ -45,6 +45,7 @@ interface ImageCropScreenProps {
   imageHeight: number;
   onCrop: (uri: string, width: number, height: number) => void;
   onCancel: () => void;
+  onProcessingChange?: (processing: boolean) => void;
 }
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -58,6 +59,7 @@ export default function ImageCropScreen({
   imageHeight,
   onCrop,
   onCancel,
+  onProcessingChange,
 }: ImageCropScreenProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -181,7 +183,8 @@ export default function ImageCropScreen({
 
   const panGesture = Gesture.Pan()
     .maxPointers(1)
-    .onStart((event) => {
+    // Pick the handle at touch-down, before a fast drag moves away from it.
+    .onBegin((event) => {
       startZoom.set(zoom.get());
       startTranslateX.set(translateX.get());
       startTranslateY.set(translateY.get());
@@ -368,6 +371,7 @@ export default function ImageCropScreen({
   const handleCrop = async () => {
     if (isCropping) return;
     setIsCropping(true);
+    onProcessingChange?.(true);
 
     try {
       const effectiveScale = baseScale * zoom.get();
@@ -429,6 +433,7 @@ export default function ImageCropScreen({
       );
     } finally {
       setIsCropping(false);
+      onProcessingChange?.(false);
     }
   };
 
