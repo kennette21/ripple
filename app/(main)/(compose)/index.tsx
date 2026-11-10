@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { useAnimatedRef } from 'react-native-reanimated';
 import { Button, Avatar } from '@components/ui';
 import { PostAudiencePicker } from '@/components/post/PostAudiencePicker';
 import { useAuth } from '@providers/AuthProvider';
@@ -58,6 +59,7 @@ export default function ComposeScreen() {
   const { profile, user } = useAuth();
   const createPost = useCreatePost();
   const imagesRef = useRef<SelectedPostPhoto[]>([]);
+  const composerScrollRef = useAnimatedRef<ScrollView>();
 
   const [contentType, setContentType] = useState<ContentType>('caption');
   const [body, setBody] = useState('');
@@ -250,7 +252,8 @@ export default function ComposeScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView
+        <Animated.ScrollView
+          ref={composerScrollRef}
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
           testID="post-composer-scroll"
@@ -321,6 +324,7 @@ export default function ComposeScreen() {
           </Text>
 
           <PostAlbumGrid
+            scrollableRef={composerScrollRef}
             photos={images}
             onAdd={() => void pickImages()}
             onEdit={openPhotoEditor}
@@ -329,7 +333,7 @@ export default function ComposeScreen() {
             disabled={createPost.isPending}
           />
 
-        </ScrollView>
+        </Animated.ScrollView>
 
         {/* Bottom toolbar - inside KeyboardAvoidingView so it stays visible */}
         <View style={styles.toolbar}>

@@ -20,7 +20,10 @@ function load(file, modules = {}) {
 function nodes(value) {
   if (Array.isArray(value)) return value.flatMap(nodes);
   if (!value || typeof value !== 'object') return [];
-  return [value, ...nodes(value.props?.children)];
+  const children = value.type === 'SortableGrid'
+    ? value.props.data.map((item, index) => value.props.renderItem({ item, index }))
+    : value.props?.children;
+  return [value, ...nodes(children)];
 }
 function textOf(value) {
   if (Array.isArray(value)) return value.map(textOf).join('');
@@ -78,7 +81,8 @@ function component(file, name, props = {}, overrides = {}) {
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ bottom: 34 }) },
     'react-native-gesture-handler': { GestureHandlerRootView: 'GestureRoot' },
     'react-native-reanimated': {
-      __esModule: true, default: { View: 'AnimatedView' },
+      __esModule: true, default: { View: 'AnimatedView', ScrollView: 'ScrollView' },
+      useAnimatedRef: () => react.useRef(null),
       Easing: { out: value => value, cubic: 'cubic' },
       withTiming: value => value,
       useAnimatedStyle: callback => callback(),
@@ -87,6 +91,7 @@ function component(file, name, props = {}, overrides = {}) {
       }).current,
     },
     'react-native-draggable-flatlist': { __esModule: true, default: 'DraggableFlatList', ScaleDecorator: 'ScaleDecorator' },
+    'react-native-sortables': { __esModule: true, default: { Grid: 'SortableGrid', Handle: 'SortableHandle', Touchable: 'SortableTouchable' } },
     'expo-haptics': { selectionAsync: noopAsync, impactAsync: noopAsync, ImpactFeedbackStyle: { Light: 'light' } },
     'expo-image': { Image: 'Image' },
     '@expo/vector-icons': { Ionicons: 'Icon' },
@@ -121,7 +126,8 @@ function component(file, name, props = {}, overrides = {}) {
     byType: (type) => find(node => node.type === type),
     byId: (id) => find(node => node.props?.testID === id),
     press(label) {
-      return find(node => node.props?.onPress && (node.props.accessibilityLabel === label || node.props.title === label || textOf(node) === label)).props.onPress();
+      const control = find(node => (node.props?.onPress || node.props?.onTap) && (node.props.accessibilityLabel === label || node.props.title === label || textOf(node) === label));
+      return (control.props.onPress || control.props.onTap)();
     },
     unmount() { slots.forEach(slot => slot?.cleanup?.()); },
   };
@@ -205,26 +211,23 @@ test('move controls reorder whole photo objects without losing their original so
   const h = component('src/components/compose/PostAlbumGrid.tsx', 'PostAlbumGrid', {
     photos, onEdit() {}, onAdd() {}, onRemove() {}, onReorder: value => { reordered = value; },
   });
-  h.press('Reorder photos');
-  const row = h.byType('DraggableFlatList').props.renderItem({ item: photos[0], getIndex: () => 0, drag() {}, isActive: false });
-  nodes(row).find(node => node.props?.accessibilityLabel === 'Move photo 1 later').props.onPress();
+  h.byId('compose-photo-1').props.onAccessibilityAction({ nativeEvent: { actionName: 'moveLater' } });
   assert.deepEqual(Array.from(reordered, p => p.id), ['two', 'one', 'three']);
   assert.equal(reordered[1], photos[0]);
 });
 
-test('the grab handle starts dragging immediately and a drop preserves the chosen photo order', () => {
+test('album previews are directly draggable, the add tile stays fixed, and drops preserve photo identity', () => {
   const photos = [photo(), photo('two'), photo('three')];
-  let dragStarts = 0;
   let reordered;
   const h = component('src/components/compose/PostAlbumGrid.tsx', 'PostAlbumGrid', {
     photos, onEdit() {}, onAdd() {}, onRemove() {}, onReorder: value => { reordered = value; },
   });
-  h.press('Reorder photos');
-  const list = h.byType('DraggableFlatList');
-  const row = list.props.renderItem({ item: photos[0], getIndex: () => 0, drag: () => { dragStarts++; }, isActive: false });
-  nodes(row).find(node => node.props?.testID === 'drag-photo-one').props.onPressIn();
-  assert.equal(dragStarts, 1);
-  list.props.onDragEnd({ data: [photos[1], photos[2], photos[0]] });
+  const grid = h.byType('SortableGrid');
+  assert.equal(grid.props.sortEnabled, true);
+  assert.equal(grid.props.columns, 2);
+  assert.equal(grid.props.customHandle, true);
+  assert.ok(h.render().some(node => node.type === 'SortableHandle' && node.props.mode === 'fixed-order'));
+  grid.props.onDragEnd({ data: [photos[1], photos[2], photos[0], grid.props.data[3]], fromIndex: 0, toIndex: 2 });
   assert.deepEqual(Array.from(reordered, p => p.id), ['two', 'three', 'one']);
   assert.equal(reordered[2], photos[0]);
 });
