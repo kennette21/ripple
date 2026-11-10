@@ -38,22 +38,34 @@ export function PostAlbumGrid({ photos, disabled = false, onAdd, onEdit, onRemov
 
   const renderReorderPhoto = ({ item, getIndex, drag, isActive }: RenderItemParams<SelectedPostPhoto>) => {
     const index = getIndex() ?? 0;
+    const startDrag = () => {
+      if (disabled || isActive) return;
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      drag();
+    };
     return (
       <ScaleDecorator activeScale={1.03}>
         <View style={[styles.reorderRow, isActive && styles.activeRow]}>
           <Pressable
+            style={styles.dragHandle}
+            onPressIn={startDrag}
+            disabled={disabled}
+            accessible={false}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            testID={'drag-photo-' + item.id}
+          >
+            <Ionicons name="reorder-three-outline" size={22} color={colors.gray[400]} />
+          </Pressable>
+          <Pressable
             style={styles.dragPhoto}
-            onLongPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-              drag();
-            }}
+            onLongPress={startDrag}
             delayLongPress={180}
             disabled={disabled || isActive}
             accessibilityRole="button"
             accessibilityLabel={'Photo ' + (index + 1) + ' of ' + photos.length}
             accessibilityHint="Hold and drag to reorder, or use the move buttons."
           >
-            <Ionicons name="reorder-three-outline" size={22} color={colors.gray[400]} />
             <Image source={{ uri: item.uri }} style={styles.reorderImage} contentFit="contain" />
             <View style={styles.reorderLabel}>
               <Text style={styles.photoLabel}>{'Photo ' + (index + 1)}</Text>
@@ -221,6 +233,7 @@ const styles = StyleSheet.create({
   reorderHint: { fontSize: typography.fontSizes.xs, color: colors.gray[500], marginBottom: spacing.sm },
   reorderRow: { flexDirection: 'row', alignItems: 'center', height: 76, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.gray[100] },
   activeRow: { backgroundColor: colors.primary[50] },
+  dragHandle: { width: 44, height: 60, alignItems: 'center', justifyContent: 'center' },
   dragPhoto: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 60 },
   reorderImage: { width: 48, height: 48, borderRadius: borderRadius.md, backgroundColor: colors.gray[100] },
   reorderLabel: { flex: 1 },

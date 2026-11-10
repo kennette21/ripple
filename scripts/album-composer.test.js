@@ -77,6 +77,15 @@ function component(file, name, props = {}, overrides = {}) {
     },
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ bottom: 34 }) },
     'react-native-gesture-handler': { GestureHandlerRootView: 'GestureRoot' },
+    'react-native-reanimated': {
+      __esModule: true, default: { View: 'AnimatedView' },
+      Easing: { out: value => value, cubic: 'cubic' },
+      withTiming: value => value,
+      useAnimatedStyle: callback => callback(),
+      useSharedValue: initial => react.useRef({
+        value: initial, get() { return this.value; }, set(value) { this.value = value; },
+      }).current,
+    },
     'react-native-draggable-flatlist': { __esModule: true, default: 'DraggableFlatList', ScaleDecorator: 'ScaleDecorator' },
     'expo-haptics': { selectionAsync: noopAsync, impactAsync: noopAsync, ImpactFeedbackStyle: { Light: 'light' } },
     'expo-image': { Image: 'Image' },
@@ -201,6 +210,67 @@ test('move controls reorder whole photo objects without losing their original so
   nodes(row).find(node => node.props?.accessibilityLabel === 'Move photo 1 later').props.onPress();
   assert.deepEqual(Array.from(reordered, p => p.id), ['two', 'one', 'three']);
   assert.equal(reordered[1], photos[0]);
+});
+
+test('the grab handle starts dragging immediately and a drop preserves the chosen photo order', () => {
+  const photos = [photo(), photo('two'), photo('three')];
+  let dragStarts = 0;
+  let reordered;
+  const h = component('src/components/compose/PostAlbumGrid.tsx', 'PostAlbumGrid', {
+    photos, onEdit() {}, onAdd() {}, onRemove() {}, onReorder: value => { reordered = value; },
+  });
+  h.press('Reorder photos');
+  const list = h.byType('DraggableFlatList');
+  const row = list.props.renderItem({ item: photos[0], getIndex: () => 0, drag: () => { dragStarts++; }, isActive: false });
+  nodes(row).find(node => node.props?.testID === 'drag-photo-one').props.onPressIn();
+  assert.equal(dragStarts, 1);
+  list.props.onDragEnd({ data: [photos[1], photos[2], photos[0]] });
+  assert.deepEqual(Array.from(reordered, p => p.id), ['two', 'three', 'one']);
+  assert.equal(reordered[2], photos[0]);
+});
+
+test('dragging a crop corner keeps the selected source pixels through settling and saving', async () => {
+  const gestures = {};
+  const crops = [];
+  let saved;
+  const gesture = name => {
+    const handlers = {};
+    const chain = new Proxy({}, { get: (_, method) => value => {
+      handlers[method] = value;
+      return chain;
+    } });
+    gestures[name] = handlers;
+    return chain;
+  };
+  const h = component('src/components/compose/ImageCropScreen.tsx', 'default', {
+    imageUri: 'source.jpg', imageWidth: 1200, imageHeight: 800,
+    onCrop: (...args) => { saved = args; }, onCancel() {},
+  }, {
+    'react-native-gesture-handler': { GestureDetector: 'GestureDetector', Gesture: {
+      Pan: () => gesture('pan'), Pinch: () => gesture('pinch'), Simultaneous() {},
+    } },
+    'react-native-safe-area-context': {
+      useSafeAreaInsets: () => ({ top: 59, bottom: 34 }), initialWindowMetrics: null,
+    },
+    'expo-status-bar': { StatusBar: 'StatusBar' },
+    'expo-image-manipulator': { SaveFormat: { JPEG: 'jpeg' }, ImageManipulator: { manipulate: () => ({
+      crop: value => crops.push(value),
+      renderAsync: async () => ({ saveAsync: async () => ({ uri: 'cropped.jpg', width: 900, height: 600 }) }),
+    }) } },
+  });
+  h.render();
+  // 342 × 228 image, centered in a 390 × 594 crop stage. Select its
+  // top-left corner before the first movement leaves the handle's hit area.
+  gestures.pan.onBegin({ x: 24, y: 183 });
+  gestures.pan.onUpdate({ translationX: 85.5, translationY: 57 });
+  gestures.pan.onEnd();
+  await h.press('Apply crop');
+  await settle();
+  assert.ok(Math.abs(crops[0].originX - 300) <= 1);
+  assert.ok(Math.abs(crops[0].originY - 200) <= 1);
+  assert.ok(Math.abs(crops[0].width - 900) <= 1);
+  assert.ok(Math.abs(crops[0].height - 600) <= 1);
+  assert.deepEqual(saved, ['cropped.jpg', 900, 600]);
 });
 
 function editorHarness() {
