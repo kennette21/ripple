@@ -84,15 +84,17 @@ function component(file, name, props = {}, overrides = {}) {
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ bottom: 34 }) },
     'react-native-gesture-handler': { GestureHandlerRootView: 'GestureRoot' },
     'react-native-reanimated': {
-      __esModule: true, default: { View: 'AnimatedView', ScrollView: 'ScrollView' },
+      __esModule: true, default: { View: 'AnimatedView', ScrollView: 'ScrollView', createAnimatedComponent: type => type },
       useAnimatedRef: () => react.useRef(null),
       Easing: { out: value => value, cubic: 'cubic' },
-      withTiming: value => value,
+      withTiming: value => value, cancelAnimation() {},
+      useDerivedValue: callback => ({ get: callback }), useAnimatedProps: callback => callback(),
       useAnimatedStyle: callback => callback(),
       useSharedValue: initial => react.useRef({
         value: initial, get() { return this.value; }, set(value) { this.value = value; },
       }).current,
     },
+    'react-native-worklets': { scheduleOnUI: callback => callback(), scheduleOnRN: (callback, ...args) => callback(...args) },
     'react-native-draggable-flatlist': { __esModule: true, default: 'DraggableFlatList', ScaleDecorator: 'ScaleDecorator' },
     'react-native-sortables': { __esModule: true, default: { Grid: 'SortableGrid', Handle: 'SortableHandle', Touchable: 'SortableTouchable' } },
     'expo-haptics': { selectionAsync: noopAsync, impactAsync: noopAsync, ImpactFeedbackStyle: { Light: 'light' } },
@@ -111,8 +113,17 @@ function component(file, name, props = {}, overrides = {}) {
     '@/lib/postContent': load('src/lib/postContent.ts'),
     '@/lib/photoEditingGeometry': load('src/lib/photoEditingGeometry.ts'),
     '@/lib/photoEditorGeometry': load('src/lib/photoEditorGeometry.ts'),
+    '@/lib/photoEditorInteraction': load('src/lib/photoEditorInteraction.ts'),
     ...overrides,
   };
+  if (overrides['react-native-reanimated']?.useSharedValue) {
+    const createSharedValue = overrides['react-native-reanimated'].useSharedValue;
+    modules['react-native-reanimated'].useSharedValue = initial => {
+      const i = cursor++;
+      if (!(i in slots)) slots[i] = createSharedValue(initial);
+      return slots[i];
+    };
+  }
   const renderComponent = load(file, modules)[name];
   function render() {
     cursor = 0;
@@ -384,19 +395,19 @@ test('the single bottom Reset clears all adjustments to the source, and Undo rec
   assert.deepEqual(h.deleted, []);
 });
 
-test('a slider drag is one Undo step, canceled zooms revert, and zooming Fit enters Crop', () => {
+test('a completed slider gesture is one Undo step, canceled zooms do not change the draft, and zooming Fit enters Crop', () => {
   const h = editorHarness();
   let slider = h.byType('PhotoZoomControl');
   slider.props.onStart();
-  slider.props.onChange(1.25); slider.props.onChange(1.5); slider.props.onChange(2);
-  slider.props.onEnd(false);
+  slider.props.onEnd({ originX: 300, originY: 200, width: 600, height: 400 }, false);
   assert.equal(h.byType('PhotoEditingCanvas').props.mode, 'crop');
   assert.equal(h.byType('PhotoEditingCanvas').props.crop.width, 600);
   h.press('Undo photo adjustment');
   assert.equal(h.byType('PhotoEditingCanvas').props.mode, 'fit');
   assert.equal(h.byId('photo-editor-undo').props.disabled, true);
   slider = h.byType('PhotoZoomControl');
-  slider.props.onStart(); slider.props.onChange(2); slider.props.onEnd(true);
+  slider.props.onStart();
+  slider.props.onEnd({ originX: 0, originY: 0, width: 1200, height: 800 }, true);
   assert.equal(h.byType('PhotoEditingCanvas').props.mode, 'fit');
   assert.equal(h.byId('photo-editor-undo').props.disabled, true);
 });
@@ -417,38 +428,152 @@ test('saving cannot duplicate or dismiss the session, and failure retains the ed
   assert.equal(h.byId('photo-editor-rotate').props.disabled, false);
 });
 
-test('fast crop drags and pinches export the latest source pixels even with queued UI values', () => {
-  const reported = [];
-  const interactions = [];
-  const geometry = load('src/lib/photoEditorGeometry.ts');
-  const props = {
-    photo: photo(), rotation: 0, mode: 'crop', crop: { originX: 0, originY: 0, width: 1200, height: 800 },
-    width: 390, height: 594, disabled: false, onCommit: crop => reported.push(crop), onInteractionChange: active => interactions.push(active),
+function workletHarness() {
+  let onUI = false;
+  const queuedJS = [];
+  const animations = [];
+  const ui = callback => { const previous = onUI; onUI = true; try { return callback(); } finally { onUI = previous; } };
+  const shared = initial => {
+    let value = initial;
+    return { get() { assert.equal(onUI, true, 'continuous geometry must not synchronously read the UI thread from JS'); return value; },
+      set(next) { value = next; } };
   };
-  const h = component('src/components/compose/PhotoEditingCanvas.tsx', 'PhotoEditingCanvas', props, {
+  const geometry = load('src/lib/photoEditorGeometry.ts');
+  const crop = { originX: 0, originY: 0, width: 1200, height: 800 };
+  const view = geometry.photoCanvasLayout(crop, 390, 594);
+  const live = { position: shared({ crop, view, sourceWidth: 1200, sourceHeight: 800, stageWidth: 390, stageHeight: 594 }), view: shared(view), active: shared(0), revision: shared(0) };
+  const overrides = {
     'react-native-gesture-handler': {
       GestureDetector: 'GestureDetector', usePanGesture: config => config, usePinchGesture: config => config,
       useSimultaneousGestures: (pan, pinch) => ({ pan, pinch }),
     },
     'react-native-reanimated': {
-      __esModule: true, default: { View: 'AnimatedView' }, useAnimatedStyle: callback => callback(), withTiming: value => value,
-      useSharedValue: initial => ({ get: () => initial, set() {} }),
+      __esModule: true, default: { View: 'AnimatedView', createAnimatedComponent: type => type },
+      useAnimatedStyle: callback => ui(callback), useAnimatedProps: callback => ui(callback),
+      useDerivedValue: callback => ({ get: () => ui(callback) }), useSharedValue: shared,
+      withTiming: value => { animations.push(value); return value; }, cancelAnimation() {},
     },
-  });
+    'react-native-worklets': {
+      scheduleOnUI: callback => ui(callback), scheduleOnRN: (callback, ...args) => queuedJS.push(() => callback(...args)),
+    },
+  };
+  return { geometry, live, crop, view, overrides, ui, queuedJS, animations, flush() { while (queuedJS.length) queuedJS.shift()(); } };
+}
+
+test('fast crop drags and pinches export the latest source pixels while JS is stalled', () => {
+  const w = workletHarness();
+  const reported = [], interactions = [];
+  const props = { photo: photo(), rotation: 0, mode: 'crop', crop: w.crop, live: w.live, width: 390, height: 594, disabled: false,
+    onCommit: crop => reported.push(crop), onInteractionChange: active => interactions.push(active) };
+  const h = component('src/components/compose/PhotoEditingCanvas.tsx', 'PhotoEditingCanvas', props, w.overrides);
   let gesture = h.byType('GestureDetector').props.gesture;
-  const frame = geometry.photoCanvasLayout(props.crop, props.width, props.height);
-  gesture.pan.onBegin({ x: frame.frameLeft, y: frame.frameTop, absoluteX: 100, absoluteY: 100 });
-  gesture.pan.onDeactivate({ absoluteX: 100 + 300 * frame.scale, absoluteY: 100 + 200 * frame.scale, canceled: false });
-  gesture.pan.onFinalize({ canceled: false });
+  assert.equal(gesture.pan.runOnJS, false);
+  const frame = w.view;
+  w.ui(() => {
+    gesture.pan.onBegin({ x: frame.frameLeft, y: frame.frameTop, absoluteX: 100, absoluteY: 100 });
+    gesture.pan.onDeactivate({ absoluteX: 100 + 300 * frame.scale, absoluteY: 100 + 200 * frame.scale, canceled: false });
+    gesture.pan.onFinalize({ canceled: false });
+  });
+  assert.equal(reported.length, 0);
+  assert.equal(w.queuedJS.length, 2);
+  w.flush();
   assert.deepEqual(Object.fromEntries(Object.entries(reported[0]).map(([key, value]) => [key, Math.round(value)])), { originX: 300, originY: 200, width: 900, height: 600 });
   h.props.crop = reported[0];
   gesture = h.byType('GestureDetector').props.gesture;
-  const selectedFrame = geometry.photoCanvasLayout(h.props.crop, props.width, props.height);
-  gesture.pinch.onActivate({ focalX: selectedFrame.frameLeft + selectedFrame.frameWidth / 2, focalY: selectedFrame.frameTop + selectedFrame.frameHeight / 2 });
-  gesture.pinch.onDeactivate({ scale: 2, canceled: false });
-  gesture.pinch.onFinalize({ canceled: false });
+  const selected = w.geometry.photoCanvasLayout(h.props.crop, props.width, props.height);
+  const animationCount = w.animations.length;
+  w.ui(() => {
+    gesture.pinch.onActivate({ focalX: selected.frameLeft + selected.frameWidth / 2, focalY: selected.frameTop + selected.frameHeight / 2 });
+    for (let i = 1; i <= 300; i++) gesture.pinch.onUpdate({ scale: 1 + i / 300 });
+  });
+  assert.equal(w.queuedJS.length, 1, '300 pinch frames must not call React');
+  assert.equal(w.animations.length, animationCount, 'pinch frames must not restart animations');
+  assert.equal(reported.length, 1);
+  assert.equal(Math.round(w.ui(() => w.live.position.get().crop.width)), 450);
+  // A delayed React commit cannot replace a newer live gesture. The bitmap's
+  // layout also stays fixed: only its compositor transform changes with zoom.
+  h.props.crop = w.crop;
+  const image = h.byId('photo-editor-image-transform');
+  assert.equal(style(image.props.style).width, w.view.frameWidth);
+  assert.equal(style(image.props.style).height, w.view.frameHeight);
+  assert.deepEqual(Object.keys(image.props.style.at(-1)), ['transform']);
+  assert.equal(Math.round(w.ui(() => w.live.position.get().crop.width)), 450);
+  w.ui(() => { gesture.pinch.onDeactivate({ scale: 2, canceled: false }); gesture.pinch.onFinalize({ canceled: false }); });
+  w.flush();
   assert.deepEqual(Object.fromEntries(Object.entries(reported[1]).map(([key, value]) => [key, Math.round(value)])), { originX: 525, originY: 350, width: 450, height: 300 });
   assert.deepEqual(interactions, [true, false, true, false]);
+});
+
+test('canceling a later gesture cannot restore stale React crop data while JS is blocked', () => {
+  const w = workletHarness(); const reported = [];
+  const h = component('src/components/compose/PhotoEditingCanvas.tsx', 'PhotoEditingCanvas', {
+    photo: photo(), rotation: 0, mode: 'crop', crop: w.crop, live: w.live, width: 390, height: 594, disabled: false,
+    onCommit: crop => reported.push(crop), onInteractionChange() {},
+  }, w.overrides);
+  const gesture = h.byType('GestureDetector').props.gesture;
+  w.ui(() => {
+    gesture.pinch.onActivate({ focalX: 195, focalY: 297 });
+    gesture.pinch.onUpdate({ scale: 2 });
+    gesture.pinch.onFinalize({ canceled: false });
+    gesture.pan.onBegin({ x: 195, y: 297, absoluteX: 195, absoluteY: 297 });
+    gesture.pan.onUpdate({ absoluteX: 235, absoluteY: 307 });
+    gesture.pan.onFinalize({ canceled: true });
+  });
+  assert.equal(reported.length, 0);
+  assert.equal(w.ui(() => w.live.position.get().crop.width), 600);
+  w.flush();
+  assert.equal(reported.length, 1);
+  assert.equal(reported[0].width, 600);
+});
+
+test('a delayed commit cannot overwrite a second completed gesture while JS catches up', () => {
+  const w = workletHarness(), reported = [];
+  const h = component('src/components/compose/PhotoEditingCanvas.tsx', 'PhotoEditingCanvas', {
+    photo: photo(), rotation: 0, mode: 'crop', crop: w.crop, live: w.live, width: 390, height: 594, disabled: false,
+    onCommit: (crop, revision) => reported.push({ crop, revision }), onInteractionChange() {},
+  }, w.overrides);
+  const gesture = h.byType('GestureDetector').props.gesture;
+  w.ui(() => {
+    for (const scale of [2, 1.5]) {
+      gesture.pinch.onActivate({ focalX: 195, focalY: 297 });
+      gesture.pinch.onUpdate({ scale });
+      gesture.pinch.onFinalize({ canceled: false });
+    }
+  });
+  w.queuedJS.shift()(); w.queuedJS.shift()();
+  assert.equal(reported[0].crop.width, 600);
+  h.props.crop = reported[0].crop; h.props.revision = reported[0].revision;
+  h.render();
+  assert.equal(w.ui(() => w.live.position.get().crop.width), 400, 'the older React render must not overwrite the newer UI result');
+  w.flush();
+  assert.equal(reported[1].crop.width, 400);
+});
+
+test('300 slider frames move the image and native zoom label without JS commits or trailing animations', () => {
+  const w = workletHarness();
+  const committed = [];
+  let starts = 0;
+  const h = component('src/components/compose/PhotoZoomControl.tsx', 'PhotoZoomControl', {
+    value: 1, maximum: 8, disabled: false, live: w.live, onStart: () => { starts++; }, onEnd: (...args) => committed.push(args), onStep() {},
+  }, w.overrides);
+  h.byId('photo-editor-zoom').props.onLayout({ nativeEvent: { layout: { width: 200 } } });
+  const gesture = h.byType('GestureDetector').props.gesture;
+  assert.equal(gesture.runOnJS, false);
+  w.ui(() => {
+    gesture.onBegin({ x: 0 });
+    for (let i = 1; i <= 300; i++) gesture.onUpdate({ x: i / 3 });
+  });
+  assert.equal(starts, 0, 'the JS queue is intentionally stalled');
+  assert.equal(w.queuedJS.length, 1);
+  assert.equal(committed.length, 0);
+  assert.equal(w.animations.length, 0);
+  assert.ok(Math.abs(w.ui(() => w.live.position.get().crop.width) - 1200 / 4.5) < 1e-6);
+  assert.ok(h.render().some(node => node.props?.animatedProps?.text === '450%'));
+  w.ui(() => { gesture.onDeactivate({ x: 100, canceled: false }); gesture.onFinalize({ canceled: false }); });
+  w.flush();
+  assert.equal(starts, 1);
+  assert.equal(committed.length, 1);
+  assert.equal(committed[0][1], false);
 });
 
 test('rotation and a positioned crop are rendered once, with original metadata and native handle cleanup', async () => {

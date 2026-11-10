@@ -1,15 +1,17 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import React, { useLayoutEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { GestureDetector, usePanGesture, usePinchGesture, useSimultaneousGestures } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
 import { colors } from '@/constants/theme';
 import { rotatedPhotoSize, type PhotoCrop, type PhotoRotation } from '@/lib/photoEditingGeometry';
 import {
   clamp, frameOnImage, imageBehindFrame, MAX_PHOTO_ZOOM, panPhotoCrop, photoCanvasLayout,
-  photoCropZoom, resizePhotoCrop, zoomPhotoCrop, type CropCorner, type PhotoCanvasLayout, type PhotoFraming,
+  photoCropZoom, resizePhotoCrop, zoomPhotoCrop, type CropCorner, type PhotoFraming,
 } from '@/lib/photoEditorGeometry';
 import type { SelectedPostPhoto } from '@/types/postPhoto';
+import { displayPhotoPosition, type PhotoEditorInteraction } from '@/lib/photoEditorInteraction';
 
 interface Props {
   photo: SelectedPostPhoto;
@@ -19,71 +21,93 @@ interface Props {
   width: number;
   height: number;
   disabled: boolean;
-  onCommit: (crop: PhotoCrop) => void;
+  live: PhotoEditorInteraction;
+  revision?: number;
+  onCommit: (crop: PhotoCrop, revision: number) => void;
   onInteractionChange: (active: boolean) => void;
 }
-interface Position { crop: PhotoCrop; view: PhotoCanvasLayout }
 
-// The selected source pixels are canonical. Animated values only display them;
-// exporting a fast gesture never depends on a queued UI-thread read.
-export function PhotoEditingCanvas({ photo, rotation, crop, mode, width, height, disabled, onCommit, onInteractionChange }: Props) {
+// Keep continuous gesture math and image transforms on the UI thread. Only the
+// final selected source pixels cross to React, as one undoable adjustment.
+export function PhotoEditingCanvas({ photo, rotation, crop, mode, width, height, disabled, live, revision, onCommit, onInteractionChange }: Props) {
   const source = rotatedPhotoSize(photo.width, photo.height, rotation);
-  const initialView = photoCanvasLayout(crop, width, height);
-  const initialPosition = { crop, view: initialView };
-  const current = useRef<Position>(initialPosition);
-  const animated = useSharedValue(initialView);
-  const previousAsset = useRef(`${photo.uri}:${rotation}`);
   const { originX, originY, width: cropWidth, height: cropHeight } = crop;
-  const panStart = useRef({ position: initialPosition, absoluteX: 0, absoluteY: 0, corner: null as CropCorner | null });
-  const pinchStart = useRef({ position: initialPosition, focalX: .5, focalY: .5 });
-  const active = useRef(new Set<string>());
+  const { position, view: animated, active, revision: liveRevision } = live;
+  const panStart = useSharedValue({ crop, view: photoCanvasLayout(crop, width, height), absoluteX: 0, absoluteY: 0, corner: null as CropCorner | null });
+  const pinchStart = useSharedValue({ crop, view: photoCanvasLayout(crop, width, height), focalX: .5, focalY: .5 });
+  const sourceWidth = source.width;
+  const sourceHeight = source.height;
+  const baseScale = photoCanvasLayout({ originX: 0, originY: 0, width: sourceWidth, height: sourceHeight }, width, height).scale;
+  const imageWidth = sourceWidth * baseScale;
+  const imageHeight = sourceHeight * baseScale;
 
   useLayoutEffect(() => {
-    const bounds = { originX, originY, width: cropWidth, height: cropHeight };
-    const view = photoCanvasLayout(bounds, width, height);
-    const asset = `${photo.uri}:${rotation}`;
-    current.current = { crop: bounds, view };
-    animated.set(previousAsset.current === asset ? withTiming(view, { duration: 180 }) : view);
-    previousAsset.current = asset;
-  }, [originX, originY, cropWidth, cropHeight, width, height, photo.uri, rotation, animated]);
+    scheduleOnUI(() => {
+      'worklet';
+      // A delayed JS commit must not overwrite a subsequent live gesture.
+      if (active.get() || (revision !== undefined && revision < liveRevision.get())) return;
+      const displayed = position.get();
+      if (revision !== undefined && revision === liveRevision.get()
+        && displayed.stageWidth === width && displayed.stageHeight === height
+        && displayed.sourceWidth === sourceWidth && displayed.sourceHeight === sourceHeight) return;
+      if (revision === undefined) liveRevision.set(liveRevision.get() + 1);
+      const bounds = { originX, originY, width: cropWidth, height: cropHeight };
+      const next = photoCanvasLayout(bounds, width, height);
+      position.set({ crop: bounds, view: next, sourceWidth, sourceHeight, stageWidth: width, stageHeight: height });
+      cancelAnimation(animated);
+      animated.set(next);
+    });
+  }, [originX, originY, cropWidth, cropHeight, width, height, sourceWidth, sourceHeight, position, animated, active, revision, liveRevision]);
 
-  const display = (bounds: PhotoCrop, view: PhotoCanvasLayout) => {
-    current.current = { crop: bounds, view };
+  const finish = (bounds: PhotoCrop, canceled: boolean, version: number) => {
+    if (!canceled) onCommit(bounds, version);
+    onInteractionChange(false);
+  };
+  const begin = (flag: number) => {
+    'worklet';
+    if (!active.get()) scheduleOnRN(onInteractionChange, true);
+    active.set(active.get() | flag);
+    const view = animated.get();
+    cancelAnimation(animated);
+    position.set({ ...position.get(), view });
     animated.set(view);
   };
-  const begin = (name: string) => {
-    active.current.add(name);
-    // Interrupt a settle at its canonical destination before a new gesture.
-    animated.set(current.current.view);
-    onInteractionChange(true);
-  };
-  const end = (name: string, canceled: boolean) => {
-    if (!active.current.delete(name)) return;
-    if (active.current.size === 0) {
-      const bounds = canceled ? crop : current.current.crop;
-      const view = photoCanvasLayout(bounds, width, height);
-      current.current = { crop: bounds, view };
-      animated.set(withTiming(view, { duration: 180 }));
-      if (!canceled) onCommit(bounds);
-      onInteractionChange(false);
+  const end = (flag: number, canceled: boolean, settle = false) => {
+    'worklet';
+    if (!(active.get() & flag)) return;
+    active.set(active.get() & ~flag);
+    if (!active.get()) {
+      const bounds = canceled ? (flag === 1 ? panStart.get().crop : pinchStart.get().crop) : position.get().crop;
+      const next = photoCanvasLayout(bounds, width, height);
+      position.set({ ...position.get(), crop: bounds, view: next });
+      // Only resized crop corners settle. Zoom and pan follow the finger
+      // directly, including their final frame and the explicit +/- buttons.
+      animated.set(settle && !canceled ? withTiming(next, { duration: 180 }) : next);
+      const version = liveRevision.get() + 1;
+      liveRevision.set(version);
+      scheduleOnRN(finish, bounds, canceled, version);
     }
   };
   const move = (absoluteX: number, absoluteY: number) => {
-    const start = panStart.current;
+    'worklet';
+    const start = panStart.get();
     const dx = absoluteX - start.absoluteX;
     const dy = absoluteY - start.absoluteY;
     if (start.corner) {
-      const bounds = resizePhotoCrop(start.position.crop, start.corner, dx, dy, start.position.view, source.width, source.height, width, height);
-      display(bounds, frameOnImage(bounds, start.position.view));
+      const bounds = resizePhotoCrop(start.crop, start.corner, dx, dy, start.view, sourceWidth, sourceHeight, width, height);
+      displayPhotoPosition(live, bounds, frameOnImage(bounds, start.view));
     } else {
-      const bounds = panPhotoCrop(start.position.crop, dx, dy, start.position.view.scale, source.width, source.height);
-      display(bounds, imageBehindFrame(bounds, start.position.view));
+      const bounds = panPhotoCrop(start.crop, dx, dy, start.view.scale, sourceWidth, sourceHeight);
+      displayPhotoPosition(live, bounds, imageBehindFrame(bounds, start.view));
     }
   };
   const pan = usePanGesture({
-    enabled: !disabled, runOnJS: true, maxPointers: 1,
+    enabled: !disabled, runOnJS: false, maxPointers: 1,
     onBegin: event => {
-      const view = current.current.view;
+      'worklet';
+      begin(1);
+      const current = position.get();
+      const view = current.view;
       const nearLeft = Math.abs(event.x - view.frameLeft) <= 28;
       const nearRight = Math.abs(event.x - view.frameLeft - view.frameWidth) <= 28;
       const nearTop = Math.abs(event.y - view.frameTop) <= 28;
@@ -95,46 +119,46 @@ export function PhotoEditingCanvas({ photo, rotation, crop, mode, width, height,
         else if (nearLeft && nearBottom) corner = 'sw';
         else if (nearRight && nearBottom) corner = 'se';
       }
-      panStart.current = { position: current.current, absoluteX: event.absoluteX, absoluteY: event.absoluteY, corner };
-      begin('pan');
+      panStart.set({ crop: current.crop, view, absoluteX: event.absoluteX, absoluteY: event.absoluteY, corner });
     },
-    onUpdate: event => move(event.absoluteX, event.absoluteY),
-    onDeactivate: event => { if (!event.canceled) move(event.absoluteX, event.absoluteY); },
-    onFinalize: event => end('pan', event.canceled),
+    onUpdate: event => { 'worklet'; move(event.absoluteX, event.absoluteY); },
+    onDeactivate: event => { 'worklet'; if (!event.canceled) move(event.absoluteX, event.absoluteY); },
+    onFinalize: event => { 'worklet'; end(1, event.canceled, panStart.get().corner !== null); },
   });
   const pinchMove = (scale: number) => {
-    const start = pinchStart.current;
-    const startZoom = photoCropZoom(start.position.crop, source.width, source.height);
+    'worklet';
+    const start = pinchStart.get();
+    const startZoom = photoCropZoom(start.crop, sourceWidth, sourceHeight);
     const zoom = clamp(startZoom * scale, 1, Math.max(MAX_PHOTO_ZOOM, startZoom));
-    const bounds = zoomPhotoCrop(start.position.crop, source.width, source.height, zoom, start.focalX, start.focalY);
-    display(bounds, imageBehindFrame(bounds, start.position.view));
+    const bounds = zoomPhotoCrop(start.crop, sourceWidth, sourceHeight, zoom, start.focalX, start.focalY);
+    displayPhotoPosition(live, bounds, imageBehindFrame(bounds, start.view));
   };
   const pinch = usePinchGesture({
-    enabled: !disabled, runOnJS: true,
+    enabled: !disabled, runOnJS: false,
     onActivate: event => {
-      const view = current.current.view;
-      pinchStart.current = {
-        position: current.current,
+      'worklet';
+      begin(2);
+      const current = position.get();
+      const view = current.view;
+      pinchStart.set({ crop: current.crop, view,
         focalX: clamp((event.focalX - view.frameLeft) / view.frameWidth, 0, 1),
-        focalY: clamp((event.focalY - view.frameTop) / view.frameHeight, 0, 1),
-      };
-      begin('pinch');
+        focalY: clamp((event.focalY - view.frameTop) / view.frameHeight, 0, 1) });
     },
-    onUpdate: event => pinchMove(event.scale),
-    onDeactivate: event => { if (!event.canceled) pinchMove(event.scale); },
-    onFinalize: event => end('pinch', event.canceled),
+    onUpdate: event => { 'worklet'; pinchMove(event.scale); },
+    onDeactivate: event => { 'worklet'; if (!event.canceled) pinchMove(event.scale); },
+    onFinalize: event => { 'worklet'; end(2, event.canceled); },
   });
   const gesture = useSimultaneousGestures(pan, pinch);
 
   const imageStyle = useAnimatedStyle(() => {
     const view = animated.get();
-    return { left: view.imageLeft, top: view.imageTop, width: source.width * view.scale, height: source.height * view.scale };
-  });
-  const rotatedStyle = useAnimatedStyle(() => {
-    const scale = animated.get().scale;
-    return { width: photo.width * scale, height: photo.height * scale,
-      left: (source.width - photo.width) * scale / 2, top: (source.height - photo.height) * scale / 2,
-      transform: [{ rotate: `${rotation}deg` }] };
+    // Keep the bitmap view's layout fixed. Zoom is a compositor transform,
+    // rather than resizing and laying out a large image on every frame.
+    return { transform: [
+      { translateX: view.imageLeft + sourceWidth * view.scale / 2 - width / 2 },
+      { translateY: view.imageTop + sourceHeight * view.scale / 2 - height / 2 },
+      { scale: view.scale / baseScale },
+    ] };
   });
   const frameStyle = useAnimatedStyle(() => {
     const view = animated.get();
@@ -149,10 +173,14 @@ export function PhotoEditingCanvas({ photo, rotation, crop, mode, width, height,
     <GestureDetector gesture={gesture}>
       <Animated.View style={[styles.stage, { width, height }]} accessible accessibilityRole="image"
         accessibilityLabel="Photo editing area" accessibilityHint={mode === 'crop' ? 'Drag the corners to crop. Pinch to zoom and drag the photo to reposition.' : 'Pinch to zoom and drag the photo to reposition. Select Crop to resize the edges.'} testID="photo-editor-canvas">
-        <Animated.View style={[styles.image, imageStyle]}>
-          <Animated.View style={[styles.image, rotatedStyle]}>
-            <Image source={{ uri: photo.uri }} style={StyleSheet.absoluteFill} contentFit="fill" />
-          </Animated.View>
+        <Animated.View style={[styles.image, { left: (width - imageWidth) / 2, top: (height - imageHeight) / 2, width: imageWidth, height: imageHeight }, imageStyle]} testID="photo-editor-image-transform">
+          <View style={[styles.image, {
+            width: photo.width * baseScale, height: photo.height * baseScale,
+            left: (sourceWidth - photo.width) * baseScale / 2, top: (sourceHeight - photo.height) * baseScale / 2,
+            transform: [{ rotate: `${rotation}deg` }],
+          }]}>
+            <Image source={{ uri: photo.uri }} style={StyleSheet.absoluteFill} contentFit="fill" allowDownscaling={false} />
+          </View>
         </Animated.View>
         <Animated.View pointerEvents="none" style={[styles.mask, styles.top, topMask]} />
         <Animated.View pointerEvents="none" style={[styles.mask, styles.bottom, bottomMask]} />

@@ -1,17 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { File } from 'expo-file-system';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { PhotoEditingCanvas } from './PhotoEditingCanvas';
 import { PhotoZoomControl } from './PhotoZoomControl';
 import { transformPostPhoto } from '@/lib/postPhotoEditing';
-import { pixelPhotoCrop, rotatePhotoCrop, rotatedPhotoSize, type PhotoCrop, type PhotoRotation } from '@/lib/photoEditingGeometry';
-import { clamp, fullPhotoCrop, MAX_PHOTO_ZOOM, photoCropZoom, samePhotoCrop, squarePhotoCrop, zoomPhotoCrop, type PhotoFraming } from '@/lib/photoEditorGeometry';
+import { rotatePhotoCrop, rotatedPhotoSize, type PhotoCrop, type PhotoRotation } from '@/lib/photoEditingGeometry';
+import { clamp, fullPhotoCrop, MAX_PHOTO_ZOOM, photoCanvasLayout, photoCropZoom, samePhotoCrop, squarePhotoCrop, zoomPhotoCrop, type PhotoFraming } from '@/lib/photoEditorGeometry';
 import { getErrorMessage } from '@/lib/errors';
 import { colors, spacing, typography, borderRadius } from '@/constants/theme';
 import type { SelectedPostPhoto } from '@/types/postPhoto';
+import type { LivePhotoPosition, PhotoEditorInteraction } from '@/lib/photoEditorInteraction';
 
 interface Props {
   photo: SelectedPostPhoto;
@@ -24,6 +26,7 @@ interface Composition {
   rotation: PhotoRotation;
   mode: PhotoFraming;
   crop?: PhotoCrop;
+  revision?: number;
 }
 interface Session { current: Composition; history: Composition[] }
 const boundsOf = (value: Composition) => value.crop ?? fullPhotoCrop(value.photo.width, value.photo.height, value.rotation);
@@ -47,6 +50,12 @@ export function PostPhotoEditor({ photo, startWithCrop = false, onApply, onClose
   const bounds = boundsOf(current);
   const zoom = photoCropZoom(bounds, source.width, source.height);
   const maximumZoom = Math.max(MAX_PHOTO_ZOOM, zoom);
+  const livePosition = useSharedValue<LivePhotoPosition>({ crop: bounds, view: photoCanvasLayout(bounds, stage.width, stage.height),
+    sourceWidth: source.width, sourceHeight: source.height, stageWidth: stage.width, stageHeight: stage.height });
+  const liveView = useSharedValue(photoCanvasLayout(bounds, stage.width, stage.height));
+  const liveActive = useSharedValue(0);
+  const liveRevision = useSharedValue(0);
+  const live: PhotoEditorInteraction = { position: livePosition, view: liveView, active: liveActive, revision: liveRevision };
   const disabled = saving || canvasInteracting || zooming;
   const original: Composition = {
     photo: { ...photo, uri: photo.sourceUri, width: photo.sourceWidth, height: photo.sourceHeight, isCropped: false },
@@ -64,10 +73,10 @@ export function PostPhotoEditor({ photo, startWithCrop = false, onApply, onClose
   }, []);
 
   const replace = (next: Session) => { latest.current = next; setSession(next); };
-  const change = (next: Composition, record = true) => {
+  const change = (next: Composition, revision?: number) => {
     if (savingRef.current || equivalent(latest.current.current, next)) return;
     const previous = latest.current;
-    replace({ current: next, history: record ? [...previous.history.slice(-39), previous.current] : previous.history });
+    replace({ current: { ...next, revision }, history: [...previous.history.slice(-39), previous.current] });
     setError(null);
   };
   const close = () => { if (!savingRef.current) onClose(); };
@@ -83,44 +92,32 @@ export function PostPhotoEditor({ photo, startWithCrop = false, onApply, onClose
     change({ ...value, rotation: ((value.rotation + 90) % 360) as PhotoRotation,
       crop: value.crop ? rotatePhotoCrop(value.crop, size.height) : undefined });
   };
-  const commitCrop = (crop: PhotoCrop) => {
+  const commitCrop = (crop: PhotoCrop, revision?: number) => {
     const value = latest.current.current;
-    const size = rotatedPhotoSize(value.photo.width, value.photo.height, value.rotation);
-    const next = pixelPhotoCrop(crop, size.width, size.height);
-    if (samePhotoCrop(boundsOf(value), next)) return;
-    change({ ...value, crop: next, mode: value.mode === 'fit' ? 'crop' : value.mode });
+    // Keep preview precision across gestures; the final encoder rounds the
+    // bounds to source pixels once, when Done is pressed.
+    if (samePhotoCrop(boundsOf(value), crop)) return;
+    change({ ...value, crop, mode: value.mode === 'fit' ? 'crop' : value.mode }, revision);
   };
-  const zoomTo = (requested: number) => {
-    const value = latest.current.current;
-    const size = rotatedPhotoSize(value.photo.width, value.photo.height, value.rotation);
-    const crop = boundsOf(value);
-    const nextZoom = clamp(requested, 1, Math.max(MAX_PHOTO_ZOOM, photoCropZoom(crop, size.width, size.height)));
-    const nextCrop = zoomPhotoCrop(crop, size.width, size.height, nextZoom);
-    change({ ...value, crop: nextCrop, mode: value.mode === 'fit' ? 'crop' : value.mode }, false);
-  };
-  const finishZoom = (canceled: boolean) => {
-    const start = zoomStart.current;
+  const finishZoom = (crop: PhotoCrop, canceled: boolean, revision?: number) => {
     zoomStart.current = null;
-    if (start) {
-      const previous = latest.current;
-      if (canceled) replace({ ...previous, current: start });
-      else if (!equivalent(start, previous.current)) replace({ current: previous.current, history: [...previous.history.slice(-39), start] });
-    }
+    if (!canceled) commitCrop(crop, revision);
     setZooming(false);
   };
   const stepZoom = (direction: number) => {
     if (disabled || zoomStart.current) return;
     const value = latest.current.current;
     const size = rotatedPhotoSize(value.photo.width, value.photo.height, value.rotation);
-    zoomStart.current = value;
-    zoomTo(photoCropZoom(boundsOf(value), size.width, size.height) * (direction > 0 ? 1.25 : .8));
-    finishZoom(false);
+    const crop = boundsOf(value);
+    const zoom = photoCropZoom(crop, size.width, size.height);
+    const requested = clamp(zoom * (direction > 0 ? 1.25 : .8), 1, Math.max(MAX_PHOTO_ZOOM, zoom));
+    change({ ...value, crop: zoomPhotoCrop(crop, size.width, size.height, requested), mode: value.mode === 'fit' ? 'crop' : value.mode });
   };
   const undo = () => {
     if (disabled) return;
     const value = latest.current;
     const previous = value.history.at(-1);
-    if (previous) { replace({ current: previous, history: value.history.slice(0, -1) }); setError(null); }
+    if (previous) { replace({ current: { ...previous, revision: undefined }, history: value.history.slice(0, -1) }); setError(null); }
   };
   const apply = async () => {
     if (savingRef.current || canvasInteracting || zoomStart.current) return;
@@ -161,8 +158,8 @@ export function PostPhotoEditor({ photo, startWithCrop = false, onApply, onClose
             const layout = event.nativeEvent.layout;
             if (layout.width > 0 && layout.height > 0 && (layout.width !== stage.width || layout.height !== stage.height)) setStage({ width: layout.width, height: layout.height });
           }}>
-            <PhotoEditingCanvas photo={current.photo} rotation={current.rotation} crop={bounds} mode={current.mode}
-              width={stage.width} height={stage.height} disabled={saving || zooming} onCommit={commitCrop} onInteractionChange={setCanvasInteracting} />
+            <PhotoEditingCanvas photo={current.photo} rotation={current.rotation} crop={bounds} mode={current.mode} revision={current.revision}
+              width={stage.width} height={stage.height} live={live} disabled={saving || zooming} onCommit={commitCrop} onInteractionChange={setCanvasInteracting} />
           </View>
           <Text style={styles.hint}>{current.mode === 'crop' ? 'Drag corners · pinch and move photo' : 'Pinch to zoom · drag to position'}</Text>
           <View style={styles.controls}>
@@ -174,8 +171,8 @@ export function PostPhotoEditor({ photo, startWithCrop = false, onApply, onClose
                 </Pressable>
               ))}
             </View>
-            <PhotoZoomControl value={zoom} maximum={maximumZoom} disabled={saving || canvasInteracting}
-              onStart={() => { zoomStart.current = latest.current.current; setZooming(true); }} onChange={zoomTo} onEnd={finishZoom} onStep={stepZoom} />
+            <PhotoZoomControl value={zoom} maximum={maximumZoom} live={live} disabled={saving || canvasInteracting}
+              onStart={() => { zoomStart.current = latest.current.current; setZooming(true); }} onEnd={finishZoom} onStep={stepZoom} />
             {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
             <Pressable style={styles.reset} onPress={() => { if (!disabled) change(original); }} disabled={disabled || equivalent(current, original)} accessibilityRole="button" accessibilityLabel="Reset adjustments" accessibilityHint="Restores the original photo and clears cropping, rotation, and positioning." testID="photo-editor-reset">
               <Text style={[styles.resetText, (disabled || equivalent(current, original)) && styles.muted]}>Reset adjustments</Text>
