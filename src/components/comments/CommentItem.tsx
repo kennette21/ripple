@@ -17,9 +17,9 @@ import { Avatar } from '@/components/ui/Avatar';
 import { borderRadius, colors, shadows, spacing } from '@/constants/theme';
 import { useCommentReplies, type CommentWithAuthor } from '@/hooks/comments/useComments';
 
-const DELETE_MENU_MAX_WIDTH = 220;
-const DELETE_MENU_HEIGHT = 54;
-const DELETE_MENU_GAP = 8;
+const COMMENT_MENU_MAX_WIDTH = 220;
+const COMMENT_MENU_ROW_HEIGHT = 54;
+const COMMENT_MENU_GAP = 8;
 const SCREEN_MARGIN = 16;
 const DEFAULT_VISIBLE_REPLY_COUNT = 2;
 
@@ -62,12 +62,13 @@ export function CommentItem({
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const commentBodyRef = useRef<ViewInstance>(null);
   const [showAllReplies, setShowAllReplies] = useState(false);
-  const [deleteMenuPosition, setDeleteMenuPosition] = useState<MenuPosition | null>(null);
+  const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null);
 
   // created_at is nullable in the schema but always set by the DB default
   const timeAgo = formatDistanceToNow(new Date(comment.created_at!), { addSuffix: true });
   const commentAuthorId = (comment).author_id;
   const isOwnComment = commentAuthorId === currentUserId;
+  const hasOwnActions = isOwnComment && !!(onEdit || onDelete);
   const previewReplies = comment.replies ?? [];
   const containsRevealedReply = previewReplies.some(
     (reply) => reply.id === revealedCommentId || reply.id === focusedCommentId
@@ -119,28 +120,34 @@ export function CommentItem({
     }
   };
 
-  const handleLongPress = () => {
-    if (!isOwnComment || !onDelete) return;
+  const showCommentActions = () => {
+    if (!hasOwnActions) return;
 
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
-    commentBodyRef.current?.measureInWindow((_x, y, _width, height) => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    commentBodyRef.current?.measureInWindow((x, y, width, height) => {
       const menuWidth = Math.min(
-        DELETE_MENU_MAX_WIDTH,
+        COMMENT_MENU_MAX_WIDTH,
         windowWidth - SCREEN_MARGIN * 2
       );
-      const preferredTop = y + height + DELETE_MENU_GAP;
-      const latestVisibleTop = windowHeight - DELETE_MENU_HEIGHT - SCREEN_MARGIN;
+      const menuHeight = COMMENT_MENU_ROW_HEIGHT * (Number(!!onEdit) + Number(!!onDelete));
+      const preferredTop = y + height + COMMENT_MENU_GAP;
+      const latestVisibleTop = windowHeight - menuHeight - SCREEN_MARGIN;
 
-      setDeleteMenuPosition({
-        top: Math.min(preferredTop, latestVisibleTop),
-        left: (windowWidth - menuWidth) / 2,
+      setMenuPosition({
+        top: Math.max(SCREEN_MARGIN, Math.min(preferredTop, latestVisibleTop)),
+        left: Math.max(SCREEN_MARGIN, Math.min(x + width - menuWidth, windowWidth - menuWidth - SCREEN_MARGIN)),
         width: menuWidth,
       });
     });
   };
 
+  const handleEditPress = () => {
+    setMenuPosition(null);
+    onEdit?.(comment);
+  };
+
   const handleDeletePress = () => {
-    setDeleteMenuPosition(null);
+    setMenuPosition(null);
     void Haptics.notificationAsync(
       Haptics.NotificationFeedbackType.Warning
     ).catch(() => {});
@@ -158,7 +165,7 @@ export function CommentItem({
       {isReferenceConversation && (
         <View style={styles.referenceThreadRail} pointerEvents="none" />
       )}
-      <Pressable onPress={handleProfilePress}>
+      <Pressable onPress={handleProfilePress} accessibilityRole="button" accessibilityLabel={`View ${comment.author.display_name || comment.author.username}'s profile`}>
         <Avatar
           uri={comment.author.avatar_url}
           name={comment.author.display_name || comment.author.username}
@@ -169,8 +176,9 @@ export function CommentItem({
       <View style={styles.content}>
         <View ref={commentBodyRef} collapsable={false}>
           <Pressable
-            onLongPress={handleLongPress}
+            onLongPress={showCommentActions}
             delayLongPress={450}
+            accessible={false}
             accessibilityHint={isFocused
               ? 'Referenced from the notification'
               : isOwnComment
@@ -180,11 +188,11 @@ export function CommentItem({
             style={({ pressed }) => [
               styles.commentBody,
               pressed && isOwnComment && styles.commentBodyPressed,
-              deleteMenuPosition && styles.commentBodySelected,
+              menuPosition && styles.commentBodySelected,
             ]}
           >
             <View style={styles.header}>
-              <Pressable onPress={handleProfilePress}>
+              <Pressable onPress={handleProfilePress} accessibilityRole="button" accessibilityLabel={`View ${comment.author.display_name || comment.author.username}'s profile`}>
                 <Text style={styles.username}>
                   {comment.author.display_name || comment.author.username}
                 </Text>
@@ -201,31 +209,32 @@ export function CommentItem({
               {comment.content}
             </Text>
 
-            {(onReply || (isOwnComment && onEdit)) && (
+            {((currentUserId && onReply) || hasOwnActions) && (
               <View style={styles.actions}>
-                {onReply && (
+                {currentUserId && onReply && (
                   <Pressable
                     style={styles.actionButton}
                     onPress={() => onReply(comment)}
                     testID={`comment-reply-${comment.id}`}
                     accessibilityRole="button"
                     accessibilityLabel={`Reply to ${comment.author.display_name || comment.author.username}`}
-                    hitSlop={8}
+                    hitSlop={6}
                   >
-                    <Ionicons name="chatbubble-outline" size={14} color={colors.gray[500]} />
                     <Text style={styles.actionText}>Reply</Text>
                   </Pressable>
                 )}
-                {isOwnComment && onEdit && (
+                {hasOwnActions && (
                   <Pressable
-                    style={styles.actionButton}
-                    onPress={() => onEdit(comment)}
-                    testID={`comment-edit-${comment.id}`}
+                    style={styles.moreActionsButton}
+                    onPress={showCommentActions}
+                    testID={`comment-actions-${comment.id}`}
                     accessibilityRole="button"
-                    accessibilityLabel="Edit comment"
-                    hitSlop={8}
+                    accessibilityLabel="Comment actions"
+                    accessibilityHint="Edit or delete your comment."
+                    accessibilityState={{ expanded: menuPosition !== null }}
+                    hitSlop={6}
                   >
-                    <Text style={styles.actionText}>Edit</Text>
+                    <Ionicons name="ellipsis-horizontal" size={18} color={colors.gray[500]} />
                   </Pressable>
                 )}
               </View>
@@ -288,34 +297,49 @@ export function CommentItem({
       </View>
 
       <Modal
-        visible={deleteMenuPosition !== null}
+        visible={menuPosition !== null}
         transparent
         animationType="fade"
         statusBarTranslucent
-        onRequestClose={() => setDeleteMenuPosition(null)}
+        onRequestClose={() => setMenuPosition(null)}
       >
         <View style={styles.menuLayer} accessibilityViewIsModal>
           <Pressable
             style={[StyleSheet.absoluteFill, styles.menuBackdrop]}
-            onPress={() => setDeleteMenuPosition(null)}
+            onPress={() => setMenuPosition(null)}
             accessibilityRole="button"
             accessibilityLabel="Dismiss comment actions"
           />
-          {deleteMenuPosition && (
-            <View style={[styles.deleteMenuShadow, deleteMenuPosition]}>
+          {menuPosition && (
+            <View style={[styles.deleteMenuShadow, menuPosition]}>
               <BlurView intensity={65} tint="light" style={styles.deleteMenu}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.deleteMenuAction,
-                    pressed && styles.deleteMenuActionPressed,
-                  ]}
-                  onPress={handleDeletePress}
-                  accessibilityRole="button"
-                  accessibilityLabel="Delete comment"
-                >
-                  <Ionicons name="trash-outline" size={22} color={colors.error.main} />
-                  <Text style={styles.deleteMenuText}>Delete</Text>
-                </Pressable>
+                {onEdit && (
+                  <Pressable
+                    style={({ pressed }) => [styles.deleteMenuAction, pressed && styles.menuEditPressed]}
+                    onPress={handleEditPress}
+                    testID={`comment-edit-${comment.id}`}
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit comment"
+                  >
+                    <Ionicons name="create-outline" size={22} color={colors.gray[900]} />
+                    <Text style={styles.menuEditText}>Edit</Text>
+                  </Pressable>
+                )}
+                {onEdit && onDelete && <View style={styles.menuDivider} />}
+                {onDelete && (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.deleteMenuAction,
+                      pressed && styles.deleteMenuActionPressed,
+                    ]}
+                    onPress={handleDeletePress}
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete comment"
+                  >
+                    <Ionicons name="trash-outline" size={22} color={colors.error.main} />
+                    <Text style={styles.deleteMenuText}>Delete</Text>
+                  </Pressable>
+                )}
               </BlurView>
             </View>
           )}
@@ -363,6 +387,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: spacing.sm,
   },
@@ -393,12 +418,21 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    padding: 4,
+    minHeight: 32,
+    minWidth: 44,
+    paddingHorizontal: spacing.xs,
+    marginLeft: -spacing.xs,
+  },
+  moreActionsButton: {
+    minHeight: 32,
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actionText: {
     fontSize: 12,
-    color: colors.gray[500],
+    fontWeight: '500',
+    color: colors.gray[600],
   },
   repliesSection: {
     marginTop: spacing.xs,
@@ -421,7 +455,7 @@ const styles = StyleSheet.create({
     ...shadows.lg,
   },
   deleteMenu: {
-    minHeight: DELETE_MENU_HEIGHT,
+    minHeight: COMMENT_MENU_ROW_HEIGHT,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.8)',
@@ -429,7 +463,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.72)',
   },
   deleteMenuAction: {
-    minHeight: DELETE_MENU_HEIGHT,
+    minHeight: COMMENT_MENU_ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -438,6 +472,18 @@ const styles = StyleSheet.create({
   },
   deleteMenuActionPressed: {
     backgroundColor: 'rgba(254, 226, 226, 0.84)',
+  },
+  menuEditPressed: {
+    backgroundColor: colors.gray[100],
+  },
+  menuEditText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.gray[900],
+  },
+  menuDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.gray[200],
   },
   deleteMenuText: {
     fontSize: 16,
