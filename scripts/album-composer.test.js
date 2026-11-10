@@ -11,6 +11,9 @@ function load(file, modules = {}) {
   }).outputText;
   const exports = {};
   vm.runInNewContext(source, { exports, require: (name) => {
+    if (!Object.hasOwn(modules, name) && name.startsWith('./')) {
+      return load(path.join(path.dirname(file), name + '.ts'), modules);
+    }
     assert.ok(Object.hasOwn(modules, name), 'Unexpected dependency: ' + name);
     return modules[name];
   } });
@@ -106,6 +109,7 @@ function component(file, name, props = {}, overrides = {}) {
     '@/components/compose/PostPhotoEditor': { PostPhotoEditor: 'PostPhotoEditor' },
     '@/lib/errors': load('src/lib/errors.ts'),
     '@/lib/postContent': load('src/lib/postContent.ts'),
+    '@/lib/photoEditingGeometry': load('src/lib/photoEditingGeometry.ts'),
     ...overrides,
   };
   const renderComponent = load(file, modules)[name];
@@ -235,38 +239,34 @@ test('album previews are directly draggable, the add tile stays fixed, and drops
 test('dragging a crop corner keeps the selected source pixels through settling and saving', async () => {
   const gestures = {};
   const crops = [];
+  const rotations = [];
   let saved;
-  const gesture = name => {
-    const handlers = {};
-    const chain = new Proxy({}, { get: (_, method) => value => {
-      handlers[method] = value;
-      return chain;
-    } });
-    gestures[name] = handlers;
-    return chain;
-  };
   const h = component('src/components/compose/ImageCropScreen.tsx', 'default', {
     imageUri: 'source.jpg', imageWidth: 1200, imageHeight: 800,
     onCrop: (...args) => { saved = args; }, onCancel() {},
   }, {
-    'react-native-gesture-handler': { GestureDetector: 'GestureDetector', Gesture: {
-      Pan: () => gesture('pan'), Pinch: () => gesture('pinch'), Simultaneous() {},
-    } },
+    'react-native-gesture-handler': { GestureDetector: 'GestureDetector',
+      usePanGesture: handlers => { gestures.pan = handlers; return handlers; },
+      usePinchGesture: handlers => { gestures.pinch = handlers; return handlers; },
+      useSimultaneousGestures() {},
+    },
     'react-native-safe-area-context': {
       useSafeAreaInsets: () => ({ top: 59, bottom: 34 }), initialWindowMetrics: null,
     },
     'expo-status-bar': { StatusBar: 'StatusBar' },
     'expo-image-manipulator': { SaveFormat: { JPEG: 'jpeg' }, ImageManipulator: { manipulate: () => ({
+      rotate: angle => rotations.push(angle),
       crop: value => crops.push(value),
-      renderAsync: async () => ({ saveAsync: async () => ({ uri: 'cropped.jpg', width: 900, height: 600 }) }),
+      renderAsync: async () => ({ saveAsync: async () => ({ uri: 'cropped.jpg', width: 900, height: 600 }), release() {} }),
+      release() {},
     }) } },
   });
   h.render();
   // 342 × 228 image, centered in a 390 × 594 crop stage. Select its
   // top-left corner before the first movement leaves the handle's hit area.
-  gestures.pan.onBegin({ x: 24, y: 183 });
-  gestures.pan.onUpdate({ translationX: 85.5, translationY: 57 });
-  gestures.pan.onEnd();
+  gestures.pan.onBegin({ x: 24, y: 183, absoluteX: 24, absoluteY: 183 });
+  gestures.pan.onUpdate({ absoluteX: 109.5, absoluteY: 240 });
+  gestures.pan.onDeactivate({ absoluteX: 109.5, absoluteY: 240, canceled: false });
   await h.press('Apply crop');
   await settle();
   assert.ok(Math.abs(crops[0].originX - 300) <= 1);
@@ -274,32 +274,47 @@ test('dragging a crop corner keeps the selected source pixels through settling a
   assert.ok(Math.abs(crops[0].width - 900) <= 1);
   assert.ok(Math.abs(crops[0].height - 600) <= 1);
   assert.deepEqual(saved, ['cropped.jpg', 900, 600]);
+  h.press('Rotate crop 90 degrees clockwise');
+  h.press('Apply crop');
+  await settle();
+  assert.deepEqual(rotations, [90]);
+  assert.deepEqual(JSON.parse(JSON.stringify(crops[1])), { originX: 0, originY: 300, width: 600, height: 900 });
+  for (let i = 0; i < 3; i++) h.press('Rotate crop 90 degrees clockwise');
+  h.press('Apply crop');
+  await settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(crops[2])), JSON.parse(JSON.stringify(crops[0])));
 });
 
 function editorHarness() {
   const applied = [];
   const deleted = [];
+  const transforms = [];
   const h = component('src/components/compose/PostPhotoEditor.tsx', 'PostPhotoEditor', {
     photo: photo(), onApply: p => applied.push(p), onClose() {},
   }, {
     './ImageCropScreen': { __esModule: true, default: 'ImageCropScreen' },
-    '@/lib/postPhotoEditing': { fillPostPhotoFrame: async p => ({ ...p, uri: 'square.jpg', width: 800, height: 800, isCropped: true }) },
+    './PhotoFramePreview': { PhotoFramePreview: 'PhotoFramePreview' },
+    '@/lib/postPhotoEditing': { transformPostPhoto: async (p, options) => {
+      transforms.push(options);
+      if (!options.rotation && !options.crop) return p;
+      return { ...p, uri: 'transformed.jpg', width: options.crop?.width ?? p.height, height: options.crop?.height ?? p.width, isCropped: true };
+    } },
     'expo-file-system': { File: class {
       constructor(uri) { this.uri = uri; this.exists = true; }
       delete() { deleted.push(this.uri); }
     } },
   });
-  return Object.assign(h, { applied, deleted });
+  return Object.assign(h, { applied, deleted, transforms });
 }
 
 test('custom cropping returns to framing, and Done retains the cropped image and original source', async () => {
   const h = editorHarness();
-  h.press('Crop photo');
+  h.byType('PhotoFramePreview').props.onCrop();
   const crop = h.byType('ImageCropScreen');
   assert.equal(crop.props.imageUri, 'one.jpg');
   crop.props.onCrop('custom.jpg', 600, 400);
-  assert.equal(h.byType('Image').props.source.uri, 'custom.jpg');
-  assert.equal(h.byType('Image').props.contentFit, 'contain');
+  assert.equal(h.byType('PhotoFramePreview').props.photo.uri, 'custom.jpg');
+  assert.equal(h.byType('PhotoFramePreview').props.fillFrame, false);
   h.press('Done');
   await settle();
   assert.equal(h.applied[0].uri, 'custom.jpg');
@@ -310,7 +325,7 @@ test('custom cropping returns to framing, and Done retains the cropped image and
 
 test('cancelled photo edits discard generated files and never delete the original', () => {
   const h = editorHarness();
-  h.press('Crop photo');
+  h.byType('PhotoFramePreview').props.onCrop();
   h.byType('ImageCropScreen').props.onCrop('discarded-crop.jpg', 300, 300);
   h.press('Close photo editor');
   h.unmount();
@@ -320,14 +335,120 @@ test('cancelled photo edits discard generated files and never delete the origina
 
 test('device Back exits cropping without closing the editor, and waits while a crop is processing', () => {
   const h = editorHarness();
-  h.press('Crop photo');
+  h.byType('PhotoFramePreview').props.onCrop();
   h.byType('ImageCropScreen').props.onProcessingChange(true);
   h.byType('Modal').props.onRequestClose();
   assert.ok(h.byType('ImageCropScreen'));
   h.byType('ImageCropScreen').props.onProcessingChange(false);
   h.byType('Modal').props.onRequestClose();
-  assert.equal(h.byType('Image').props.source.uri, 'one.jpg');
+  assert.equal(h.byType('PhotoFramePreview').props.photo.uri, 'one.jpg');
   assert.deepEqual(h.applied, []);
+});
+
+test('quarter turns remain reversible and positioned framing is passed to saving and cropping', async () => {
+  const h = editorHarness();
+  for (let i = 0; i < 4; i++) h.press('Rotate photo 90 degrees clockwise');
+  assert.equal(h.byType('PhotoFramePreview').props.rotation, 0);
+  assert.deepEqual(h.transforms, []);
+  h.press('Fill frame. Crop to a square');
+  h.byType('PhotoFramePreview').props.onCropChange({ originX: 100, originY: 50, width: 600, height: 600 });
+  h.press('Rotate photo 90 degrees clockwise');
+  let preview = h.byType('PhotoFramePreview');
+  assert.equal(preview.props.rotation, 90);
+  assert.deepEqual(JSON.parse(JSON.stringify(preview.props.initialCrop)), { originX: 150, originY: 100, width: 600, height: 600 });
+  preview.props.onCrop();
+  const crop = h.byType('ImageCropScreen');
+  assert.equal(crop.props.initialRotation, 90);
+  assert.equal(crop.props.initialCrop.originX, 150);
+  crop.props.onCancel();
+  h.press('Done');
+  await settle();
+  assert.equal(h.transforms[0].rotation, 90);
+  assert.equal(h.transforms[0].crop.originX, 150);
+  assert.equal(h.applied[0].sourceUri, 'one.jpg');
+});
+
+test('Reset restores the full original after cropping and rotating without applying anything', () => {
+  const h = editorHarness();
+  h.byType('PhotoFramePreview').props.onCrop();
+  h.byType('ImageCropScreen').props.onCrop('temporary.jpg', 400, 500);
+  h.press('Rotate photo 90 degrees clockwise');
+  h.press('Reset photo edits');
+  const preview = h.byType('PhotoFramePreview').props;
+  assert.equal(preview.photo.uri, 'one.jpg');
+  assert.equal(preview.photo.width, 1200);
+  assert.equal(preview.rotation, 0);
+  assert.equal(preview.fillFrame, false);
+  assert.deepEqual(h.applied, []);
+  h.unmount();
+  assert.deepEqual(h.deleted, ['temporary.jpg']);
+});
+
+test('positioning and zoom export the latest coordinates even before animated values reach the UI thread', () => {
+  const reported = [];
+  const interactions = [];
+  const h = component('src/components/compose/PhotoFramePreview.tsx', 'PhotoFramePreview', {
+    photo: photo(), size: 300, rotation: 0, fillFrame: true, disabled: false,
+    onCropChange: crop => reported.push(crop), onCrop() {}, onInteractionChange: active => interactions.push(active),
+  }, {
+    'react-native-gesture-handler': {
+      GestureDetector: 'GestureDetector', usePanGesture: config => config, usePinchGesture: config => config,
+      useSimultaneousGestures: (pan, pinch) => ({ pan, pinch }),
+    },
+    'react-native-reanimated': {
+      __esModule: true, default: { View: 'AnimatedView' }, useAnimatedStyle: callback => callback(),
+      // JS setters are queued to the UI thread. A synchronous read still sees
+      // the previous value, so the saved composition must not depend on it.
+      useSharedValue: initial => ({ get: () => initial, set() {} }),
+    },
+  });
+  const pan = h.byType('GestureDetector').props.gesture.pan;
+  pan.onBegin({ absoluteX: 100, absoluteY: 100 });
+  // A fast drag can activate and finish without a separate update event.
+  pan.onDeactivate({ absoluteX: 300, absoluteY: 100, canceled: false });
+  pan.onFinalize();
+  assert.equal(reported[0].originX, 0);
+  assert.equal(reported[0].width, 800);
+  assert.deepEqual(interactions, [true, false]);
+  h.press('Zoom photo in');
+  assert.equal(reported[1].width, 640);
+  assert.equal(reported[1].originX, 80);
+  assert.ok(h.render().some(node => node.props?.accessibilityLabel === 'Photo zoom 125 percent'));
+  h.press('Center photo in frame');
+  assert.equal(reported[2].originX, 200);
+  assert.equal(reported[2].width, 800);
+});
+
+test('rotation and a positioned crop are rendered once, with original metadata and native handle cleanup', async () => {
+  const operations = [];
+  let renders = 0;
+  let releases = 0;
+  const { transformPostPhoto } = load('src/lib/postPhotoEditing.ts', {
+    'expo-image-manipulator': { SaveFormat: { JPEG: 'jpeg' }, ImageManipulator: { manipulate: uri => {
+      operations.push(['source', uri]);
+      return {
+        rotate: angle => operations.push(['rotate', angle]),
+        crop: crop => operations.push(['crop', crop]),
+        renderAsync: async () => {
+          renders++;
+          return { saveAsync: async () => ({ uri: 'rotated-crop.jpg', width: 600, height: 600 }), release: () => { releases++; } };
+        },
+        release: () => { releases++; },
+      };
+    } } },
+  });
+  const original = photo();
+  assert.equal(await transformPostPhoto(original), original);
+  assert.equal(renders, 0);
+  const result = await transformPostPhoto(original, { rotation: 90, crop: { originX: 150, originY: 100, width: 600, height: 600 } });
+  assert.equal(renders, 1);
+  assert.equal(releases, 2);
+  assert.equal(result.uri, 'rotated-crop.jpg');
+  assert.equal(result.sourceUri, original.uri);
+  assert.equal(result.id, original.id);
+  assert.deepEqual(JSON.parse(JSON.stringify(operations)), [
+    ['source', 'one.jpg'], ['rotate', 90], ['crop', { originX: 150, originY: 100, width: 600, height: 600 }],
+  ]);
 });
 
 test('Fill frame saves a centered square and releases native resources even on failure', async () => {
