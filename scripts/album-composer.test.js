@@ -164,7 +164,7 @@ test('both writing modes grow without internal scrolling and leave photos after 
 function composeHarness() {
   const writes = [];
   const assets = [photo('one'), photo('two'), photo('three')].map(p => ({ ...p, assetId: p.id }));
-  const h = component('app/(main)/(compose)/index.tsx', 'default', {}, {
+  const h = component('src/components/compose/PostComposer.tsx', 'PostComposer', { saving: false, onClose() {}, onSubmit: async value => writes.push(value) }, {
     'expo-router': { router: { back() {}, navigate() {} } },
     'expo-image-picker': { launchImageLibraryAsync: async () => ({ canceled: false, assets }) },
     '@providers/AuthProvider': { useAuth: () => ({ user: { id: 'viewer' }, profile: { display_name: 'Billy', username: 'billy' } }) },
@@ -189,10 +189,10 @@ test('album reordering, cropping, and removal preserve photo identity and the up
   editor.props.onApply({ ...editor.props.photo, uri: 'custom-crop.jpg', width: 600, height: 400, isCropped: true });
   h.byType('PostAlbumGrid').props.onRemove(originals[0]);
   await h.press('Post');
-  assert.deepEqual(Array.from(h.writes[0].input.images, p => p.sourceUri), ['three.jpg', 'two.jpg']);
-  assert.equal(h.writes[0].input.images[0].uri, 'custom-crop.jpg');
-  assert.equal(h.writes[0].input.images[0].width, 600);
-  assert.equal(h.writes[0].input.caption, '');
+  assert.deepEqual(Array.from(h.writes[0].images, p => p.sourceUri), ['three.jpg', 'two.jpg']);
+  assert.equal(h.writes[0].images[0].uri, 'custom-crop.jpg');
+  assert.equal(h.writes[0].images[0].width, 600);
+  assert.equal(h.writes[0].body, '');
 });
 
 test('grid tiles have a real height, expose the crop shortcut, and stop adding at ten photos', () => {
@@ -480,4 +480,121 @@ test('Fill frame saves a centered square and releases native resources even on f
   const square = photo('square', 800, 800);
   assert.equal(await fillPostPhotoFrame(square), square);
   assert.equal(crops.length, 2);
+});
+
+test('editing shares the composer, stages photo changes, and keeps its baseline across refetches', async () => {
+  const writes = [];
+  const alerts = [];
+  const original = photo('published');
+  const initialDraft = { contentType: 'caption', body: 'Original caption', reflectionTitle: '', isPrivate: false, images: [original] };
+  const h = component('src/components/compose/PostComposer.tsx', 'PostComposer', {
+    editing: true, initialDraft, saving: false, onClose() {}, onSubmit: async draft => writes.push(draft),
+  }, {
+    '@providers/AuthProvider': { useAuth: () => ({ profile: {} }) },
+    'expo-image-picker': { launchImageLibraryAsync: async () => ({ canceled: true }) },
+    '@/lib/postImageUpload': { clearPostImagePreparation() {}, preparePostImage: async value => value },
+    'react-native': {
+      View: 'View', Text: 'Text', TextInput: 'TextInput', TouchableOpacity: 'TouchableOpacity', Pressable: 'Pressable', KeyboardAvoidingView: 'KeyboardAvoidingView',
+      StyleSheet: { create: value => value }, Platform: { OS: 'ios' }, Keyboard: { dismiss() {} }, Alert: { alert: (...args) => alerts.push(args) },
+    },
+  });
+  assert.equal(h.byType('Button').props.title, 'Save');
+  assert.equal(h.byType('Button').props.disabled, true);
+  assert.equal(h.byId('post-body-input').props.scrollEnabled, false);
+  assert.equal(h.byId('post-body-input').props.autoFocus, false);
+  await h.byType('PostAlbumGrid').props.onEdit(original, true);
+  const editor = h.byType('PostPhotoEditor');
+  assert.equal(editor.props.startWithCrop, true);
+  editor.props.onApply({ ...original, uri: 'edited.jpg', isCropped: true });
+  h.byId('post-body-input').props.onChangeText('My draft');
+  h.props.initialDraft = { ...initialDraft, body: 'Background refetch', images: [] };
+  assert.equal(h.byId('post-body-input').props.value, 'My draft');
+  assert.equal(h.byType('PostAlbumGrid').props.photos[0].uri, 'edited.jpg');
+  assert.equal(writes.length, 0);
+  h.press('Cancel editing post');
+  assert.equal(alerts.at(-1)[0], 'Discard changes?');
+  assert.equal(writes.length, 0);
+  await h.press('Save');
+  assert.equal(writes[0].images[0].uri, 'edited.jpg');
+  assert.equal(writes[0].body, 'My draft');
+});
+
+test('failed saves retain the full edit draft and a second save cannot run while pending', async () => {
+  let reject;
+  let calls = 0;
+  const h = component('src/components/compose/PostComposer.tsx', 'PostComposer', {
+    editing: true, initialDraft: { contentType: 'caption', body: '', reflectionTitle: '', isPrivate: false, images: [photo()] },
+    saving: false, onClose() {}, onSubmit: () => { calls++; return new Promise((_, fail) => { reject = fail; }); },
+  }, {
+    '@providers/AuthProvider': { useAuth: () => ({ profile: {} }) },
+    'expo-image-picker': {},
+    '@/lib/postImageUpload': { clearPostImagePreparation() {}, preparePostImage: async value => value },
+  });
+  h.byId('post-body-input').props.onChangeText('Unsaved caption');
+  const saving = h.press('Save');
+  await h.press('Save');
+  assert.equal(calls, 1);
+  reject(new Error('Offline'));
+  await saving;
+  assert.equal(h.byId('post-body-input').props.value, 'Unsaved caption');
+  assert.equal(h.byType('PostAlbumGrid').props.photos[0].uri, 'one.jpg');
+});
+
+test('older published photos resolve actual dimensions before opening crop controls', async () => {
+  const legacy = { ...photo('legacy', 0, 0), uri: 'https://example.test/legacy.jpg' };
+  const h = component('src/components/compose/PostComposer.tsx', 'PostComposer', {
+    editing: true, initialDraft: { contentType: 'caption', body: '', reflectionTitle: '', isPrivate: false, images: [legacy] },
+    saving: false, onClose() {}, onSubmit: async () => {},
+  }, {
+    '@providers/AuthProvider': { useAuth: () => ({ profile: {} }) },
+    'expo-image-picker': {},
+    '@/lib/postImageUpload': { clearPostImagePreparation() {}, preparePostImage: async value => value },
+    'react-native': {
+      View: 'View', Text: 'Text', TextInput: 'TextInput', TouchableOpacity: 'TouchableOpacity', Pressable: 'Pressable', KeyboardAvoidingView: 'KeyboardAvoidingView',
+      StyleSheet: { create: value => value }, Platform: { OS: 'ios' }, Keyboard: { dismiss() {} }, Alert: { alert() {} },
+      Image: { getSize: async () => ({ width: 1600, height: 900 }) },
+    },
+  });
+  h.byType('PostAlbumGrid').props.onEdit(legacy, true);
+  await settle();
+  assert.equal(h.byType('PostPhotoEditor').props.photo.sourceWidth, 1600);
+  assert.equal(h.byType('PostPhotoEditor').props.photo.sourceHeight, 900);
+  assert.equal(h.byType('Button').props.disabled, true, 'resolving metadata alone is not an edit');
+});
+
+test('create and edit routes both render the shared composer and map its complete draft into their mutations', async () => {
+  const creates = [];
+  const edits = [];
+  const composerStub = { PostComposer: 'PostComposer' };
+  const create = component('app/(main)/(compose)/index.tsx', 'default', {}, {
+    'expo-router': { router: { back() {}, navigate() {} } },
+    '@providers/AuthProvider': { useAuth: () => ({ user: { id: 'viewer' } }) },
+    '@/hooks/posts/useCreatePost': { useCreatePost: () => ({ isPending: false, mutateAsync: async value => creates.push(value) }) },
+    '@/components/compose/PostComposer': composerStub,
+  });
+  const draft = { contentType: 'reflection', body: 'Reflection body', reflectionTitle: 'Title', images: [photo()], isPrivate: true };
+  await create.byType('PostComposer').props.onSubmit(draft);
+  assert.equal(creates[0].input.caption, 'Title');
+  assert.equal(creates[0].input.reflection, 'Reflection body');
+  assert.equal(creates[0].input.isPrivate, true);
+  const original = { id: 'post', author_id: 'viewer', content_type: 'both', caption: 'Old title', reflection: 'Old body', is_private: false,
+    images: [{ id: 'one', storage_path: 'one.jpg', width: null, height: null, position: 0 }] };
+  const edit = component('app/edit-post.tsx', 'LoadedEditPost', { post: original, userId: 'viewer' }, {
+    'expo-router': { useRouter: () => ({ back() {} }) },
+    '@/providers/AuthProvider': {},
+    '@/hooks/posts': { useUpdatePost: () => ({ isPending: false, mutateAsync: async value => edits.push(value) }) },
+    '@/components/compose/PostComposer': composerStub,
+    '@/lib/supabase/storage': { BUCKETS: { POST_IMAGES: 'post-images' }, getPublicUrl: (_, path) => 'https://example.test/' + path },
+  });
+  const shared = edit.byType('PostComposer');
+  assert.equal(shared.props.editing, true);
+  assert.equal(shared.props.initialDraft.body, 'Old body');
+  assert.equal(shared.props.initialDraft.images[0].width, 0);
+  edit.props.post = { ...original, caption: 'Refetched', images: [] };
+  await edit.byType('PostComposer').props.onSubmit(draft);
+  assert.equal(edits[0].originalImages, original.images);
+  assert.equal(edits[0].contentType, 'both');
+  assert.equal(edits[0].reflection, 'Reflection body');
+  assert.equal(edits[0].images, draft.images);
+  assert.equal(edits[0].isPrivate, true);
 });

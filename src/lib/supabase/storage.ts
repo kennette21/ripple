@@ -16,7 +16,8 @@ export async function uploadImage(
   bucket: string,
   path: string,
   uri: string,
-  contentType: string = 'image/jpeg'
+  contentType: string = 'image/jpeg',
+  upsert: boolean = true
 ): Promise<{ path: string | null; error: Error | null }> {
   try {
     const arrayBuffer = await uriToArrayBuffer(uri);
@@ -25,7 +26,7 @@ export async function uploadImage(
       .from(bucket)
       .upload(path, arrayBuffer, {
         contentType,
-        upsert: true,
+        upsert,
       });
 
     if (error) {

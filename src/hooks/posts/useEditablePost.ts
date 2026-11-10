@@ -5,7 +5,7 @@ import type { Post, PostImage } from '@/types/database';
 
 export type EditablePostImage = Pick<
   PostImage,
-  'id' | 'storage_path' | 'blurhash' | 'position'
+  'id' | 'storage_path' | 'blurhash' | 'position' | 'width' | 'height'
 >;
 
 export type EditablePost = Pick<
@@ -15,6 +15,7 @@ export type EditablePost = Pick<
   | 'caption'
   | 'reflection'
   | 'content_type'
+  | 'is_private'
 > & {
   images: EditablePostImage[];
 };
@@ -31,11 +32,14 @@ async function fetchEditablePost(
       caption,
       reflection,
       content_type,
+      is_private,
       images:post_images (
         id,
         storage_path,
         blurhash,
-        position
+        position,
+        width,
+        height
       )
     `)
     .eq('id', postId)
