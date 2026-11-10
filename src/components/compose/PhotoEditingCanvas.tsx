@@ -164,10 +164,28 @@ export function PhotoEditingCanvas({ photo, rotation, crop, mode, width, height,
     const view = animated.get();
     return { left: view.frameLeft, top: view.frameTop, width: view.frameWidth, height: view.frameHeight };
   });
-  const topMask = useAnimatedStyle(() => ({ height: animated.get().frameTop }));
-  const bottomMask = useAnimatedStyle(() => ({ top: animated.get().frameTop + animated.get().frameHeight }));
-  const leftMask = useAnimatedStyle(() => ({ top: animated.get().frameTop, width: animated.get().frameLeft, height: animated.get().frameHeight }));
-  const rightMask = useAnimatedStyle(() => ({ top: animated.get().frameTop, left: animated.get().frameLeft + animated.get().frameWidth, height: animated.get().frameHeight }));
+  // Shade only discarded image pixels. Empty canvas space must stay white so
+  // it cannot be mistaken for a border that will appear in the posted photo.
+  const topMask = useAnimatedStyle(() => {
+    const view = animated.get();
+    return { left: view.imageLeft, top: view.imageTop, width: sourceWidth * view.scale,
+      height: Math.max(0, view.frameTop - view.imageTop) };
+  });
+  const bottomMask = useAnimatedStyle(() => {
+    const view = animated.get();
+    const top = view.frameTop + view.frameHeight;
+    return { left: view.imageLeft, top, width: sourceWidth * view.scale,
+      height: Math.max(0, view.imageTop + sourceHeight * view.scale - top) };
+  });
+  const leftMask = useAnimatedStyle(() => {
+    const view = animated.get();
+    return { left: view.imageLeft, top: view.frameTop, width: Math.max(0, view.frameLeft - view.imageLeft), height: view.frameHeight };
+  });
+  const rightMask = useAnimatedStyle(() => {
+    const view = animated.get();
+    const left = view.frameLeft + view.frameWidth;
+    return { left, top: view.frameTop, width: Math.max(0, view.imageLeft + sourceWidth * view.scale - left), height: view.frameHeight };
+  });
 
   return (
     <GestureDetector gesture={gesture}>
@@ -182,10 +200,12 @@ export function PhotoEditingCanvas({ photo, rotation, crop, mode, width, height,
             <Image source={{ uri: photo.uri }} style={StyleSheet.absoluteFill} contentFit="fill" allowDownscaling={false} />
           </View>
         </Animated.View>
-        <Animated.View pointerEvents="none" style={[styles.mask, styles.top, topMask]} />
-        <Animated.View pointerEvents="none" style={[styles.mask, styles.bottom, bottomMask]} />
-        <Animated.View pointerEvents="none" style={[styles.mask, styles.left, leftMask]} />
-        <Animated.View pointerEvents="none" style={[styles.mask, styles.right, rightMask]} />
+        {mode !== 'fit' && <>
+          <Animated.View pointerEvents="none" style={[styles.mask, mode === 'fill' && styles.hiddenPixels, topMask]} />
+          <Animated.View pointerEvents="none" style={[styles.mask, mode === 'fill' && styles.hiddenPixels, bottomMask]} />
+          <Animated.View pointerEvents="none" style={[styles.mask, mode === 'fill' && styles.hiddenPixels, leftMask]} />
+          <Animated.View pointerEvents="none" style={[styles.mask, mode === 'fill' && styles.hiddenPixels, rightMask]} />
+        </>}
         {mode !== 'fit' && (
           <Animated.View pointerEvents="none" style={[styles.frame, frameStyle]}>
             <View style={[styles.vertical, { left: '33.333%' }]} /><View style={[styles.vertical, { left: '66.667%' }]} />
@@ -202,11 +222,10 @@ export function PhotoEditingCanvas({ photo, rotation, crop, mode, width, height,
 }
 
 const styles = StyleSheet.create({
-  stage: { overflow: 'hidden', backgroundColor: colors.gray[100] },
+  stage: { overflow: 'hidden', backgroundColor: colors.white },
   image: { position: 'absolute' },
   mask: { position: 'absolute', backgroundColor: 'rgba(17,24,39,0.4)' },
-  top: { top: 0, left: 0, right: 0 }, bottom: { bottom: 0, left: 0, right: 0 },
-  left: { left: 0 }, right: { right: 0 },
+  hiddenPixels: { backgroundColor: colors.white },
   frame: { position: 'absolute', borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' },
   vertical: { position: 'absolute', top: 0, bottom: 0, width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.45)' },
   horizontal: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.45)' },
