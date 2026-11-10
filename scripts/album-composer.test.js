@@ -97,7 +97,7 @@ function component(file, name, props = {}, overrides = {}) {
     'react-native-sortables': { __esModule: true, default: { Grid: 'SortableGrid', Handle: 'SortableHandle', Touchable: 'SortableTouchable' } },
     'expo-haptics': { selectionAsync: noopAsync, impactAsync: noopAsync, ImpactFeedbackStyle: { Light: 'light' } },
     'expo-image': { Image: 'Image' },
-    '@expo/vector-icons': { Ionicons: 'Icon' },
+    '@expo/vector-icons': { Ionicons: 'Icon', MaterialIcons: 'MaterialIcon' },
     '@constants/theme': theme,
     '@/constants/theme': theme,
     '@/constants/config': { LIMITS: { maxImagesPerPost: 10 } },
@@ -110,6 +110,7 @@ function component(file, name, props = {}, overrides = {}) {
     '@/lib/errors': load('src/lib/errors.ts'),
     '@/lib/postContent': load('src/lib/postContent.ts'),
     '@/lib/photoEditingGeometry': load('src/lib/photoEditingGeometry.ts'),
+    '@/lib/photoEditorGeometry': load('src/lib/photoEditorGeometry.ts'),
     ...overrides,
   };
   const renderComponent = load(file, modules)[name];
@@ -285,17 +286,19 @@ test('dragging a crop corner keeps the selected source pixels through settling a
   assert.deepEqual(JSON.parse(JSON.stringify(crops[2])), JSON.parse(JSON.stringify(crops[0])));
 });
 
-function editorHarness() {
+function editorHarness(initialPhoto = photo(), transform) {
   const applied = [];
   const deleted = [];
   const transforms = [];
+  let closed = 0;
   const h = component('src/components/compose/PostPhotoEditor.tsx', 'PostPhotoEditor', {
-    photo: photo(), onApply: p => applied.push(p), onClose() {},
+    photo: initialPhoto, onApply: p => applied.push(p), onClose() { closed++; },
   }, {
-    './ImageCropScreen': { __esModule: true, default: 'ImageCropScreen' },
-    './PhotoFramePreview': { PhotoFramePreview: 'PhotoFramePreview' },
+    './PhotoEditingCanvas': { PhotoEditingCanvas: 'PhotoEditingCanvas' },
+    './PhotoZoomControl': { PhotoZoomControl: 'PhotoZoomControl' },
     '@/lib/postPhotoEditing': { transformPostPhoto: async (p, options) => {
       transforms.push(options);
+      if (transform) return transform(p, options);
       if (!options.rotation && !options.crop) return p;
       return { ...p, uri: 'transformed.jpg', width: options.crop?.width ?? p.height, height: options.crop?.height ?? p.width, isCropped: true };
     } },
@@ -304,119 +307,148 @@ function editorHarness() {
       delete() { deleted.push(this.uri); }
     } },
   });
-  return Object.assign(h, { applied, deleted, transforms });
+  return Object.assign(h, { applied, deleted, transforms, closed: () => closed });
 }
 
-test('custom cropping returns to framing, and Done retains the cropped image and original source', async () => {
+test('one canvas shares framing, crop, and rotation with one Done and no intermediate encodes', async () => {
   const h = editorHarness();
-  h.byType('PhotoFramePreview').props.onCrop();
-  const crop = h.byType('ImageCropScreen');
-  assert.equal(crop.props.imageUri, 'one.jpg');
-  crop.props.onCrop('custom.jpg', 600, 400);
-  assert.equal(h.byType('PhotoFramePreview').props.photo.uri, 'custom.jpg');
-  assert.equal(h.byType('PhotoFramePreview').props.fillFrame, false);
-  h.press('Done');
-  await settle();
-  assert.equal(h.applied[0].uri, 'custom.jpg');
+  h.press('Crop');
+  h.byType('PhotoEditingCanvas').props.onCommit({ originX: 100, originY: 50, width: 600, height: 400 });
+  h.press('Rotate photo clockwise');
+  const canvas = h.byType('PhotoEditingCanvas').props;
+  assert.equal(canvas.rotation, 90);
+  assert.equal(canvas.mode, 'crop');
+  assert.deepEqual(JSON.parse(JSON.stringify(canvas.crop)), { originX: 350, originY: 100, width: 400, height: 600 });
+  assert.equal(h.transforms.length, 0);
+  assert.equal(h.render().filter(node => node.props?.accessibilityLabel === 'Done editing photo').length, 1);
+  assert.equal(h.render().some(node => node.type === 'ImageCropScreen'), false);
+  assert.equal(h.render().some(node => textOf(node) === 'Rotate 90°' || textOf(node) === 'Restore original photo' || textOf(node) === 'Custom crop'), false);
+  assert.equal(h.byId('photo-editor-rotate').props.children.type, 'MaterialIcon');
+  await h.press('Done editing photo');
+  assert.equal(h.transforms.length, 1);
   assert.equal(h.applied[0].sourceUri, 'one.jpg');
   h.unmount();
   assert.deepEqual(h.deleted, []);
 });
 
-test('cancelled photo edits discard generated files and never delete the original', () => {
+test('Cancel and device Back discard the whole photo session without touching the original', () => {
   const h = editorHarness();
-  h.byType('PhotoFramePreview').props.onCrop();
-  h.byType('ImageCropScreen').props.onCrop('discarded-crop.jpg', 300, 300);
-  h.press('Close photo editor');
+  h.props.startWithCrop = true;
+  // Initial mode is selected once when the photo opens.
+  h.press('Crop');
+  h.byType('PhotoEditingCanvas').props.onCommit({ originX: 100, originY: 50, width: 600, height: 400 });
+  h.byType('Modal').props.onRequestClose();
+  assert.equal(h.closed(), 1);
+  assert.equal(h.transforms.length, 0);
   h.unmount();
   assert.deepEqual(h.applied, []);
-  assert.deepEqual(h.deleted, ['discarded-crop.jpg']);
+  assert.deepEqual(h.deleted, []);
 });
 
-test('device Back exits cropping without closing the editor, and waits while a crop is processing', () => {
+test('quarter turns stay reversible, and positioned square framing is saved from the same canvas', async () => {
   const h = editorHarness();
-  h.byType('PhotoFramePreview').props.onCrop();
-  h.byType('ImageCropScreen').props.onProcessingChange(true);
-  h.byType('Modal').props.onRequestClose();
-  assert.ok(h.byType('ImageCropScreen'));
-  h.byType('ImageCropScreen').props.onProcessingChange(false);
-  h.byType('Modal').props.onRequestClose();
-  assert.equal(h.byType('PhotoFramePreview').props.photo.uri, 'one.jpg');
-  assert.deepEqual(h.applied, []);
-});
-
-test('quarter turns remain reversible and positioned framing is passed to saving and cropping', async () => {
-  const h = editorHarness();
-  for (let i = 0; i < 4; i++) h.press('Rotate photo 90 degrees clockwise');
-  assert.equal(h.byType('PhotoFramePreview').props.rotation, 0);
+  for (let i = 0; i < 4; i++) h.press('Rotate photo clockwise');
+  assert.equal(h.byType('PhotoEditingCanvas').props.rotation, 0);
   assert.deepEqual(h.transforms, []);
-  h.press('Fill frame. Crop to a square');
-  h.byType('PhotoFramePreview').props.onCropChange({ originX: 100, originY: 50, width: 600, height: 600 });
-  h.press('Rotate photo 90 degrees clockwise');
-  let preview = h.byType('PhotoFramePreview');
-  assert.equal(preview.props.rotation, 90);
-  assert.deepEqual(JSON.parse(JSON.stringify(preview.props.initialCrop)), { originX: 150, originY: 100, width: 600, height: 600 });
-  preview.props.onCrop();
-  const crop = h.byType('ImageCropScreen');
-  assert.equal(crop.props.initialRotation, 90);
-  assert.equal(crop.props.initialCrop.originX, 150);
-  crop.props.onCancel();
-  h.press('Done');
-  await settle();
+  h.press('Fill frame');
+  assert.equal(h.byType('PhotoEditingCanvas').props.crop.width, 800);
+  h.byType('PhotoEditingCanvas').props.onCommit({ originX: 100, originY: 50, width: 600, height: 600 });
+  h.press('Rotate photo clockwise');
+  await h.press('Done editing photo');
   assert.equal(h.transforms[0].rotation, 90);
-  assert.equal(h.transforms[0].crop.originX, 150);
-  assert.equal(h.applied[0].sourceUri, 'one.jpg');
+  assert.deepEqual(JSON.parse(JSON.stringify(h.transforms[0].crop)), { originX: 150, originY: 100, width: 600, height: 600 });
 });
 
-test('Reset restores the full original after cropping and rotating without applying anything', () => {
-  const h = editorHarness();
-  h.byType('PhotoFramePreview').props.onCrop();
-  h.byType('ImageCropScreen').props.onCrop('temporary.jpg', 400, 500);
-  h.press('Rotate photo 90 degrees clockwise');
-  h.press('Reset photo edits');
-  const preview = h.byType('PhotoFramePreview').props;
-  assert.equal(preview.photo.uri, 'one.jpg');
-  assert.equal(preview.photo.width, 1200);
-  assert.equal(preview.rotation, 0);
-  assert.equal(preview.fillFrame, false);
-  assert.deepEqual(h.applied, []);
+test('the single bottom Reset clears all adjustments to the source, and Undo recovers the previous crop', async () => {
+  const h = editorHarness({ ...photo(), uri: 'earlier-crop.jpg', width: 600, height: 400, isCropped: true });
+  h.press('Crop');
+  h.byType('PhotoEditingCanvas').props.onCommit({ originX: 100, originY: 50, width: 300, height: 250 });
+  h.press('Rotate photo clockwise');
+  const before = h.byType('PhotoEditingCanvas').props;
+  h.press('Reset adjustments');
+  const reset = h.byType('PhotoEditingCanvas').props;
+  assert.equal(reset.photo.uri, 'one.jpg');
+  assert.equal(reset.photo.width, 1200);
+  assert.equal(reset.rotation, 0);
+  assert.equal(reset.mode, 'fit');
+  assert.equal(h.byId('photo-editor-reset').props.disabled, true);
+  h.press('Undo photo adjustment');
+  const recovered = h.byType('PhotoEditingCanvas').props;
+  assert.equal(recovered.photo.uri, 'earlier-crop.jpg');
+  assert.equal(recovered.rotation, before.rotation);
+  assert.deepEqual(recovered.crop, before.crop);
+  h.press('Reset adjustments');
+  await h.press('Done editing photo');
+  assert.equal(h.applied[0].uri, 'one.jpg');
   h.unmount();
-  assert.deepEqual(h.deleted, ['temporary.jpg']);
+  assert.deepEqual(h.deleted, []);
 });
 
-test('positioning and zoom export the latest coordinates even before animated values reach the UI thread', () => {
+test('a slider drag is one Undo step, canceled zooms revert, and zooming Fit enters Crop', () => {
+  const h = editorHarness();
+  let slider = h.byType('PhotoZoomControl');
+  slider.props.onStart();
+  slider.props.onChange(1.25); slider.props.onChange(1.5); slider.props.onChange(2);
+  slider.props.onEnd(false);
+  assert.equal(h.byType('PhotoEditingCanvas').props.mode, 'crop');
+  assert.equal(h.byType('PhotoEditingCanvas').props.crop.width, 600);
+  h.press('Undo photo adjustment');
+  assert.equal(h.byType('PhotoEditingCanvas').props.mode, 'fit');
+  assert.equal(h.byId('photo-editor-undo').props.disabled, true);
+  slider = h.byType('PhotoZoomControl');
+  slider.props.onStart(); slider.props.onChange(2); slider.props.onEnd(true);
+  assert.equal(h.byType('PhotoEditingCanvas').props.mode, 'fit');
+  assert.equal(h.byId('photo-editor-undo').props.disabled, true);
+});
+
+test('saving cannot duplicate or dismiss the session, and failure retains the editable composition', async () => {
+  let reject;
+  const h = editorHarness(photo(), () => new Promise((_, fail) => { reject = fail; }));
+  h.press('Rotate photo clockwise');
+  const pending = h.press('Done editing photo');
+  await h.press('Done editing photo');
+  h.byType('Modal').props.onRequestClose();
+  assert.equal(h.transforms.length, 1);
+  assert.equal(h.closed(), 0);
+  reject(new Error('Encoder unavailable'));
+  await pending;
+  assert.equal(h.byType('PhotoEditingCanvas').props.rotation, 90);
+  assert.ok(h.render().some(node => textOf(node) === 'Encoder unavailable'));
+  assert.equal(h.byId('photo-editor-rotate').props.disabled, false);
+});
+
+test('fast crop drags and pinches export the latest source pixels even with queued UI values', () => {
   const reported = [];
   const interactions = [];
-  const h = component('src/components/compose/PhotoFramePreview.tsx', 'PhotoFramePreview', {
-    photo: photo(), size: 300, rotation: 0, fillFrame: true, disabled: false,
-    onCropChange: crop => reported.push(crop), onCrop() {}, onInteractionChange: active => interactions.push(active),
-  }, {
+  const geometry = load('src/lib/photoEditorGeometry.ts');
+  const props = {
+    photo: photo(), rotation: 0, mode: 'crop', crop: { originX: 0, originY: 0, width: 1200, height: 800 },
+    width: 390, height: 594, disabled: false, onCommit: crop => reported.push(crop), onInteractionChange: active => interactions.push(active),
+  };
+  const h = component('src/components/compose/PhotoEditingCanvas.tsx', 'PhotoEditingCanvas', props, {
     'react-native-gesture-handler': {
       GestureDetector: 'GestureDetector', usePanGesture: config => config, usePinchGesture: config => config,
       useSimultaneousGestures: (pan, pinch) => ({ pan, pinch }),
     },
     'react-native-reanimated': {
-      __esModule: true, default: { View: 'AnimatedView' }, useAnimatedStyle: callback => callback(),
-      // JS setters are queued to the UI thread. A synchronous read still sees
-      // the previous value, so the saved composition must not depend on it.
+      __esModule: true, default: { View: 'AnimatedView' }, useAnimatedStyle: callback => callback(), withTiming: value => value,
       useSharedValue: initial => ({ get: () => initial, set() {} }),
     },
   });
-  const pan = h.byType('GestureDetector').props.gesture.pan;
-  pan.onBegin({ absoluteX: 100, absoluteY: 100 });
-  // A fast drag can activate and finish without a separate update event.
-  pan.onDeactivate({ absoluteX: 300, absoluteY: 100, canceled: false });
-  pan.onFinalize();
-  assert.equal(reported[0].originX, 0);
-  assert.equal(reported[0].width, 800);
-  assert.deepEqual(interactions, [true, false]);
-  h.press('Zoom photo in');
-  assert.equal(reported[1].width, 640);
-  assert.equal(reported[1].originX, 80);
-  assert.ok(h.render().some(node => node.props?.accessibilityLabel === 'Photo zoom 125 percent'));
-  h.press('Center photo in frame');
-  assert.equal(reported[2].originX, 200);
-  assert.equal(reported[2].width, 800);
+  let gesture = h.byType('GestureDetector').props.gesture;
+  const frame = geometry.photoCanvasLayout(props.crop, props.width, props.height);
+  gesture.pan.onBegin({ x: frame.frameLeft, y: frame.frameTop, absoluteX: 100, absoluteY: 100 });
+  gesture.pan.onDeactivate({ absoluteX: 100 + 300 * frame.scale, absoluteY: 100 + 200 * frame.scale, canceled: false });
+  gesture.pan.onFinalize({ canceled: false });
+  assert.deepEqual(Object.fromEntries(Object.entries(reported[0]).map(([key, value]) => [key, Math.round(value)])), { originX: 300, originY: 200, width: 900, height: 600 });
+  h.props.crop = reported[0];
+  gesture = h.byType('GestureDetector').props.gesture;
+  const selectedFrame = geometry.photoCanvasLayout(h.props.crop, props.width, props.height);
+  gesture.pinch.onActivate({ focalX: selectedFrame.frameLeft + selectedFrame.frameWidth / 2, focalY: selectedFrame.frameTop + selectedFrame.frameHeight / 2 });
+  gesture.pinch.onDeactivate({ scale: 2, canceled: false });
+  gesture.pinch.onFinalize({ canceled: false });
+  assert.deepEqual(Object.fromEntries(Object.entries(reported[1]).map(([key, value]) => [key, Math.round(value)])), { originX: 525, originY: 350, width: 450, height: 300 });
+  assert.deepEqual(interactions, [true, false, true, false]);
 });
 
 test('rotation and a positioned crop are rendered once, with original metadata and native handle cleanup', async () => {
