@@ -8,23 +8,19 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Dimensions,
+  useWindowDimensions,
   NativeScrollEvent,
   NativeSyntheticEvent,
   type ScrollViewInstance,
 } from 'react-native';
-import { Image } from 'expo-image';
+import { Image, type ImageLoadEventData } from 'expo-image';
 import { FullscreenImageViewer } from '@/components/ui/FullscreenImageViewer';
 import { PinchableImage } from '@/components/ui/PinchableImage';
 import { spacing, borderRadius, colors } from '@/constants/theme';
 import { supabase } from '@/lib/supabase/client';
 import { getPostPreviewUrl } from '@/lib/supabase/storage';
 
-const { width: screenWidth } = Dimensions.get('window');
-const IMAGE_WIDTH = screenWidth - spacing.md * 2;
-const IMAGE_HEIGHT = 350;
 const IMAGE_GAP = spacing.sm;
-const CAROUSEL_SNAP_INTERVAL = IMAGE_WIDTH + IMAGE_GAP;
 
 interface PostImageData {
   id: string;
@@ -45,9 +41,15 @@ function getImageUrl(storagePath: string): string {
   return data.publicUrl;
 }
 
-function FeedImage({ image, shouldLoad = true }: {
+function getPhotoHeight(image: Pick<PostImageData, 'width' | 'height'>, width: number) {
+  if (!image.width || !image.height || image.width < 0 || image.height < 0) return width;
+  return width * image.height / image.width;
+}
+
+function FeedImage({ image, shouldLoad = true, onLoad }: {
   image: PostImageData;
   shouldLoad?: boolean;
+  onLoad?: (event: ImageLoadEventData) => void;
 }) {
   const [failedPreview, setFailedPreview] = useState(false);
   return (
@@ -57,22 +59,29 @@ function FeedImage({ image, shouldLoad = true }: {
         : getPostPreviewUrl(image.storage_path) } : null}
       style={styles.image}
       placeholder={image.blurhash || undefined}
-      contentFit="cover"
+      contentFit="contain"
+      placeholderContentFit="contain"
       enforceEarlyResizing
       cachePolicy="memory-disk"
       transition={200}
+      onLoad={onLoad}
       onError={() => setFailedPreview(true)}
     />
   );
 }
 
 export function ImageGallery({ images }: ImageGalleryProps) {
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const imageWidth = screenWidth - spacing.md * 2;
+  const maxHeight = Math.min(480, screenHeight * 0.6);
+  const snapInterval = imageWidth + IMAGE_GAP;
   const [activeIndex, setActiveIndex] = useState(0);
   const [isCarouselInteractionActive, setIsCarouselInteractionActive] =
     useState(false);
   const [lightboxVisible, setLightboxVisible] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [scrollCorrection, setScrollCorrection] = useState<{ index: number } | null>(null);
+  const [loadedSize, setLoadedSize] = useState<{ path: string; width: number; height: number } | null>(null);
   const scrollViewRef = useRef<ScrollViewInstance>(null);
 
   const sortedImages = useMemo(() =>
@@ -95,10 +104,10 @@ export function ImageGallery({ images }: ImageGalleryProps) {
   useEffect(() => {
     if (!scrollCorrection) return;
     scrollViewRef.current?.scrollTo({
-      x: scrollCorrection.index * CAROUSEL_SNAP_INTERVAL,
+      x: scrollCorrection.index * snapInterval,
       animated: false,
     });
-  }, [scrollCorrection]);
+  }, [scrollCorrection, snapInterval]);
 
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
@@ -107,15 +116,20 @@ export function ImageGallery({ images }: ImageGalleryProps) {
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const contentOffsetX = event.nativeEvent.contentOffset.x;
-    const newIndex = Math.round(contentOffsetX / CAROUSEL_SNAP_INTERVAL);
+    const newIndex = Math.round(contentOffsetX / snapInterval);
     if (newIndex !== activeIndex && newIndex >= 0 && newIndex < sortedImages.length) {
       setActiveIndex(newIndex);
     }
   };
 
+  if (!sortedImages.length) return null;
+
   // Single image - no carousel needed
   if (sortedImages.length === 1) {
     const image = sortedImages[0];
+    const needsSize = !image.width || !image.height || image.width < 0 || image.height < 0;
+    const size = needsSize && loadedSize?.path === image.storage_path ? loadedSize : image;
+    const height = Math.min(maxHeight, getPhotoHeight(size, imageWidth));
 
     return (
       <View style={styles.container}>
@@ -123,12 +137,19 @@ export function ImageGallery({ images }: ImageGalleryProps) {
           uri={lightboxImages[0].uri}
           previewUri={getPostPreviewUrl(image.storage_path)}
           borderRadius={borderRadius.md}
-          style={styles.postImage}
+          style={[styles.postImage, { width: imageWidth, height }]}
+          contentFit="contain"
           onPress={() => openLightbox(0)}
           accessibilityLabel="Post photo"
           testID={`post-image-${image.id}`}
         >
-          <FeedImage key={image.storage_path} image={image} />
+          <FeedImage
+            key={image.storage_path}
+            image={image}
+            onLoad={needsSize && size === image ? ({ source }) => {
+              setLoadedSize({ path: image.storage_path, width: source.width, height: source.height });
+            } : undefined}
+          />
         </PinchableImage>
         <FullscreenImageViewer
           images={lightboxImages}
@@ -140,6 +161,9 @@ export function ImageGallery({ images }: ImageGalleryProps) {
     );
   }
 
+  // Use the entire album to size the frame so swiping never shifts the feed.
+  const albumHeight = Math.min(maxHeight, Math.max(...sortedImages.map((image) => getPhotoHeight(image, imageWidth))));
+
   // Multiple images - swipeable carousel
   return (
     <View style={styles.container}>
@@ -150,7 +174,7 @@ export function ImageGallery({ images }: ImageGalleryProps) {
         onScroll={handleScroll}
         scrollEventThrottle={16}
         decelerationRate="fast"
-        snapToInterval={CAROUSEL_SNAP_INTERVAL}
+        snapToInterval={snapInterval}
         snapToAlignment="start"
         scrollEnabled={!isCarouselInteractionActive}
         contentContainerStyle={styles.scrollContent}
@@ -161,7 +185,8 @@ export function ImageGallery({ images }: ImageGalleryProps) {
             uri={lightboxImages[index].uri}
             previewUri={getPostPreviewUrl(img.storage_path)}
             borderRadius={borderRadius.md}
-            style={styles.postImage}
+            style={[styles.postImage, { width: imageWidth, height: albumHeight }]}
+            contentFit="contain"
             onPress={() => openLightbox(index)}
             onInteractionChange={setIsCarouselInteractionActive}
             accessibilityLabel={`Post photo ${index + 1} of ${sortedImages.length}`}
@@ -209,8 +234,6 @@ const styles = StyleSheet.create({
     gap: IMAGE_GAP,
   },
   postImage: {
-    width: IMAGE_WIDTH,
-    height: IMAGE_HEIGHT,
     borderRadius: borderRadius.md,
     overflow: 'hidden',
   },

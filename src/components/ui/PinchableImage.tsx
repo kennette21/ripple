@@ -13,6 +13,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import type { ImageContentFit } from 'expo-image';
 import Animated, {
   cancelAnimation,
   measure,
@@ -40,6 +41,7 @@ let nextInstanceId = 1;
 interface PinchableImageProps extends PropsWithChildren {
   uri: string;
   previewUri?: string;
+  contentFit?: ImageContentFit;
   borderRadius: number;
   style: StyleProp<ViewStyle>;
   onPress: () => void;
@@ -57,6 +59,7 @@ function clamp(value: number, minimum: number, maximum: number) {
 export function PinchableImage({
   uri,
   previewUri,
+  contentFit = 'cover',
   borderRadius,
   style,
   onPress,
@@ -203,6 +206,7 @@ export function PinchableImage({
         session: session.get(),
         uri,
         previewUri,
+        contentFit,
         borderRadius,
         frame: {
           x: frame.pageX,
@@ -289,6 +293,7 @@ export function PinchableImage({
     backdropOpacity,
     beginZoom,
     borderRadius,
+    contentFit,
     finishInteraction,
     gestureReady,
     halfHeight,

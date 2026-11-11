@@ -51,6 +51,7 @@ function component(file, name, props = {}, overrides = {}) {
   let cursor = 0;
   let pending = [];
   const react = {
+    useMemo(factory) { return factory(); },
     useState(initial) {
       const i = cursor++;
       if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial;
@@ -152,6 +153,35 @@ function component(file, name, props = {}, overrides = {}) {
 const photo = (id = 'one', width = 1200, height = 800) => ({
   id, uri: id + '.jpg', width, height, isCropped: false,
   sourceUri: id + '.jpg', sourceWidth: width, sourceHeight: height,
+});
+
+test('feed albums keep a steady frame for mixed sizes and open the selected published photo', () => {
+  const images = [
+    { id: 'landscape', position: 1, storage_path: 'landscape.jpg', width: 1400, height: 700 },
+    { id: 'portrait', position: 0, storage_path: 'portrait.jpg', width: 800, height: 1600 },
+  ];
+  const gallery = component('src/components/post/ImageGallery.tsx', 'ImageGallery', { images }, {
+    '@/components/ui/FullscreenImageViewer': { FullscreenImageViewer: 'Viewer' },
+    '@/components/ui/PinchableImage': { PinchableImage: 'PinchableImage' },
+    '@/lib/supabase/client': { supabase: { storage: { from: () => ({ getPublicUrl: path => ({ data: { publicUrl: path } }) }) } } },
+    '@/lib/supabase/storage': { getPostPreviewUrl: path => 'preview/' + path },
+  });
+  const portrait = gallery.byId('post-image-portrait');
+  assert.equal(style(portrait.props.style).height, 480);
+  assert.equal(portrait.props.contentFit, 'contain');
+  gallery.byType('ScrollView').props.onScroll({ nativeEvent: { contentOffset: { x: 366 } } });
+  const landscape = gallery.byId('post-image-landscape');
+  assert.equal(style(landscape.props.style).height, 480);
+  landscape.props.onPress();
+  const viewer = gallery.byType('Viewer').props;
+  assert.equal(viewer.visible, true);
+  assert.equal(viewer.images[viewer.imageIndex].uri, 'landscape.jpg');
+
+  gallery.props.images = [{ ...images[0], width: null, height: null }];
+  const single = gallery.byId('post-image-landscape');
+  assert.equal(style(single.props.style).height, 358);
+  single.props.children.props.onLoad({ source: { width: 1400, height: 700 } });
+  assert.equal(style(gallery.byId('post-image-landscape').props.style).height, 179);
 });
 
 test('both writing modes grow without internal scrolling and leave photos after the text', () => {

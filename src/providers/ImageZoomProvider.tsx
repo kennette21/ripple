@@ -8,7 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { Image } from 'expo-image';
+import { Image, type ImageContentFit } from 'expo-image';
 import { FullWindowOverlay } from 'react-native-screens';
 import Animated, {
   type SharedValue,
@@ -29,6 +29,7 @@ interface ImageZoomRequest {
   session: number;
   uri: string;
   previewUri?: string;
+  contentFit: ImageContentFit;
   borderRadius: number;
   frame: ImageZoomFrame;
 }
@@ -126,7 +127,7 @@ function ImageZoomOverlay({ zoom }: { zoom: ImageZoomRequest }) {
             <Image
               source={{ uri: zoom.previewUri }}
               style={styles.image}
-              contentFit="cover"
+              contentFit={zoom.contentFit}
               cachePolicy="memory-disk"
               transition={0}
               onDisplay={handleImageDisplay}
@@ -135,7 +136,7 @@ function ImageZoomOverlay({ zoom }: { zoom: ImageZoomRequest }) {
           <Image
             source={imageSource}
             style={[styles.image, zoom.previewUri && StyleSheet.absoluteFill]}
-            contentFit="cover"
+            contentFit={zoom.contentFit}
             cachePolicy="memory-disk"
             priority="high"
             transition={0}
