@@ -1,6 +1,7 @@
 export const queryKeys = {
   feed: {
     all: ['feed'] as const,
+    audience: (userId: string) => ['feed', 'audience', userId] as const,
     list: (userId: string) => ['feed', 'list', 'viewer-visible', userId] as const,
     caughtUp: (userId: string) =>
       ['feed', 'caughtUp', 'viewer-visible', userId] as const,
@@ -38,6 +39,8 @@ export const queryKeys = {
   },
   search: {
     all: ['search'] as const,
+    community: (query: string, userId: string) =>
+      ['search', 'community', userId, query] as const,
     users: (query: string, userId: string) =>
       ['search', 'users', userId, query] as const,
   },

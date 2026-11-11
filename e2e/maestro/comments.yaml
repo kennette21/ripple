@@ -25,14 +25,15 @@ name: Comment composer transitions
     id: "comments-toggle-10000000-0000-4000-8000-000000000003"
 - scrollUntilVisible:
     element:
-      id: "comment-edit-50000000-0000-4000-8000-000000000002"
+      id: "comment-actions-50000000-0000-4000-8000-000000000002"
     direction: DOWN
     timeout: 10000
     centerElement: true
 
 # Edit -> scroll away -> Reply.
 - tapOn:
-    id: "comment-edit-50000000-0000-4000-8000-000000000002"
+    id: "comment-actions-50000000-0000-4000-8000-000000000002"
+- tapOn: "Edit comment"
 - assertVisible: "Editing comment"
 - assertVisible:
     id: "comment-composer-input-10000000-0000-4000-8000-000000000003"
@@ -54,7 +55,8 @@ name: Comment composer transitions
     end: "50%, 18%"
     duration: 500
 - tapOn:
-    id: "comment-edit-50000000-0000-4000-8000-000000000002"
+    id: "comment-actions-50000000-0000-4000-8000-000000000002"
+- tapOn: "Edit comment"
 - assertVisible: "Editing comment"
 - assertVisible:
     id: "comment-composer-input-10000000-0000-4000-8000-000000000003"

@@ -28,4 +28,4 @@ name: Private post is visible to its owner
       text: "A private note from Cicero about the next place he wants to explore."
     direction: DOWN
     timeout: 15000
-- assertVisible: "Post is private. Change privacy"
+- assertVisible: "Change audience, currently Only me"

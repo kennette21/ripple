@@ -1,21 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  Pressable,
   ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FollowButton } from '@/components/ui/FollowButton';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { Avatar, Button } from '@components/ui';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@providers/AuthProvider';
 import { queryKeys } from '@/lib/query/keys';
-import { colors, spacing, typography, borderRadius } from '@constants/theme';
+import { colors, spacing, typography } from '@constants/theme';
 import type { Profile } from '@/types/database';
 
 interface UserWithFollowStatus extends Profile {
@@ -24,24 +23,21 @@ interface UserWithFollowStatus extends Profile {
 
 export default function DiscoverScreen() {
   const { user, refreshProfile } = useAuth();
+  const userId = user?.id;
   const queryClient = useQueryClient();
   const [users, setUsers] = useState<UserWithFollowStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    loadUsers();
-  }, [user?.id]);
-
-  const loadUsers = async () => {
-    if (!user?.id) return;
+  const loadUsers = useCallback(async () => {
+    if (!userId) return;
 
     try {
       // Get all users except current user
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
-        .neq('id', user.id)
+        .neq('id', userId)
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
@@ -50,7 +46,7 @@ export default function DiscoverScreen() {
       const { data: follows, error: followsError } = await supabase
         .from('follows')
         .select('following_id')
-        .eq('follower_id', user.id);
+        .eq('follower_id', userId);
 
       if (followsError) throw followsError;
 
@@ -68,7 +64,13 @@ export default function DiscoverScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    // This request updates state after awaiting Supabase, including its finally block.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadUsers();
+  }, [loadUsers]);
 
   const handleToggleFollow = async (targetUserId: string) => {
     if (!user?.id) return;
@@ -144,22 +146,11 @@ export default function DiscoverScreen() {
           </Text>
           <Text style={styles.username}>@{item.username}</Text>
         </View>
-        <Pressable
-          style={[
-            styles.followButton,
-            isFollowing && styles.followingButton,
-          ]}
+        <FollowButton
+          name={item.display_name || item.username}
+          following={isFollowing}
           onPress={() => handleToggleFollow(item.id)}
-        >
-          <Text
-            style={[
-              styles.followButtonText,
-              isFollowing && styles.followingButtonText,
-            ]}
-          >
-            {isFollowing ? 'Following' : 'Follow'}
-          </Text>
-        </Pressable>
+        />
       </View>
     );
   };
@@ -281,25 +272,6 @@ const styles = StyleSheet.create({
   username: {
     fontSize: typography.fontSizes.sm,
     color: colors.gray[500],
-  },
-  followButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.primary[500],
-  },
-  followingButton: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.gray[300],
-  },
-  followButtonText: {
-    fontSize: typography.fontSizes.sm,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.white,
-  },
-  followingButtonText: {
-    color: colors.gray[700],
   },
   footer: {
     paddingHorizontal: spacing.lg,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,7 +16,7 @@ import {
   initialWindowMetrics,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { GestureDetector, usePanGesture, usePinchGesture, useSimultaneousGestures } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -24,6 +24,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { colors, spacing, typography } from '@constants/theme';
+import { pixelPhotoCrop, rotatePhotoCrop, rotatedPhotoSize, type PhotoCrop, type PhotoRotation } from '@/lib/photoEditingGeometry';
 
 const EDGE_INSET = 24;
 const HANDLE_HIT_RADIUS = 44;
@@ -43,8 +44,11 @@ interface ImageCropScreenProps {
   imageUri: string;
   imageWidth: number;
   imageHeight: number;
+  initialRotation?: PhotoRotation;
+  initialCrop?: PhotoCrop;
   onCrop: (uri: string, width: number, height: number) => void;
   onCancel: () => void;
+  onProcessingChange?: (processing: boolean) => void;
 }
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -52,16 +56,40 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
+function photoLayout(width: number, height: number, rotation: PhotoRotation, stageWidth: number, stageHeight: number, bounds?: PhotoCrop) {
+  const source = rotatedPhotoSize(Math.max(1, width), Math.max(1, height), rotation);
+  const availableWidth = Math.max(MIN_CROP_SIZE, stageWidth - EDGE_INSET * 2);
+  const availableHeight = Math.max(MIN_CROP_SIZE, stageHeight - EDGE_INSET * 2);
+  const baseScale = Math.min(availableWidth / source.width, availableHeight / source.height);
+  const crop = bounds ?? { originX: 0, originY: 0, width: source.width, height: source.height };
+  const scale = Math.min(availableWidth / crop.width, availableHeight / crop.height);
+  const cropWidth = crop.width * scale;
+  const cropHeight = crop.height * scale;
+  return {
+    sourceWidth: source.width, sourceHeight: source.height, baseScale,
+    displayWidth: source.width * baseScale, displayHeight: source.height * baseScale,
+    cropWidth, cropHeight, cropX: (stageWidth - cropWidth) / 2, cropY: (stageHeight - cropHeight) / 2,
+    zoom: scale / baseScale,
+    translateX: (source.width / 2 - crop.originX - crop.width / 2) * scale,
+    translateY: (source.height / 2 - crop.originY - crop.height / 2) * scale,
+  };
+}
+
 export default function ImageCropScreen({
   imageUri,
   imageWidth,
   imageHeight,
+  initialRotation = 0,
+  initialCrop,
   onCrop,
   onCancel,
+  onProcessingChange,
 }: ImageCropScreenProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [isCropping, setIsCropping] = useState(false);
+  const [rotation, setRotation] = useState<PhotoRotation>(initialRotation);
+  const processingRef = useRef(false);
 
   const topInset = Math.max(
     insets.top,
@@ -81,38 +109,28 @@ export default function ImageCropScreen({
       HEADER_HEIGHT -
       CONTROLS_HEIGHT
   );
-  const sourceWidth = Math.max(1, imageWidth);
-  const sourceHeight = Math.max(1, imageHeight);
   const availableWidth = Math.max(MIN_CROP_SIZE, stageWidth - EDGE_INSET * 2);
   const availableHeight = Math.max(MIN_CROP_SIZE, stageHeight - EDGE_INSET * 2);
-  const sourceRatio = sourceWidth / sourceHeight;
   const availableRatio = availableWidth / availableHeight;
-  const initialCropWidth =
-    sourceRatio > availableRatio
-      ? availableWidth
-      : availableHeight * sourceRatio;
-  const initialCropHeight =
-    sourceRatio > availableRatio
-      ? availableWidth / sourceRatio
-      : availableHeight;
-  const initialCropX = (stageWidth - initialCropWidth) / 2;
-  const initialCropY = (stageHeight - initialCropHeight) / 2;
+  const { sourceWidth, sourceHeight, baseScale, displayWidth, displayHeight } =
+    photoLayout(imageWidth, imageHeight, rotation, stageWidth, stageHeight);
+  const initial = photoLayout(imageWidth, imageHeight, initialRotation, stageWidth, stageHeight, initialCrop);
+  const initialCropX = initial.cropX;
+  const initialCropY = initial.cropY;
+  const initialCropWidth = initial.cropWidth;
+  const initialCropHeight = initial.cropHeight;
 
-  // The base image exactly fills the initial, original-aspect crop. From here,
-  // zoom and translation are independent from the crop rectangle.
-  const baseScale = initialCropWidth / sourceWidth;
-  const displayWidth = sourceWidth * baseScale;
-  const displayHeight = sourceHeight * baseScale;
-
-  const zoom = useSharedValue(1);
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
+  const zoom = useSharedValue(initial.zoom);
+  const translateX = useSharedValue(initial.translateX);
+  const translateY = useSharedValue(initial.translateY);
   const cropX = useSharedValue(initialCropX);
   const cropY = useSharedValue(initialCropY);
   const cropWidth = useSharedValue(initialCropWidth);
   const cropHeight = useSharedValue(initialCropHeight);
 
   const activeHandle = useSharedValue(HANDLE_NONE);
+  const startAbsoluteX = useSharedValue(0);
+  const startAbsoluteY = useSharedValue(0);
   const startZoom = useSharedValue(1);
   const startTranslateX = useSharedValue(0);
   const startTranslateY = useSharedValue(0);
@@ -131,10 +149,10 @@ export default function ImageCropScreen({
     'worklet';
     const halfImageWidth = (displayWidth * nextZoom) / 2;
     const halfImageHeight = (displayHeight * nextZoom) / 2;
-    const minX = cropX.value + cropWidth.value - halfImageWidth - stageWidth / 2;
-    const maxX = cropX.value + halfImageWidth - stageWidth / 2;
-    const minY = cropY.value + cropHeight.value - halfImageHeight - stageHeight / 2;
-    const maxY = cropY.value + halfImageHeight - stageHeight / 2;
+    const minX = cropX.get() + cropWidth.get() - halfImageWidth - stageWidth / 2;
+    const maxX = cropX.get() + halfImageWidth - stageWidth / 2;
+    const minY = cropY.get() + cropHeight.get() - halfImageHeight - stageHeight / 2;
+    const maxY = cropY.get() + halfImageHeight - stageHeight / 2;
 
     return {
       x: clamp(nextX, minX, maxX),
@@ -144,18 +162,18 @@ export default function ImageCropScreen({
 
   const settleCrop = () => {
     'worklet';
-    const oldWidth = cropWidth.value;
-    const oldHeight = cropHeight.value;
+    const oldWidth = cropWidth.get();
+    const oldHeight = cropHeight.get();
     const ratio = oldWidth / oldHeight;
     const targetWidth =
       ratio > availableRatio ? availableWidth : availableHeight * ratio;
     const targetHeight =
       ratio > availableRatio ? availableWidth / ratio : availableHeight;
     const scaleDelta = targetWidth / oldWidth;
-    const oldCenterX = cropX.value + oldWidth / 2;
-    const oldCenterY = cropY.value + oldHeight / 2;
-    const imageCenterX = stageWidth / 2 + translateX.value;
-    const imageCenterY = stageHeight / 2 + translateY.value;
+    const oldCenterX = cropX.get() + oldWidth / 2;
+    const oldCenterY = cropY.get() + oldHeight / 2;
+    const imageCenterX = stageWidth / 2 + translateX.get();
+    const imageCenterY = stageHeight / 2 + translateY.get();
     const animation = {
       duration: SETTLE_DURATION,
       easing: Easing.out(Easing.cubic),
@@ -164,269 +182,283 @@ export default function ImageCropScreen({
     // Move the old crop center to the stage center and scale the image by the
     // same amount as the crop. This keeps the selected source pixels stable
     // throughout the familiar Photos-style settle animation.
-    translateX.value = withTiming(
+    translateX.set(withTiming(
       scaleDelta * (imageCenterX - oldCenterX),
       animation
-    );
-    translateY.value = withTiming(
+    ));
+    translateY.set(withTiming(
       scaleDelta * (imageCenterY - oldCenterY),
       animation
-    );
-    zoom.value = withTiming(zoom.value * scaleDelta, animation);
-    cropX.value = withTiming((stageWidth - targetWidth) / 2, animation);
-    cropY.value = withTiming((stageHeight - targetHeight) / 2, animation);
-    cropWidth.value = withTiming(targetWidth, animation);
-    cropHeight.value = withTiming(targetHeight, animation);
+    ));
+    zoom.set(withTiming(zoom.get() * scaleDelta, animation));
+    cropX.set(withTiming((stageWidth - targetWidth) / 2, animation));
+    cropY.set(withTiming((stageHeight - targetHeight) / 2, animation));
+    cropWidth.set(withTiming(targetWidth, animation));
+    cropHeight.set(withTiming(targetHeight, animation));
   };
 
-  const panGesture = Gesture.Pan()
-    .maxPointers(1)
-    .onStart((event) => {
-      startZoom.value = zoom.value;
-      startTranslateX.value = translateX.value;
-      startTranslateY.value = translateY.value;
-      startCropX.value = cropX.value;
-      startCropY.value = cropY.value;
-      startCropWidth.value = cropWidth.value;
-      startCropHeight.value = cropHeight.value;
+  const updatePan = (deltaX: number, deltaY: number) => {
+    'worklet';
 
-      const left = cropX.value;
-      const top = cropY.value;
-      const right = left + cropWidth.value;
-      const bottom = top + cropHeight.value;
-      const nearLeft = Math.abs(event.x - left) <= HANDLE_HIT_RADIUS;
-      const nearRight = Math.abs(event.x - right) <= HANDLE_HIT_RADIUS;
-      const nearTop = Math.abs(event.y - top) <= HANDLE_HIT_RADIUS;
-      const nearBottom = Math.abs(event.y - bottom) <= HANDLE_HIT_RADIUS;
-
-      if (nearLeft && nearTop) activeHandle.value = HANDLE_TOP_LEFT;
-      else if (nearRight && nearTop) activeHandle.value = HANDLE_TOP_RIGHT;
-      else if (nearLeft && nearBottom) activeHandle.value = HANDLE_BOTTOM_LEFT;
-      else if (nearRight && nearBottom) activeHandle.value = HANDLE_BOTTOM_RIGHT;
-      else activeHandle.value = HANDLE_NONE;
-    })
-    .onUpdate((event) => {
-      if (activeHandle.value === HANDLE_NONE) {
+      if (activeHandle.get() === HANDLE_NONE) {
         const clamped = clampImageTranslation(
-          startTranslateX.value + event.translationX,
-          startTranslateY.value + event.translationY,
-          zoom.value
+          startTranslateX.get() + deltaX,
+          startTranslateY.get() + deltaY,
+          zoom.get()
         );
-        translateX.value = clamped.x;
-        translateY.value = clamped.y;
+        translateX.set(clamped.x);
+        translateY.set(clamped.y);
         return;
       }
 
-      const startLeft = startCropX.value;
-      const startTop = startCropY.value;
-      const startRight = startLeft + startCropWidth.value;
-      const startBottom = startTop + startCropHeight.value;
-      const imageHalfWidth = (displayWidth * startZoom.value) / 2;
-      const imageHalfHeight = (displayHeight * startZoom.value) / 2;
-      const imageLeft = stageWidth / 2 + startTranslateX.value - imageHalfWidth;
-      const imageRight = stageWidth / 2 + startTranslateX.value + imageHalfWidth;
-      const imageTop = stageHeight / 2 + startTranslateY.value - imageHalfHeight;
-      const imageBottom = stageHeight / 2 + startTranslateY.value + imageHalfHeight;
+      const startLeft = startCropX.get();
+      const startTop = startCropY.get();
+      const startRight = startLeft + startCropWidth.get();
+      const startBottom = startTop + startCropHeight.get();
+      const imageHalfWidth = (displayWidth * startZoom.get()) / 2;
+      const imageHalfHeight = (displayHeight * startZoom.get()) / 2;
+      const imageLeft = stageWidth / 2 + startTranslateX.get() - imageHalfWidth;
+      const imageRight = stageWidth / 2 + startTranslateX.get() + imageHalfWidth;
+      const imageTop = stageHeight / 2 + startTranslateY.get() - imageHalfHeight;
+      const imageBottom = stageHeight / 2 + startTranslateY.get() + imageHalfHeight;
       const minimumLeft = Math.max(EDGE_INSET, imageLeft);
       const maximumRight = Math.min(stageWidth - EDGE_INSET, imageRight);
       const minimumTop = Math.max(EDGE_INSET, imageTop);
       const maximumBottom = Math.min(stageHeight - EDGE_INSET, imageBottom);
 
       if (
-        activeHandle.value === HANDLE_TOP_LEFT ||
-        activeHandle.value === HANDLE_BOTTOM_LEFT
+        activeHandle.get() === HANDLE_TOP_LEFT ||
+        activeHandle.get() === HANDLE_BOTTOM_LEFT
       ) {
         const nextLeft = clamp(
-          startLeft + event.translationX,
+          startLeft + deltaX,
           minimumLeft,
           startRight - MIN_CROP_SIZE
         );
-        cropX.value = nextLeft;
-        cropWidth.value = startRight - nextLeft;
+        cropX.set(nextLeft);
+        cropWidth.set(startRight - nextLeft);
       } else {
-        cropWidth.value =
+        cropWidth.set(
           clamp(
-            startRight + event.translationX,
+            startRight + deltaX,
             startLeft + MIN_CROP_SIZE,
             maximumRight
-          ) - startLeft;
+          ) - startLeft
+        );
       }
 
       if (
-        activeHandle.value === HANDLE_TOP_LEFT ||
-        activeHandle.value === HANDLE_TOP_RIGHT
+        activeHandle.get() === HANDLE_TOP_LEFT ||
+        activeHandle.get() === HANDLE_TOP_RIGHT
       ) {
         const nextTop = clamp(
-          startTop + event.translationY,
+          startTop + deltaY,
           minimumTop,
           startBottom - MIN_CROP_SIZE
         );
-        cropY.value = nextTop;
-        cropHeight.value = startBottom - nextTop;
+        cropY.set(nextTop);
+        cropHeight.set(startBottom - nextTop);
       } else {
-        cropHeight.value =
+        cropHeight.set(
           clamp(
-            startBottom + event.translationY,
+            startBottom + deltaY,
             startTop + MIN_CROP_SIZE,
             maximumBottom
-          ) - startTop;
+          ) - startTop
+        );
       }
-    })
-    .onEnd(() => {
-      if (activeHandle.value !== HANDLE_NONE) settleCrop();
-      activeHandle.value = HANDLE_NONE;
-    })
-    .onFinalize(() => {
-      activeHandle.value = HANDLE_NONE;
-    });
+  };
 
-  const pinchGesture = Gesture.Pinch()
-    .onStart((event) => {
-      startZoom.value = zoom.value;
-      startTranslateX.value = translateX.value;
-      startTranslateY.value = translateY.value;
-      startFocalX.value = event.focalX;
-      startFocalY.value = event.focalY;
-    })
-    .onUpdate((event) => {
+  const panGesture = usePanGesture({
+    maxPointers: 1,
+    onBegin: (event) => {
+      'worklet';
+      startAbsoluteX.set(event.absoluteX);
+      startAbsoluteY.set(event.absoluteY);
+
+      startZoom.set(zoom.get());
+      startTranslateX.set(translateX.get());
+      startTranslateY.set(translateY.get());
+      startCropX.set(cropX.get());
+      startCropY.set(cropY.get());
+      startCropWidth.set(cropWidth.get());
+      startCropHeight.set(cropHeight.get());
+
+      const left = cropX.get();
+      const top = cropY.get();
+      const right = left + cropWidth.get();
+      const bottom = top + cropHeight.get();
+      const nearLeft = Math.abs(event.x - left) <= HANDLE_HIT_RADIUS;
+      const nearRight = Math.abs(event.x - right) <= HANDLE_HIT_RADIUS;
+      const nearTop = Math.abs(event.y - top) <= HANDLE_HIT_RADIUS;
+      const nearBottom = Math.abs(event.y - bottom) <= HANDLE_HIT_RADIUS;
+
+      if (nearLeft && nearTop) activeHandle.set(HANDLE_TOP_LEFT);
+      else if (nearRight && nearTop) activeHandle.set(HANDLE_TOP_RIGHT);
+      else if (nearLeft && nearBottom) activeHandle.set(HANDLE_BOTTOM_LEFT);
+      else if (nearRight && nearBottom) activeHandle.set(HANDLE_BOTTOM_RIGHT);
+      else activeHandle.set(HANDLE_NONE);
+    },
+    onUpdate: (event) => {
+      'worklet';
+      updatePan(event.absoluteX - startAbsoluteX.get(), event.absoluteY - startAbsoluteY.get());
+    },
+    onDeactivate: (event) => {
+      'worklet';
+      if (!event.canceled) {
+        updatePan(event.absoluteX - startAbsoluteX.get(), event.absoluteY - startAbsoluteY.get());
+        if (activeHandle.get() !== HANDLE_NONE) settleCrop();
+      }
+      activeHandle.set(HANDLE_NONE);
+    },
+    onFinalize: () => { 'worklet'; activeHandle.set(HANDLE_NONE); },
+  });
+
+  const pinchGesture = usePinchGesture({
+    onActivate: (event) => {
+      'worklet';
+
+      startZoom.set(zoom.get());
+      startTranslateX.set(translateX.get());
+      startTranslateY.set(translateY.get());
+      startFocalX.set(event.focalX);
+      startFocalY.set(event.focalY);
+    },
+    onUpdate: (event) => {
+      'worklet';
+
       const minimumZoom = Math.max(
-        cropWidth.value / displayWidth,
-        cropHeight.value / displayHeight
+        cropWidth.get() / displayWidth,
+        cropHeight.get() / displayHeight
       );
       const nextZoom = clamp(
-        startZoom.value * event.scale,
+        startZoom.get() * event.scale,
         minimumZoom,
         MAX_ZOOM
       );
-      const scaleDelta = nextZoom / startZoom.value;
-      const oldCenterX = stageWidth / 2 + startTranslateX.value;
-      const oldCenterY = stageHeight / 2 + startTranslateY.value;
+      const scaleDelta = nextZoom / startZoom.get();
+      const oldCenterX = stageWidth / 2 + startTranslateX.get();
+      const oldCenterY = stageHeight / 2 + startTranslateY.get();
       const nextCenterX =
-        startFocalX.value + scaleDelta * (oldCenterX - startFocalX.value);
+        startFocalX.get() + scaleDelta * (oldCenterX - startFocalX.get());
       const nextCenterY =
-        startFocalY.value + scaleDelta * (oldCenterY - startFocalY.value);
+        startFocalY.get() + scaleDelta * (oldCenterY - startFocalY.get());
       const clamped = clampImageTranslation(
         nextCenterX - stageWidth / 2,
         nextCenterY - stageHeight / 2,
         nextZoom
       );
 
-      zoom.value = nextZoom;
-      translateX.value = clamped.x;
-      translateY.value = clamped.y;
-    });
-
-  const cropGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+      zoom.set(nextZoom);
+      translateX.set(clamped.x);
+      translateY.set(clamped.y);
+    },
+  });
+  const cropGesture = useSimultaneousGestures(pinchGesture, panGesture);
 
   const animatedImageStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: zoom.value },
+      { translateX: translateX.get() },
+      { translateY: translateY.get() },
+      { scale: zoom.get() },
     ],
   }));
 
   const topMaskStyle = useAnimatedStyle(() => ({
-    height: cropY.value,
+    height: cropY.get(),
   }));
   const bottomMaskStyle = useAnimatedStyle(() => ({
-    top: cropY.value + cropHeight.value,
+    top: cropY.get() + cropHeight.get(),
   }));
   const leftMaskStyle = useAnimatedStyle(() => ({
-    top: cropY.value,
-    width: cropX.value,
-    height: cropHeight.value,
+    top: cropY.get(),
+    width: cropX.get(),
+    height: cropHeight.get(),
   }));
   const rightMaskStyle = useAnimatedStyle(() => ({
-    top: cropY.value,
-    left: cropX.value + cropWidth.value,
-    height: cropHeight.value,
+    top: cropY.get(),
+    left: cropX.get() + cropWidth.get(),
+    height: cropHeight.get(),
   }));
   const cropOverlayStyle = useAnimatedStyle(() => ({
-    left: cropX.value,
-    top: cropY.value,
-    width: cropWidth.value,
-    height: cropHeight.value,
+    left: cropX.get(),
+    top: cropY.get(),
+    width: cropWidth.get(),
+    height: cropHeight.get(),
   }));
 
-  const resetTransforms = () => {
-    const animation = {
-      duration: SETTLE_DURATION,
-      easing: Easing.out(Easing.cubic),
+  const sourceCrop = (): PhotoCrop => {
+    const scale = baseScale * zoom.get();
+    const left = stageWidth / 2 + translateX.get() - displayWidth * zoom.get() / 2;
+    const top = stageHeight / 2 + translateY.get() - displayHeight * zoom.get() / 2;
+    const originX = clamp((cropX.get() - left) / scale, 0, sourceWidth);
+    const originY = clamp((cropY.get() - top) / scale, 0, sourceHeight);
+    return {
+      originX, originY,
+      width: clamp((cropX.get() + cropWidth.get() - left) / scale, 0, sourceWidth) - originX,
+      height: clamp((cropY.get() + cropHeight.get() - top) / scale, 0, sourceHeight) - originY,
     };
-    zoom.value = withTiming(1, animation);
-    translateX.value = withTiming(0, animation);
-    translateY.value = withTiming(0, animation);
-    cropX.value = withTiming(initialCropX, animation);
-    cropY.value = withTiming(initialCropY, animation);
-    cropWidth.value = withTiming(initialCropWidth, animation);
-    cropHeight.value = withTiming(initialCropHeight, animation);
+  };
+
+  const setComposition = (nextRotation: PhotoRotation, bounds?: PhotoCrop) => {
+    if (processingRef.current) return;
+    const next = photoLayout(imageWidth, imageHeight, nextRotation, stageWidth, stageHeight, bounds);
+    setRotation(nextRotation);
+    zoom.set(next.zoom);
+    translateX.set(next.translateX);
+    translateY.set(next.translateY);
+    cropX.set(next.cropX);
+    cropY.set(next.cropY);
+    cropWidth.set(next.cropWidth);
+    cropHeight.set(next.cropHeight);
+    activeHandle.set(HANDLE_NONE);
+  };
+
+  const rotate = () => {
+    setComposition(((rotation + 90) % 360) as PhotoRotation, rotatePhotoCrop(sourceCrop(), sourceHeight));
+  };
+
+  const adjustZoom = (factor: number) => {
+    if (processingRef.current) return;
+    const minimum = Math.max(cropWidth.get() / displayWidth, cropHeight.get() / displayHeight);
+    const next = clamp(zoom.get() * factor, minimum, MAX_ZOOM);
+    const delta = next / zoom.get();
+    const centerX = cropX.get() + cropWidth.get() / 2;
+    const centerY = cropY.get() + cropHeight.get() / 2;
+    const clamped = clampImageTranslation(
+      centerX + delta * (stageWidth / 2 + translateX.get() - centerX) - stageWidth / 2,
+      centerY + delta * (stageHeight / 2 + translateY.get() - centerY) - stageHeight / 2,
+      next
+    );
+    zoom.set(next);
+    translateX.set(clamped.x);
+    translateY.set(clamped.y);
   };
 
   const handleCrop = async () => {
-    if (isCropping) return;
+    if (processingRef.current) return;
+    processingRef.current = true;
     setIsCropping(true);
-
+    onProcessingChange?.(true);
+    let context: ReturnType<typeof ImageManipulator.manipulate> | undefined;
     try {
-      const effectiveScale = baseScale * zoom.value;
-      const imageLeft =
-        stageWidth / 2 + translateX.value - (displayWidth * zoom.value) / 2;
-      const imageTop =
-        stageHeight / 2 + translateY.value - (displayHeight * zoom.value) / 2;
-      const sourceLeft = clamp(
-        (cropX.value - imageLeft) / effectiveScale,
-        0,
-        sourceWidth
-      );
-      const sourceTop = clamp(
-        (cropY.value - imageTop) / effectiveScale,
-        0,
-        sourceHeight
-      );
-      const sourceRight = clamp(
-        (cropX.value + cropWidth.value - imageLeft) / effectiveScale,
-        0,
-        sourceWidth
-      );
-      const sourceBottom = clamp(
-        (cropY.value + cropHeight.value - imageTop) / effectiveScale,
-        0,
-        sourceHeight
-      );
-      const originX = Math.floor(sourceLeft);
-      const originY = Math.floor(sourceTop);
-      const cropPixelWidth = Math.max(
-        1,
-        Math.min(sourceWidth - originX, Math.ceil(sourceRight) - originX)
-      );
-      const cropPixelHeight = Math.max(
-        1,
-        Math.min(sourceHeight - originY, Math.ceil(sourceBottom) - originY)
-      );
-
-      const context = ImageManipulator.manipulate(imageUri);
-      context.crop({
-        originX,
-        originY,
-        width: cropPixelWidth,
-        height: cropPixelHeight,
-      });
-
-      const renderedImage = await context.renderAsync();
-      const result = await renderedImage.saveAsync({
-        compress: 0.9,
-        format: SaveFormat.JPEG,
-      });
-
-      onCrop(result.uri, result.width, result.height);
-    } catch (error) {
-      console.error('Crop failed:', error);
-      Alert.alert(
-        'Couldn\'t crop photo',
-        'Please try again or choose a different photo.'
-      );
+      context = ImageManipulator.manipulate(imageUri);
+      if (rotation) context.rotate(rotation);
+      context.crop(pixelPhotoCrop(sourceCrop(), sourceWidth, sourceHeight));
+      const rendered = await context.renderAsync();
+      try {
+        const result = await rendered.saveAsync({ compress: 0.9, format: SaveFormat.JPEG });
+        onCrop(result.uri, result.width, result.height);
+      } finally {
+        rendered.release();
+      }
+    } catch {
+      Alert.alert('Couldn\'t crop photo', 'Please try again or choose a different photo.');
     } finally {
+      context?.release();
+      processingRef.current = false;
       setIsCropping(false);
+      onProcessingChange?.(false);
     }
   };
 
@@ -495,7 +527,12 @@ export default function ImageCropScreen({
             >
               <Image
                 source={{ uri: imageUri }}
-                style={styles.image}
+                style={{
+                  position: 'absolute', width: imageWidth * baseScale, height: imageHeight * baseScale,
+                  left: (displayWidth - imageWidth * baseScale) / 2,
+                  top: (displayHeight - imageHeight * baseScale) / 2,
+                  transform: [{ rotate: `${rotation}deg` }],
+                }}
                 contentFit="fill"
               />
             </Animated.View>
@@ -536,17 +573,22 @@ export default function ImageCropScreen({
 
       <View style={[styles.controlsSafeArea, { paddingBottom: bottomInset }]}>
         <Text style={styles.hint}>Drag corners · pinch and move photo</Text>
-        <TouchableOpacity
-          onPress={resetTransforms}
-          style={[styles.resetButton, isCropping && styles.buttonDisabled]}
-          disabled={isCropping}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Reset crop"
-        >
-          <Ionicons name="refresh" size={20} color={colors.white} />
-          <Text style={styles.resetText}>Reset</Text>
-        </TouchableOpacity>
+        <View style={styles.controlsRow}>
+          <TouchableOpacity onPress={() => adjustZoom(1 / 1.25)} style={styles.zoomButton} disabled={isCropping} accessibilityRole="button" accessibilityLabel="Zoom crop out">
+            <Ionicons name="remove" size={24} color={colors.white} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => adjustZoom(1.25)} style={styles.zoomButton} disabled={isCropping} accessibilityRole="button" accessibilityLabel="Zoom crop in">
+            <Ionicons name="add" size={24} color={colors.white} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={rotate} style={[styles.resetButton, isCropping && styles.buttonDisabled]} disabled={isCropping} accessibilityRole="button" accessibilityLabel="Rotate crop 90 degrees clockwise">
+            <Ionicons name="refresh-outline" size={20} color={colors.white} />
+            <Text style={styles.resetText}>Rotate 90°</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setComposition(initialRotation)} style={[styles.resetButton, isCropping && styles.buttonDisabled]} disabled={isCropping} accessibilityRole="button" accessibilityLabel="Reset crop">
+            <Ionicons name="arrow-undo-outline" size={20} color={colors.white} />
+            <Text style={styles.resetText}>Reset</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -601,10 +643,6 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     position: 'absolute',
-  },
-  image: {
-    width: '100%',
-    height: '100%',
   },
   mask: {
     position: 'absolute',
@@ -698,13 +736,15 @@ const styles = StyleSheet.create({
     color: colors.gray[400],
     fontSize: typography.fontSizes.sm,
   },
+  controlsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' },
+  zoomButton: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center' },
   resetButton: {
     minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.sm,
   },
   resetText: {
     color: colors.white,

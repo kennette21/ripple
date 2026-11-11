@@ -11,8 +11,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@/components/ui';
+import { FollowButton } from '@/components/ui/FollowButton';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState } from '@/components/common';
 import { useAuth } from '@/providers/AuthProvider';
 import {
@@ -24,7 +26,6 @@ import {
 } from '@/hooks/social';
 import { getErrorMessage } from '@/lib/errors';
 import {
-  borderRadius,
   colors,
   spacing,
   typography,
@@ -104,19 +105,12 @@ export default function ConnectionsScreen() {
     return (
       <View style={styles.personRow}>
         <Pressable
-          style={({ pressed }) => [
-            styles.personLink,
-            pressed && styles.personLinkPressed,
-          ]}
+          style={({ pressed }) => [styles.personLink, pressed && styles.personLinkPressed]}
           onPress={() => router.push(`/user/${item.id}`)}
           accessibilityRole="button"
-          accessibilityLabel={`Open ${item.displayName}'s profile`}
+          accessibilityLabel={`Open ${item.displayName || item.username}'s profile`}
         >
-          <Avatar
-            uri={item.avatarUrl}
-            name={item.displayName || item.username}
-            size="lg"
-          />
+          <Avatar uri={item.avatarUrl} name={item.displayName || item.username} size="lg" />
           <View style={styles.personInfo}>
             <Text style={styles.personName} numberOfLines={1}>
               {item.displayName || item.username}
@@ -127,39 +121,14 @@ export default function ConnectionsScreen() {
             </Text>
           </View>
         </Pressable>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.followButton,
-            !item.isFollowing && styles.followButtonPrimary,
-            pressed && styles.followButtonPressed,
-            isUpdating && styles.followButtonDisabled,
-          ]}
+        <FollowButton
+          name={item.displayName || item.username}
+          following={item.isFollowing}
+          followBack={kind === 'followers'}
           onPress={() => handleFollowToggle(item)}
-          disabled={isUpdating}
-          accessibilityRole="button"
-          accessibilityLabel={
-            item.isFollowing
-              ? `Unfollow ${item.displayName}`
-              : `Follow ${item.displayName} back`
-          }
-        >
-          {isUpdating ? (
-            <ActivityIndicator
-              size="small"
-              color={item.isFollowing ? colors.primary[500] : colors.white}
-            />
-          ) : (
-            <Text
-              style={[
-                styles.followButtonText,
-                !item.isFollowing && styles.followButtonTextPrimary,
-              ]}
-            >
-              {item.isFollowing ? 'Following' : 'Follow back'}
-            </Text>
-          )}
-        </Pressable>
+          loading={isUpdating}
+          style={styles.followAction}
+        />
       </View>
     );
   }, [
@@ -202,58 +171,17 @@ export default function ConnectionsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable
-          style={styles.backButton}
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Back to profile"
-          hitSlop={8}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.gray[900]} />
-        </Pressable>
-        <Text style={styles.title}>Connections</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
-      <View style={styles.tabs} accessibilityRole="tablist">
-        <Pressable
-          style={[
-            styles.tab,
-            kind === 'following' && styles.activeTab,
-          ]}
-          onPress={() => setKind('following')}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: kind === 'following' }}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              kind === 'following' && styles.activeTabText,
-            ]}
-          >
-            Following · {counts?.following ?? '…'}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.tab,
-            kind === 'followers' && styles.activeTab,
-          ]}
-          onPress={() => setKind('followers')}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: kind === 'followers' }}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              kind === 'followers' && styles.activeTabText,
-            ]}
-          >
-            Followers · {counts?.followers ?? '…'}
-          </Text>
-        </Pressable>
-      </View>
+      <ScreenHeader title="Connections" onBack={() => router.back()} backLabel="Back to profile" />
+      <SegmentedControl<ConnectionKind>
+        variant="tabs"
+        label="Connection type"
+        value={kind}
+        onChange={setKind}
+        options={[
+          { value: 'following', label: `Following · ${counts?.following ?? '…'}` },
+          { value: 'followers', label: `Followers · ${counts?.followers ?? '…'}` },
+        ]}
+      />
 
       <Text style={styles.listDescription}>
         {kind === 'following'
@@ -273,7 +201,7 @@ export default function ConnectionsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={isRefetching && !isFetchingNextPage}
-              onRefresh={refetch}
+              onRefresh={() => { void refetch(); }}
               tintColor={colors.primary[500]}
             />
           }
@@ -283,7 +211,7 @@ export default function ConnectionsScreen() {
               <View style={styles.footer}>
                 <ActivityIndicator color={colors.primary[500]} />
               </View>
-            ) : null
+            ) : undefined
           }
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.5}
@@ -301,56 +229,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
-  },
-  header: {
-    minHeight: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  backButton: {
-    width: 72,
-    height: 40,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[900],
-  },
-  headerSpacer: {
-    width: 72,
-  },
-  tabs: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    padding: spacing.xs,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.gray[100],
-  },
-  tab: {
-    minHeight: 40,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: borderRadius.md,
-  },
-  activeTab: {
-    backgroundColor: colors.white,
-  },
-  tabText: {
-    fontSize: typography.fontSizes.sm,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[500],
-  },
-  activeTabText: {
-    color: colors.gray[900],
   },
   listDescription: {
     minHeight: 38,
@@ -397,36 +275,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSizes.xs,
     color: colors.gray[500],
   },
-  followButton: {
-    minWidth: 88,
-    minHeight: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.gray[200],
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.white,
-  },
-  followButtonPrimary: {
-    borderColor: colors.primary[500],
-    backgroundColor: colors.primary[500],
-  },
-  followButtonPressed: {
-    opacity: 0.7,
-  },
-  followButtonDisabled: {
-    opacity: 0.55,
-  },
-  followButtonText: {
-    fontSize: typography.fontSizes.xs,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[900],
-  },
-  followButtonTextPrimary: {
-    color: colors.white,
-  },
+  followAction: { marginLeft: spacing.sm },
   emptyList: {
     flexGrow: 1,
   },

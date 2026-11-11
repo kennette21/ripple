@@ -2,23 +2,22 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ScrollViewInstance,
+  type ViewInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { EmptyState, LoadingScreen } from '@components/common';
 import { PostCard } from '@/components/post/PostCard';
 import { usePost } from '@/hooks/posts';
 import { useAuth } from '@providers/AuthProvider';
 import { useImageZoomActive } from '@/providers/ImageZoomProvider';
-import { colors, spacing, typography } from '@constants/theme';
+import { colors, spacing } from '@constants/theme';
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -41,20 +40,27 @@ export default function PostScreen() {
   const { user } = useAuth();
   const isZoomActive = useImageZoomActive();
   const { data: post, isError, isLoading, refetch } = usePost(postId, user?.id);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const scrollOffsetRef = useRef(0);
   const positionedCommentRef = useRef<string | null>(null);
   const [isCommentThreadActive, setIsCommentThreadActive] = useState(
     !!focusedCommentId
   );
+  const [previousPostId, setPreviousPostId] = useState(postId);
+  const [previousFocusedCommentId, setPreviousFocusedCommentId] = useState(focusedCommentId);
+
+  if (postId !== previousPostId || focusedCommentId !== previousFocusedCommentId) {
+    setPreviousPostId(postId);
+    setPreviousFocusedCommentId(focusedCommentId);
+    setIsCommentThreadActive(!!focusedCommentId);
+  }
 
   useEffect(() => {
     positionedCommentRef.current = null;
-    setIsCommentThreadActive(!!focusedCommentId);
   }, [focusedCommentId, postId]);
 
   const revealView = useCallback((
-    view: View,
+    view: ViewInstance,
     alignToTop: boolean,
     onPositioned?: () => void
   ) => {
@@ -93,7 +99,7 @@ export default function PostScreen() {
     });
   }, []);
 
-  const handleFocusedCommentPositioned = useCallback((comment: View) => {
+  const handleFocusedCommentPositioned = useCallback((comment: ViewInstance) => {
     if (
       !focusedCommentId
       || positionedCommentRef.current === focusedCommentId
@@ -106,7 +112,7 @@ export default function PostScreen() {
   }, [focusedCommentId, revealView]);
 
   const handleCommentComposerActivated = useCallback((
-    composer: View,
+    composer: ViewInstance,
     onPositioned?: () => void
   ) => {
     revealView(composer, false, onPositioned);
@@ -120,19 +126,7 @@ export default function PostScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable
-          style={styles.headerButton}
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          hitSlop={8}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.gray[700]} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Post</Text>
-        <View style={styles.headerPlaceholder} />
-      </View>
+      <ScreenHeader title="Post" onBack={() => router.back()} />
 
       {isLoading ? (
         <LoadingScreen />
@@ -184,27 +178,5 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-    backgroundColor: colors.white,
-  },
-  headerButton: {
-    width: 32,
-    alignItems: 'flex-start',
-  },
-  headerPlaceholder: {
-    width: 32,
-  },
-  headerTitle: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[900],
   },
 });

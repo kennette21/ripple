@@ -1,0 +1,207 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSharedValue } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { File } from 'expo-file-system';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Button } from '@/components/ui/Button';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { PhotoEditingCanvas } from './PhotoEditingCanvas';
+import { PhotoZoomControl } from './PhotoZoomControl';
+import { transformPostPhoto } from '@/lib/postPhotoEditing';
+import { rotatePhotoCrop, rotatedPhotoSize, type PhotoCrop, type PhotoRotation } from '@/lib/photoEditingGeometry';
+import { clamp, fullPhotoCrop, MAX_PHOTO_ZOOM, photoCanvasLayout, photoCropZoom, samePhotoCrop, squarePhotoCrop, zoomPhotoCrop, type PhotoFraming } from '@/lib/photoEditorGeometry';
+import { getErrorMessage } from '@/lib/errors';
+import { colors, spacing, typography, borderRadius } from '@/constants/theme';
+import type { SelectedPostPhoto } from '@/types/postPhoto';
+import type { LivePhotoPosition, PhotoEditorInteraction } from '@/lib/photoEditorInteraction';
+
+interface Props {
+  photo: SelectedPostPhoto;
+  startWithCrop?: boolean;
+  onApply: (photo: SelectedPostPhoto) => void;
+  onClose: () => void;
+}
+interface Composition {
+  photo: SelectedPostPhoto;
+  rotation: PhotoRotation;
+  mode: PhotoFraming;
+  crop?: PhotoCrop;
+  revision?: number;
+}
+interface Session { current: Composition; history: Composition[] }
+const boundsOf = (value: Composition) => value.crop ?? fullPhotoCrop(value.photo.width, value.photo.height, value.rotation);
+const equivalent = (a: Composition, b: Composition) => a.photo.uri === b.photo.uri && a.rotation === b.rotation && a.mode === b.mode && samePhotoCrop(boundsOf(a), boundsOf(b));
+
+export function PostPhotoEditor({ photo, startWithCrop = false, onApply, onClose }: Props) {
+  const { width, height } = useWindowDimensions();
+  const [session, setSession] = useState<Session>({ current: { photo, rotation: 0, mode: startWithCrop ? 'crop' : 'fit' }, history: [] });
+  const latest = useRef(session);
+  const zoomStart = useRef<Composition | null>(null);
+  const savingRef = useRef(false);
+  const keptUri = useRef<string | null>(null);
+  const generatedUris = useRef(new Set<string>());
+  const [saving, setSaving] = useState(false);
+  const [canvasInteracting, setCanvasInteracting] = useState(false);
+  const [zooming, setZooming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [stage, setStage] = useState({ width: width - spacing.md * 2, height: Math.max(140, height - 330) });
+  const current = session.current;
+  const source = rotatedPhotoSize(current.photo.width, current.photo.height, current.rotation);
+  const bounds = boundsOf(current);
+  const zoom = photoCropZoom(bounds, source.width, source.height);
+  const maximumZoom = Math.max(MAX_PHOTO_ZOOM, zoom);
+  const livePosition = useSharedValue<LivePhotoPosition>({ crop: bounds, view: photoCanvasLayout(bounds, stage.width, stage.height),
+    sourceWidth: source.width, sourceHeight: source.height, stageWidth: stage.width, stageHeight: stage.height });
+  const liveView = useSharedValue(photoCanvasLayout(bounds, stage.width, stage.height));
+  const liveActive = useSharedValue(0);
+  const liveRevision = useSharedValue(0);
+  const live: PhotoEditorInteraction = { position: livePosition, view: liveView, active: liveActive, revision: liveRevision };
+  const disabled = saving || canvasInteracting || zooming;
+  const original: Composition = {
+    photo: { ...photo, uri: photo.sourceUri, width: photo.sourceWidth, height: photo.sourceHeight, isCropped: false },
+    rotation: 0, mode: 'fit',
+  };
+
+  useEffect(() => {
+    const generated = generatedUris.current;
+    return () => {
+      for (const uri of generated) {
+        if (uri === keptUri.current) continue;
+        try { const file = new File(uri); if (file.exists) file.delete(); } catch {}
+      }
+    };
+  }, []);
+
+  const replace = (next: Session) => { latest.current = next; setSession(next); };
+  const change = (next: Composition, revision?: number) => {
+    if (savingRef.current || equivalent(latest.current.current, next)) return;
+    const previous = latest.current;
+    replace({ current: { ...next, revision }, history: [...previous.history.slice(-39), previous.current] });
+    setError(null);
+  };
+  const close = () => { if (!savingRef.current) onClose(); };
+  const selectMode = (mode: PhotoFraming) => {
+    if (disabled) return;
+    const value = latest.current.current;
+    change({ ...value, mode, crop: mode === 'fit' ? undefined : mode === 'fill' ? squarePhotoCrop(boundsOf(value)) : boundsOf(value) });
+  };
+  const rotate = () => {
+    if (disabled) return;
+    const value = latest.current.current;
+    const size = rotatedPhotoSize(value.photo.width, value.photo.height, value.rotation);
+    change({ ...value, rotation: ((value.rotation + 90) % 360) as PhotoRotation,
+      crop: value.crop ? rotatePhotoCrop(value.crop, size.height) : undefined });
+  };
+  const commitCrop = (crop: PhotoCrop, revision?: number) => {
+    const value = latest.current.current;
+    // Keep preview precision across gestures; the final encoder rounds the
+    // bounds to source pixels once, when Done is pressed.
+    if (samePhotoCrop(boundsOf(value), crop)) return;
+    change({ ...value, crop, mode: value.mode === 'fit' ? 'crop' : value.mode }, revision);
+  };
+  const finishZoom = (crop: PhotoCrop, canceled: boolean, revision?: number) => {
+    zoomStart.current = null;
+    if (!canceled) commitCrop(crop, revision);
+    setZooming(false);
+  };
+  const stepZoom = (direction: number) => {
+    if (disabled || zoomStart.current) return;
+    const value = latest.current.current;
+    const size = rotatedPhotoSize(value.photo.width, value.photo.height, value.rotation);
+    const crop = boundsOf(value);
+    const zoom = photoCropZoom(crop, size.width, size.height);
+    const requested = clamp(zoom * (direction > 0 ? 1.25 : .8), 1, Math.max(MAX_PHOTO_ZOOM, zoom));
+    change({ ...value, crop: zoomPhotoCrop(crop, size.width, size.height, requested), mode: value.mode === 'fit' ? 'crop' : value.mode });
+  };
+  const undo = () => {
+    if (disabled) return;
+    const value = latest.current;
+    const previous = value.history.at(-1);
+    if (previous) { replace({ current: { ...previous, revision: undefined }, history: value.history.slice(0, -1) }); setError(null); }
+  };
+  const apply = async () => {
+    if (savingRef.current || canvasInteracting || zoomStart.current) return;
+    savingRef.current = true; setSaving(true); setError(null);
+    try {
+      const value = latest.current.current;
+      const result = await transformPostPhoto(value.photo, { rotation: value.rotation, crop: value.crop });
+      if (result.uri !== photo.uri && result.uri !== photo.sourceUri) generatedUris.current.add(result.uri);
+      keptUri.current = result.uri;
+      onApply(result);
+    } catch (error) {
+      setError(getErrorMessage(error, 'Could not edit the photo. Please try again.'));
+    } finally {
+      savingRef.current = false; setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={close}>
+      <GestureHandlerRootView style={styles.root}>
+        <SafeAreaView style={styles.root} edges={['top', 'bottom']} accessibilityViewIsModal onAccessibilityEscape={close}>
+          <ScreenHeader
+            title="Edit photo"
+            sideWidth={80}
+            leading={<Button title="Cancel" variant="ghost" size="sm" onPress={close} disabled={saving} accessibilityLabel="Cancel photo edits" style={styles.headerAction} textStyle={styles.cancelText} />}
+            trailing={<Button title="Done" variant="ghost" size="sm" onPress={apply} disabled={disabled} loading={saving} accessibilityLabel="Done editing photo" style={styles.headerAction} />}
+          />
+          <View style={styles.tools}>
+            <Pressable style={styles.iconButton} onPress={rotate} disabled={disabled} accessibilityRole="button" accessibilityLabel="Rotate photo clockwise" accessibilityHint="Rotates the image a quarter turn." testID="photo-editor-rotate">
+              <MaterialIcons name="rotate-90-degrees-cw" size={27} color={disabled ? colors.gray[300] : colors.gray[700]} />
+            </Pressable>
+            <Pressable style={styles.iconButton} onPress={undo} disabled={disabled || !session.history.length} accessibilityRole="button" accessibilityLabel="Undo photo adjustment" testID="photo-editor-undo">
+              <Ionicons name="arrow-undo-outline" size={23} color={disabled || !session.history.length ? colors.gray[300] : colors.gray[700]} />
+            </Pressable>
+          </View>
+          <View style={styles.canvas} onLayout={event => {
+            const layout = event.nativeEvent.layout;
+            if (layout.width > 0 && layout.height > 0 && (layout.width !== stage.width || layout.height !== stage.height)) setStage({ width: layout.width, height: layout.height });
+          }}>
+            <PhotoEditingCanvas photo={current.photo} rotation={current.rotation} crop={bounds} mode={current.mode} revision={current.revision}
+              width={stage.width} height={stage.height} live={live} disabled={saving || zooming} onCommit={commitCrop} onInteractionChange={setCanvasInteracting} />
+          </View>
+          <Text style={styles.hint}>{current.mode === 'crop' ? 'Drag corners · pinch and move photo' : 'Pinch to zoom · drag to position'}</Text>
+          <View style={styles.controls}>
+            <SegmentedControl
+              label="Photo framing"
+              value={current.mode}
+              onChange={selectMode}
+              disabled={disabled}
+              style={styles.options}
+              options={[
+                { value: 'fit', label: 'Fit whole photo' },
+                { value: 'fill', label: 'Fill frame' },
+                { value: 'crop', label: 'Crop' },
+              ]}
+            />
+            <PhotoZoomControl value={zoom} maximum={maximumZoom} live={live} disabled={saving || canvasInteracting}
+              onStart={() => { zoomStart.current = latest.current.current; setZooming(true); }} onEnd={finishZoom} onStep={stepZoom} />
+            {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
+            <Pressable style={styles.reset} onPress={() => { if (!disabled) change(original); }} disabled={disabled || equivalent(current, original)} accessibilityRole="button" accessibilityLabel="Reset adjustments" accessibilityHint="Restores the original photo and clears cropping, rotation, and positioning." testID="photo-editor-reset">
+              <Text style={[styles.resetText, (disabled || equivalent(current, original)) && styles.muted]}>Reset adjustments</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </GestureHandlerRootView>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.white },
+  headerAction: { minHeight: 44, paddingHorizontal: spacing.sm },
+  cancelText: { color: colors.gray[700] },
+  tools: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, minHeight: 48, marginBottom: spacing.sm },
+  iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  canvas: { flex: 1, marginHorizontal: spacing.md, borderRadius: borderRadius.lg, overflow: 'hidden' },
+  hint: { textAlign: 'center', color: colors.gray[500], fontSize: typography.fontSizes.xs, marginTop: spacing.sm, marginBottom: spacing.sm },
+  controls: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
+  options: { marginBottom: spacing.sm },
+  reset: { minHeight: 48, justifyContent: 'center', alignItems: 'center' },
+  resetText: { color: colors.gray[600], fontSize: typography.fontSizes.sm },
+  muted: { color: colors.gray[300] },
+  error: { color: colors.error.dark, fontSize: typography.fontSizes.sm, textAlign: 'center', marginVertical: spacing.xs },
+});

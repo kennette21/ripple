@@ -4,12 +4,12 @@ import {
   Keyboard,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  View,
+  type ViewInstance,
 } from 'react-native';
 
 interface CommentComposerScrollResponder {
   scrollResponderScrollNativeHandleToKeyboard: (
-    nodeHandle: View,
+    nodeHandle: ViewInstance,
     additionalOffset?: number,
     preventNegativeScrollOffset?: boolean
   ) => void;
@@ -28,7 +28,7 @@ export function useCommentThreadController<ItemT>() {
   const [activeCommentThreadId, setActiveCommentThreadId] = useState<
     string | null
   >(null);
-  const activeComposerRef = useRef<View | null>(null);
+  const activeComposerRef = useRef<ViewInstance | null>(null);
   const currentListOffsetRef = useRef(0);
   const isKeyboardVisibleRef = useRef(false);
 
@@ -125,7 +125,7 @@ export function useCommentThreadController<ItemT>() {
   }, [positionActiveComposer]);
 
   const scrollToCommentComposer = useCallback(
-    (composer: View, onPositioned?: () => void) => {
+    (composer: ViewInstance, onPositioned?: () => void) => {
       activeComposerRef.current = composer;
 
       if (!isKeyboardVisibleRef.current) {

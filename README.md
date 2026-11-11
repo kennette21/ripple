@@ -2,12 +2,13 @@
 
 A social app for sharing posts, reflections, and photos with friends. Built with Expo (React Native) and Supabase.
 
-**Tech stack:** Expo SDK 54 / React Native 0.81 with expo-router, TypeScript, Zustand + TanStack Query for state/data, and Supabase (Postgres, Auth, Storage) as the backend. See `ripple-mvp-spec.md` for the product spec.
+**Tech stack:** Expo SDK 58 / React Native 0.88 / React 19.3 with expo-router, TypeScript, Zustand + TanStack Query for state/data, and Supabase (Postgres, Auth, Storage) as the backend. See `ripple-mvp-spec.md` for the product spec.
 
 ## Prerequisites
 
-- Node.js 20+ and npm
+- Node.js 22.13+ and npm (verified with Node.js 26.12.1)
 - Xcode (for iOS builds) — install from the Mac App Store, then `xcode-select --install`
+- Android Studio and its Android SDK (for local Android builds). SDK 58 uses SDK Platform 37, Build-Tools 37.0.0, NDK 27.1.12297006, and Java 21. The SDK Manager can install these components; Gradle can also download missing components after their SDK licenses are accepted.
 - [EAS CLI](https://docs.expo.dev/eas/): `npm install -g eas-cli`
 - [Supabase CLI](https://supabase.com/docs/guides/cli): `brew install supabase/tap/supabase` (plus Docker, only if you want to run Supabase locally)
 - Access to: the `kennette21` Expo account (EAS project `ripple`), the Supabase project (`zgjqgspxxqdliwjiltdw`), and the Apple Developer team for `com.proxy.ripple`
@@ -28,17 +29,56 @@ EXPO_PUBLIC_SUPABASE_URL=https://zgjqgspxxqdliwjiltdw.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon key — see eas.json or Supabase dashboard → Settings → API>
 ```
 
-> **Warning:** there is currently a single Supabase project serving both development and production. Local development runs against the live database. Be careful with destructive actions, or use the local Supabase stack (below).
+> **Warning:** the hosted Supabase project serves production. Plain `npm start` uses the hosted configuration in `.env`. Use `npm run dev-start` to point the app at the local backend automatically.
 
-Then run the app on the iOS simulator:
+For an iPad or iPhone with **Expo Go for SDK 58**, start the local backend and Metro:
 
 ```bash
-npm run ios          # builds the native app and starts Metro
+colima start                 # if using Colima as the Docker engine
+LOCAL_SUPABASE_HOST=192.168.1.10 npm run dev-start
 ```
 
-The app uses native modules (contacts, notifications, secure store), so it does **not** run in Expo Go — it needs a development build. `npm run ios` handles this for the simulator. To develop on a physical device, build a dev client once with `eas build --profile development --platform ios`, install it, then start the bundler with `npx expo start --dev-client`.
+Replace `192.168.1.10` with the Mac's Wi-Fi IPv4 address. Keep the Mac and device on the same trusted Wi-Fi, allow local network access when prompted, and scan Metro's QR code to open the project in Expo Go. After an SDK upgrade, stop the previous Metro process with Ctrl+C before starting it again.
 
-After the first native build, day-to-day JS changes only need Metro running; you don't need to rebuild unless native dependencies or `app.json` plugins change.
+Expo Go is suitable for checking the app's screens and local data. Ripple skips device push registration in Expo Go; in-app notifications still use Supabase. Testing push delivery, app-specific permissions, icons, and splash behavior requires an installed native Ripple build. `expo-dev-client` is installed for native development builds and network inspection. TestFlight distributes packaged beta builds, which do not load edits from the local Metro server.
+
+For a native iOS simulator build, open Xcode and complete its license/setup prompts first. Start `npm run dev-start` in one terminal, then run this in another:
+
+```bash
+npm run ios -- --no-bundler   # builds and installs Ripple using the running Metro server
+```
+
+After the first native build, day-to-day JS changes only need Metro running. Rebuild after changing native dependencies or config plugins. SDK 58 requires iOS/iPadOS 16.4 or later.
+
+### Inspecting iOS against production
+
+Build and open a native development build in an iPhone simulator:
+
+```bash
+npm run inspect:ios
+```
+
+This uses the hosted Supabase URL and public anon key from the `production` profile in `eas.json`, and clears local Supabase overrides without changing `.env`. Sign in with an existing Ripple account. Posts, edits, and other actions use real production data. The build uses the current checkout; use the source revision of the shipped build when reproducing a release-specific issue.
+
+Once the native build is installed, restart just Metro with:
+
+```bash
+npm run inspect:start
+```
+
+Press `i` in Metro to open the installed app in the simulator, and `j` to open React Native DevTools. Use **Expo Network / Network** to inspect requests and **Profiler / Performance** to record component rendering and JavaScript work. Check that image requests appear; native networking coverage can differ from JavaScript fetch coverage. Open DevTools before reproducing a request, and record the same scroll with cold and warm image caches separately.
+
+For a build with Metro already running, use `npm run inspect:ios -- --no-bundler`. Additional Expo iOS options can be passed after `--`, such as `--device "iPhone 17 Pro"`.
+
+Feed photos request a cacheable 1200 × 1200 bounding-box version at quality 75 using Supabase Storage Image Transformations (enabled in production). Aspect ratio is preserved. Only the current and adjacent carousel photos load; fullscreen and pinch-zoom views use the original source. If a transformation fails, that photo falls back to its original URL. Upload compression is unchanged. On iOS, `enforceEarlyResizing` also reduces synchronous native resizing and memory use. Keep cold/first-scroll and warm-scroll measurements separate. Local Instruments traces and benchmark results belong under `.expo/profiling/`, which is ignored by Git. Simulator callback timing helps investigate main-thread stalls; validate GPU frame presentation and device-specific behavior on a physical iPhone.
+
+Xcode 27 displays simulators in **Device Hub** (`/Applications/Xcode.app/Contents/Applications/DeviceHub.app`). If Expo reports an `osascript` / System Events error after the build succeeds, the app may already be installed. Open its simulator window in Device Hub, keep `inspect:start` running, and launch the installed development build directly:
+
+```bash
+xcrun simctl openurl booted 'exp+ripple://?__expo_url=http%3A%2F%2F127.0.0.1%3A8081'
+```
+
+Development builds and simulator hardware are useful for diagnosis. Validate scrolling performance with a Release build on a physical iPhone and Xcode Instruments; React Native DevTools is a development tool. For that build, run `npm run inspect:ios -- --configuration Release --device`. After CocoaPods installation creates `ios/Ripple.xcworkspace`, open it in Xcode, select the device and Ripple scheme, and choose **Product → Profile**. The scheme's Profile action uses Release configuration. Keep the production environment set when rebuilding from Xcode, since the inspection script's environment applies only to its own process and children.
 
 ### with seeded data
 
@@ -62,6 +102,9 @@ Before committing, run:
 ```bash
 npm run typecheck    # tsc --noEmit
 npm run lint         # expo lint
+npm run test:notifications
+npm run test:posts    # photo-only creation and content rules
+npm run test:community # community search and pagination
 ```
 
 With an iOS development build installed, start the seeded stack in one terminal:
@@ -77,6 +120,36 @@ npm run test:e2e:comments
 npm run test:e2e:search-follow
 npm run test:e2e:privacy
 ```
+
+Photo-only post editing requires migration `20261109120000_photo_only_post_edits.sql`
+before shipping the updated client. Creation stores an empty caption to remain
+compatible with the existing `has_content` constraint. The edit RPC permits an
+empty caption only when retaining at least one image from the same post.
+
+To check that migration against the running local database (fixtures are rolled back):
+
+```bash
+npx --yes supabase@2.109.1 migration up --local
+docker exec -i supabase_db_ripple psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/photo_only_posts.sql
+```
+
+### Native projects and SDK compatibility
+
+The generated `ios/` and `android/` projects are local, Git-ignored folders. Their configuration lives in `app.json`, the installed dependencies, and config plugins. Keep native customizations there so future builds can reproduce them.
+
+On a fresh checkout, `npm run ios` or `npm run android` generates the missing platform project before building it. After changing native dependencies or config plugins, sync existing local projects and rebuild:
+
+```bash
+npx expo prebuild --no-clean
+```
+
+In SDK 58, `npx expo prebuild` recreates both native folders by default; `--no-clean` updates the existing folders in place. CocoaPods must run successfully to create the iOS workspace and `Podfile.lock`. Complete Xcode's license/setup prompts before installing Pods.
+
+EAS Build excludes the local native folders using `.gitignore` and regenerates them in the cloud. No `.easignore` override is used. The splash plugin preserves the previous fullscreen iOS artwork and Android logo size. `expo-build-properties` keeps Android release minification disabled, so regeneration preserves that setting without a manual Gradle edit.
+
+`patch-package` runs automatically after dependency installation. The patch in `patches/react-native-draggable-flatlist+4.0.3.patch` replaces the removed `InteractionManager` call with `requestIdleCallback` and keeps the library on Gesture Handler's compatible legacy list wrappers. Keep that dependency pinned until an upstream release supports the new APIs, then remove or regenerate the patch.
+
+React Compiler is not enabled. Its newly included ESLint diagnostics remain visible as warnings so compiler adoption can be handled separately from the SDK upgrade. The existing hook-order and dependency checks remain enabled.
 
 ## Supabase setup
 
@@ -160,15 +233,19 @@ Build profiles are defined in `eas.json` (`development`, `preview`, `production`
 ```bash
 eas login
 
-# Internal/TestFlight-style preview build
+# Ad hoc preview build for registered devices
 eas build --profile preview --platform ios
 
-# Production build + submit to App Store Connect
+# Store-signed build from the current branch for TestFlight
 eas build --profile production --platform ios
-eas submit --platform ios --latest
+
+# Upload that specific build to App Store Connect / TestFlight
+eas submit --profile production --platform ios --id <build-id>
 ```
 
-`eas submit` will walk you through App Store Connect authentication the first time. From there, releases are managed in App Store Connect (TestFlight for testers, then submit for review).
+The CLI packages the current working directory, so a feature branch can be tested through TestFlight without merging it into `main`. Commit the intended changes first so the build has a clear source revision. The `production` profile selects store signing and build settings; it does not select a Git branch or publish to the public App Store.
+
+`eas submit` will walk you through App Store Connect authentication the first time. After Apple processes the upload, select the build under TestFlight and make it available to the intended testers. Public App Store release requires a separate App Review/release step. To build and upload together, use `eas build --profile production --platform ios --auto-submit`.
 
 There is no over-the-air update setup (`expo-updates` is not installed) — every JS change ships via a new store build. Android is configured in `app.json` (`com.proxy.ripple`) but no Play Store submission has been set up.
 
