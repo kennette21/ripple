@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@/components/ui';
@@ -258,19 +259,7 @@ export default function NotificationSettingsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityLabel="Back to settings"
-          accessibilityRole="button"
-          hitSlop={8}
-          onPress={() => router.back()}
-          style={styles.headerButton}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.gray[700]} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader title="Notifications" onBack={() => router.back()} backLabel="Back to settings" />
 
       {isLoading ? (
         <View style={styles.centered}>
@@ -528,27 +517,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.gray[50],
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  headerButton: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[900],
   },
   centered: {
     flex: 1,

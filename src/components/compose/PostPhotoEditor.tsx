@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { File } from 'expo-file-system';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Button } from '@/components/ui/Button';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { PhotoEditingCanvas } from './PhotoEditingCanvas';
 import { PhotoZoomControl } from './PhotoZoomControl';
 import { transformPostPhoto } from '@/lib/postPhotoEditing';
@@ -139,13 +142,12 @@ export function PostPhotoEditor({ photo, startWithCrop = false, onApply, onClose
     <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={close}>
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaView style={styles.root} edges={['top', 'bottom']} accessibilityViewIsModal onAccessibilityEscape={close}>
-          <View style={styles.header}>
-            <Pressable style={styles.headerButton} onPress={close} disabled={saving} accessibilityRole="button" accessibilityLabel="Cancel photo edits"><Text style={styles.cancel}>Cancel</Text></Pressable>
-            <Text style={styles.title} accessibilityRole="header">Edit photo</Text>
-            <Pressable style={[styles.headerButton, styles.done]} onPress={apply} disabled={disabled} accessibilityRole="button" accessibilityLabel="Done editing photo" accessibilityState={{ disabled, busy: saving }}>
-              {saving ? <ActivityIndicator color={colors.primary[500]} /> : <Text style={[styles.doneText, disabled && styles.muted]}>Done</Text>}
-            </Pressable>
-          </View>
+          <ScreenHeader
+            title="Edit photo"
+            sideWidth={80}
+            leading={<Button title="Cancel" variant="ghost" size="sm" onPress={close} disabled={saving} accessibilityLabel="Cancel photo edits" style={styles.headerAction} textStyle={styles.cancelText} />}
+            trailing={<Button title="Done" variant="ghost" size="sm" onPress={apply} disabled={disabled} loading={saving} accessibilityLabel="Done editing photo" style={styles.headerAction} />}
+          />
           <View style={styles.tools}>
             <Pressable style={styles.iconButton} onPress={rotate} disabled={disabled} accessibilityRole="button" accessibilityLabel="Rotate photo clockwise" accessibilityHint="Rotates the image a quarter turn." testID="photo-editor-rotate">
               <MaterialIcons name="rotate-90-degrees-cw" size={27} color={disabled ? colors.gray[300] : colors.gray[700]} />
@@ -163,14 +165,18 @@ export function PostPhotoEditor({ photo, startWithCrop = false, onApply, onClose
           </View>
           <Text style={styles.hint}>{current.mode === 'crop' ? 'Drag corners · pinch and move photo' : 'Pinch to zoom · drag to position'}</Text>
           <View style={styles.controls}>
-            <View style={styles.options} accessibilityRole="radiogroup" accessibilityLabel="Photo framing">
-              {([{ mode: 'fit', label: 'Fit whole photo' }, { mode: 'fill', label: 'Fill frame' }, { mode: 'crop', label: 'Crop' }] as const).map(option => (
-                <Pressable key={option.mode} style={[styles.option, current.mode === option.mode && styles.optionSelected]} onPress={() => selectMode(option.mode)} disabled={disabled}
-                  accessibilityRole="radio" accessibilityLabel={option.label} accessibilityState={{ checked: current.mode === option.mode, disabled }}>
-                  <Text style={[styles.optionText, current.mode === option.mode && styles.selectedText]}>{option.label}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <SegmentedControl
+              label="Photo framing"
+              value={current.mode}
+              onChange={selectMode}
+              disabled={disabled}
+              style={styles.options}
+              options={[
+                { value: 'fit', label: 'Fit whole photo' },
+                { value: 'fill', label: 'Fill frame' },
+                { value: 'crop', label: 'Crop' },
+              ]}
+            />
             <PhotoZoomControl value={zoom} maximum={maximumZoom} live={live} disabled={saving || canvasInteracting}
               onStart={() => { zoomStart.current = latest.current.current; setZooming(true); }} onEnd={finishZoom} onStep={stepZoom} />
             {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
@@ -186,22 +192,14 @@ export function PostPhotoEditor({ photo, startWithCrop = false, onApply, onClose
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.white },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, minHeight: 56 },
-  headerButton: { minWidth: 70, minHeight: 44, justifyContent: 'center' },
-  done: { alignItems: 'flex-end' },
-  cancel: { fontSize: typography.fontSizes.md, color: colors.gray[600] },
-  title: { fontSize: typography.fontSizes.lg, fontWeight: typography.fontWeights.semibold, color: colors.gray[900] },
-  doneText: { fontSize: typography.fontSizes.md, fontWeight: typography.fontWeights.semibold, color: colors.primary[500] },
+  headerAction: { minHeight: 44, paddingHorizontal: spacing.sm },
+  cancelText: { color: colors.gray[700] },
   tools: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, minHeight: 48, marginBottom: spacing.sm },
   iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   canvas: { flex: 1, marginHorizontal: spacing.md, borderRadius: borderRadius.lg, overflow: 'hidden' },
   hint: { textAlign: 'center', color: colors.gray[500], fontSize: typography.fontSizes.xs, marginTop: spacing.sm, marginBottom: spacing.sm },
   controls: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
-  options: { flexDirection: 'row', padding: spacing.xs, gap: spacing.xs, backgroundColor: colors.gray[100], borderRadius: borderRadius.lg, marginBottom: spacing.sm },
-  option: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: borderRadius.md, paddingHorizontal: spacing.xs },
-  optionSelected: { backgroundColor: colors.white },
-  optionText: { fontSize: typography.fontSizes.xs, color: colors.gray[600] },
-  selectedText: { fontWeight: typography.fontWeights.semibold, color: colors.gray[900] },
+  options: { marginBottom: spacing.sm },
   reset: { minHeight: 48, justifyContent: 'center', alignItems: 'center' },
   resetText: { color: colors.gray[600], fontSize: typography.fontSizes.sm },
   muted: { color: colors.gray[300] },

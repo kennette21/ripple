@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   ViewStyle,
   TextStyle,
+  type StyleProp,
 } from 'react-native';
 import { colors, spacing, borderRadius, typography } from '@constants/theme';
 
@@ -17,7 +18,7 @@ interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   accessibilityLabel?: string;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   textStyle?: TextStyle;
 }
 
@@ -53,7 +54,7 @@ export function Button({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'primary' ? colors.white : colors.primary[500]}
+          color={variant === 'primary' ? colors.white : variant === 'secondary' ? colors.gray[700] : colors.primary[500]}
         />
       ) : (
         <Text

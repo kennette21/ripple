@@ -23,9 +23,12 @@ function load(file, modules = {}) {
 function nodes(value) {
   if (Array.isArray(value)) return value.flatMap(nodes);
   if (!value || typeof value !== 'object') return [];
-  const children = value.type === 'SortableGrid'
-    ? value.props.data.map((item, index) => value.props.renderItem({ item, index }))
-    : value.props?.children;
+  let children = value.props?.children;
+  if (value.type === 'SortableGrid') {
+    children = value.props.data.map((item, index) => value.props.renderItem({ item, index }));
+  } else if (['ScreenHeader', 'HeaderIconButton', 'SegmentedControl'].includes(value.type?.name)) {
+    children = value.type(value.props);
+  }
   return [value, ...nodes(children)];
 }
 function textOf(value) {
@@ -124,6 +127,10 @@ function component(file, name, props = {}, overrides = {}) {
       if (!(i in slots)) slots[i] = createSharedValue(initial);
       return slots[i];
     };
+  }
+  for (const control of ['ScreenHeader', 'SegmentedControl']) {
+    const modulePath = `components/ui/${control}`;
+    modules[`@/${modulePath}`] = load(`src/${modulePath}.tsx`, modules);
   }
   const renderComponent = load(file, modules)[name];
   function render() {

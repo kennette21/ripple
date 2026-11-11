@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
   ScrollView,
   Alert,
   Pressable,
@@ -14,6 +13,8 @@ import {
   Image as NativeImage,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { HeaderIconButton, ScreenHeader } from '@/components/ui/ScreenHeader';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
@@ -29,7 +30,7 @@ import {
   clearPostImagePreparation,
   preparePostImage,
 } from '@/lib/postImageUpload';
-import { colors, spacing, typography, borderRadius } from '@constants/theme';
+import { colors, spacing, typography } from '@constants/theme';
 import { LIMITS } from '@constants/config';
 
 export interface PostDraft {
@@ -224,73 +225,40 @@ export function PostComposer({ initialDraft = EMPTY_DRAFT, editing = false, savi
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={handleClose}
-          accessibilityRole="button"
-          accessibilityLabel={editing ? "Cancel editing post" : "Close composer"}
-          hitSlop={8}
-          disabled={disabled}
-        >
-          <Ionicons name="close" size={24} color={colors.gray[600]} />
-        </TouchableOpacity>
-        <Text style={styles.title}>{editing ? 'Edit Post' : 'New Post'}</Text>
-        <Button
-          title={editing ? 'Save' : 'Post'}
-          onPress={handlePost}
-          disabled={!canPost || disabled}
-          loading={saving}
-          size="sm"
-        />
-      </View>
-
-      <View style={styles.typeSelector}>
-        <TouchableOpacity
-          style={[
-            styles.typeButton,
-            contentType === 'caption' && styles.typeButtonActive,
-          ]}
-          onPress={() => setContentType('caption')}
-          disabled={disabled}
-        >
-          <Ionicons
-            name="chatbubble-outline"
-            size={18}
-            color={contentType === 'caption' ? colors.primary[500] : colors.gray[500]}
+      <ScreenHeader
+        title={editing ? 'Edit Post' : 'New Post'}
+        sideWidth={80}
+        leading={(
+          <HeaderIconButton
+            icon="close"
+            label={editing ? 'Cancel editing post' : 'Close composer'}
+            onPress={handleClose}
+            disabled={disabled}
           />
-          <Text
-            style={[
-              styles.typeButtonText,
-              contentType === 'caption' && styles.typeButtonTextActive,
-            ]}
-          >
-            Caption
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.typeButton,
-            contentType === 'reflection' && styles.typeButtonActive,
-          ]}
-          onPress={() => setContentType('reflection')}
-          disabled={disabled}
-        >
-          <Ionicons
-            name="document-text-outline"
-            size={18}
-            color={contentType === 'reflection' ? colors.primary[500] : colors.gray[500]}
+        )}
+        trailing={(
+          <Button
+            title={editing ? 'Save' : 'Post'}
+            onPress={handlePost}
+            disabled={!canPost || disabled}
+            loading={saving}
+            size="sm"
+            style={styles.submitButton}
           />
-          <Text
-            style={[
-              styles.typeButtonText,
-              contentType === 'reflection' && styles.typeButtonTextActive,
-            ]}
-          >
-            Reflection
-          </Text>
-        </TouchableOpacity>
-      </View>
+        )}
+      />
+
+      <SegmentedControl
+        label="Post format"
+        value={contentType}
+        onChange={setContentType}
+        disabled={disabled}
+        style={styles.typeSelector}
+        options={[
+          { value: 'caption', label: 'Caption', icon: 'chatbubble-outline' },
+          { value: 'reflection', label: 'Reflection', icon: 'document-text-outline' },
+        ]}
+      />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -417,47 +385,10 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  title: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[900],
-  },
+  submitButton: { minHeight: 44 },
   typeSelector: {
-    flexDirection: 'row',
-    padding: spacing.sm,
-    gap: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  typeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.gray[50],
-  },
-  typeButtonActive: {
-    backgroundColor: colors.primary[50],
-  },
-  typeButtonText: {
-    fontSize: typography.fontSizes.sm,
-    fontWeight: typography.fontWeights.medium,
-    color: colors.gray[500],
-  },
-  typeButtonTextActive: {
-    color: colors.primary[500],
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
   },
   content: {
     flex: 1,

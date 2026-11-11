@@ -4,17 +4,16 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  Pressable,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FollowButton } from '@/components/ui/FollowButton';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import {
   Avatar,
-  Button,
   FullscreenImageViewer,
   PinchableImage,
 } from '@components/ui';
@@ -102,9 +101,9 @@ export default function UserProfileScreen() {
             <Text style={styles.bio}>{profile.bio}</Text>
           )}
           {!isOwnProfile && (
-            <Button
-              title={followStatus?.isFollowing ? 'Following' : 'Follow'}
-              variant={followStatus?.isFollowing ? 'outline' : 'primary'}
+            <FollowButton
+              name={profile?.display_name || profile?.username || ''}
+              following={!!followStatus?.isFollowing}
               onPress={handleFollow}
               loading={followMutation.isPending}
               disabled={statusLoading}
@@ -169,13 +168,7 @@ export default function UserProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.navbar}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.gray[900]} />
-        </Pressable>
-        <Text style={styles.navTitle}>{profile.username}</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <ScreenHeader title={profile.username} onBack={() => router.back()} />
 
       <KeyboardAvoidingView
         style={styles.content}
@@ -229,26 +222,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  navbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  backButton: {
-    padding: spacing.xs,
-  },
-  navTitle: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[900],
-  },
-  placeholder: {
-    width: 32,
   },
   header: {
     padding: spacing.lg,

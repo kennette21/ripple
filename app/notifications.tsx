@@ -19,6 +19,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { router, useIsFocused } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
@@ -551,48 +552,13 @@ function NotificationsContent({ userId }: { userId: string | undefined }) {
 }
 
 function NotificationsHeader() {
-  return (
-    <View style={styles.header}>
-      <Pressable
-        style={styles.headerButton}
-        onPress={() => router.back()}
-        accessibilityRole="button"
-        accessibilityLabel="Go back"
-        hitSlop={8}
-      >
-        <Ionicons name="arrow-back" size={24} color={colors.gray[700]} />
-      </Pressable>
-      <Text style={styles.headerTitle}>Notifications</Text>
-      <View style={styles.headerPlaceholder} />
-    </View>
-  );
+  return <ScreenHeader title="Notifications" onBack={() => router.back()} />;
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  headerButton: {
-    width: 32,
-    alignItems: 'flex-start',
-  },
-  headerPlaceholder: {
-    width: 32,
-  },
-  headerTitle: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[900],
   },
   loadingContainer: {
     flex: 1,

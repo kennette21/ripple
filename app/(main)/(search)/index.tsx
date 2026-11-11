@@ -8,8 +8,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FollowButton } from '@/components/ui/FollowButton';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useRouter } from 'expo-router';
-import { Input, Avatar, Button } from '@components/ui';
+import { Input, Avatar } from '@components/ui';
 import { EmptyState } from '@components/common';
 import { useAuth } from '@providers/AuthProvider';
 import { useSearch, type SearchUser } from '@/hooks/social/useSearch';
@@ -50,10 +52,9 @@ function UserRow({ profile, currentUserId }: { profile: SearchUser; currentUserI
           </Text>
         )}
       </View>
-      <Button
-        title={profile.isFollowing ? 'Following' : 'Follow'}
-        variant={profile.isFollowing ? 'outline' : 'primary'}
-        size="sm"
+      <FollowButton
+        name={profile.display_name || profile.username}
+        following={profile.isFollowing}
         onPress={handleFollow}
         loading={followMutation.isPending}
       />
@@ -75,9 +76,7 @@ export default function SearchScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Search</Text>
-      </View>
+      <ScreenHeader title="Search" />
 
       <View style={styles.searchContainer}>
         <Input
@@ -127,17 +126,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
-  },
-  header: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  title: {
-    fontSize: typography.fontSizes.xl,
-    fontWeight: typography.fontWeights.bold,
-    color: colors.gray[900],
   },
   searchContainer: {
     paddingHorizontal: spacing.md,

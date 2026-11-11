@@ -6,7 +6,6 @@ import {
   FlatList,
   Pressable,
   ActivityIndicator,
-  TouchableOpacity,
   Alert,
   SectionList,
   ScrollView,
@@ -16,6 +15,9 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar, Button, Input } from '@components/ui';
+import { FollowButton } from '@/components/ui/FollowButton';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { EmptyState } from '@components/common';
 import { useAuth } from '@providers/AuthProvider';
 import { useFollow } from '@/hooks/social/useFollow';
@@ -63,12 +65,10 @@ function CommunityPersonRow({ person, userId }: { person: CommunityPerson; userI
           <Text style={styles.username} numberOfLines={1}>@{person.username}</Text>
         </View>
       </Pressable>
-      <Button
-        title={person.isFollowing ? 'Following' : 'Follow'}
-        variant={person.isFollowing ? 'outline' : 'primary'}
-        size="sm"
+      <FollowButton
+        name={name}
+        following={person.isFollowing}
         loading={follow.isPending}
-        accessibilityLabel={`${person.isFollowing ? 'Unfollow' : 'Follow'} ${name}`}
         onPress={() => follow.mutate({
           followerId: userId,
           followingId: person.id,
@@ -415,43 +415,17 @@ export default function FriendsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.gray[600]} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Find Friends</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
-      {/* Tab toggle */}
-      <View style={styles.tabBar}>
-        <Pressable
-          style={[styles.tab, activeTab === 'contacts' && styles.tabActive]}
-          onPress={() => setActiveTab('contacts')}
-        >
-          <Ionicons
-            name="call-outline"
-            size={16}
-            color={activeTab === 'contacts' ? colors.primary[500] : colors.gray[500]}
-          />
-          <Text style={[styles.tabText, activeTab === 'contacts' && styles.tabTextActive]}>
-            Contacts
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, activeTab === 'all' && styles.tabActive]}
-          onPress={() => setActiveTab('all')}
-        >
-          <Ionicons
-            name="globe-outline"
-            size={16}
-            color={activeTab === 'all' ? colors.primary[500] : colors.gray[500]}
-          />
-          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
-            All People
-          </Text>
-        </Pressable>
-      </View>
+      <ScreenHeader title="Find Friends" onBack={() => router.back()} />
+      <SegmentedControl<Tab>
+        variant="tabs"
+        label="Find Friends sections"
+        value={activeTab}
+        onChange={setActiveTab}
+        options={[
+          { value: 'contacts', label: 'Contacts', icon: 'call-outline' },
+          { value: 'all', label: 'All People', icon: 'globe-outline' },
+        ]}
+      />
 
       {activeTab === 'all' && (
         <View style={styles.searchContainer}>
@@ -495,46 +469,6 @@ const styles = StyleSheet.create({
   },
   listFooter: {
     padding: spacing.md,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  title: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[900],
-  },
-  tabBar: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive: {
-    borderBottomColor: colors.primary[500],
-  },
-  tabText: {
-    fontSize: typography.fontSizes.sm,
-    fontWeight: typography.fontWeights.medium,
-    color: colors.gray[500],
-  },
-  tabTextActive: {
-    color: colors.primary[500],
   },
   loading: {
     flex: 1,
