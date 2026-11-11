@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { File } from 'expo-file-system';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Button } from '@/components/ui/Button';
@@ -141,50 +141,53 @@ export function PostPhotoEditor({ photo, startWithCrop = false, onApply, onClose
   return (
     <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={close}>
       <GestureHandlerRootView style={styles.root}>
-        <SafeAreaView style={styles.root} edges={['top', 'bottom']} accessibilityViewIsModal onAccessibilityEscape={close}>
-          <ScreenHeader
-            title="Edit photo"
-            sideWidth={80}
-            leading={<Button title="Cancel" variant="ghost" size="sm" onPress={close} disabled={saving} accessibilityLabel="Cancel photo edits" style={styles.headerAction} textStyle={styles.cancelText} />}
-            trailing={<Button title="Done" variant="ghost" size="sm" onPress={apply} disabled={disabled} loading={saving} accessibilityLabel="Done editing photo" style={styles.headerAction} />}
-          />
-          <View style={styles.tools}>
-            <Pressable style={styles.iconButton} onPress={rotate} disabled={disabled} accessibilityRole="button" accessibilityLabel="Rotate photo clockwise" accessibilityHint="Rotates the image a quarter turn." testID="photo-editor-rotate">
-              <MaterialIcons name="rotate-90-degrees-cw" size={27} color={disabled ? colors.gray[300] : colors.gray[700]} />
-            </Pressable>
-            <Pressable style={styles.iconButton} onPress={undo} disabled={disabled || !session.history.length} accessibilityRole="button" accessibilityLabel="Undo photo adjustment" testID="photo-editor-undo">
-              <Ionicons name="arrow-undo-outline" size={23} color={disabled || !session.history.length ? colors.gray[300] : colors.gray[700]} />
-            </Pressable>
-          </View>
-          <View style={styles.canvas} onLayout={event => {
-            const layout = event.nativeEvent.layout;
-            if (layout.width > 0 && layout.height > 0 && (layout.width !== stage.width || layout.height !== stage.height)) setStage({ width: layout.width, height: layout.height });
-          }}>
-            <PhotoEditingCanvas photo={current.photo} rotation={current.rotation} crop={bounds} mode={current.mode} revision={current.revision}
-              width={stage.width} height={stage.height} live={live} disabled={saving || zooming} onCommit={commitCrop} onInteractionChange={setCanvasInteracting} />
-          </View>
-          <Text style={styles.hint}>{current.mode === 'crop' ? 'Drag corners · pinch and move photo' : 'Pinch to zoom · drag to position'}</Text>
-          <View style={styles.controls}>
-            <SegmentedControl
-              label="Photo framing"
-              value={current.mode}
-              onChange={selectMode}
-              disabled={disabled}
-              style={styles.options}
-              options={[
-                { value: 'fit', label: 'Fit whole photo' },
-                { value: 'fill', label: 'Fill frame' },
-                { value: 'crop', label: 'Crop' },
-              ]}
+        {/* The full-screen modal has its own native view hierarchy. */}
+        <SafeAreaProvider>
+          <SafeAreaView style={styles.root} edges={['top', 'bottom']} accessibilityViewIsModal onAccessibilityEscape={close}>
+            <ScreenHeader
+              title="Edit photo"
+              sideWidth={80}
+              leading={<Button title="Cancel" variant="ghost" size="sm" onPress={close} disabled={saving} accessibilityLabel="Cancel photo edits" style={styles.headerAction} textStyle={styles.cancelText} />}
+              trailing={<Button title="Done" variant="ghost" size="sm" onPress={apply} disabled={disabled} loading={saving} accessibilityLabel="Done editing photo" style={styles.headerAction} />}
             />
-            <PhotoZoomControl value={zoom} maximum={maximumZoom} live={live} disabled={saving || canvasInteracting}
-              onStart={() => { zoomStart.current = latest.current.current; setZooming(true); }} onEnd={finishZoom} onStep={stepZoom} />
-            {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
-            <Pressable style={styles.reset} onPress={() => { if (!disabled) change(original); }} disabled={disabled || equivalent(current, original)} accessibilityRole="button" accessibilityLabel="Reset adjustments" accessibilityHint="Restores the original photo and clears cropping, rotation, and positioning." testID="photo-editor-reset">
-              <Text style={[styles.resetText, (disabled || equivalent(current, original)) && styles.muted]}>Reset adjustments</Text>
-            </Pressable>
-          </View>
-        </SafeAreaView>
+            <View style={styles.tools}>
+              <Pressable style={styles.iconButton} onPress={rotate} disabled={disabled} accessibilityRole="button" accessibilityLabel="Rotate photo clockwise" accessibilityHint="Rotates the image a quarter turn." testID="photo-editor-rotate">
+                <MaterialIcons name="rotate-90-degrees-cw" size={27} color={disabled ? colors.gray[300] : colors.gray[700]} />
+              </Pressable>
+              <Pressable style={styles.iconButton} onPress={undo} disabled={disabled || !session.history.length} accessibilityRole="button" accessibilityLabel="Undo photo adjustment" testID="photo-editor-undo">
+                <Ionicons name="arrow-undo-outline" size={23} color={disabled || !session.history.length ? colors.gray[300] : colors.gray[700]} />
+              </Pressable>
+            </View>
+            <View style={styles.canvas} onLayout={event => {
+              const layout = event.nativeEvent.layout;
+              if (layout.width > 0 && layout.height > 0 && (layout.width !== stage.width || layout.height !== stage.height)) setStage({ width: layout.width, height: layout.height });
+            }}>
+              <PhotoEditingCanvas photo={current.photo} rotation={current.rotation} crop={bounds} mode={current.mode} revision={current.revision}
+                width={stage.width} height={stage.height} live={live} disabled={saving || zooming} onCommit={commitCrop} onInteractionChange={setCanvasInteracting} />
+            </View>
+            <Text style={styles.hint}>{current.mode === 'crop' ? 'Drag corners · pinch and move photo' : 'Pinch to zoom · drag to position'}</Text>
+            <View style={styles.controls}>
+              <SegmentedControl
+                label="Photo framing"
+                value={current.mode}
+                onChange={selectMode}
+                disabled={disabled}
+                style={styles.options}
+                options={[
+                  { value: 'fit', label: 'Fit whole photo' },
+                  { value: 'fill', label: 'Fill frame' },
+                  { value: 'crop', label: 'Crop' },
+                ]}
+              />
+              <PhotoZoomControl value={zoom} maximum={maximumZoom} live={live} disabled={saving || canvasInteracting}
+                onStart={() => { zoomStart.current = latest.current.current; setZooming(true); }} onEnd={finishZoom} onStep={stepZoom} />
+              {error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
+              <Pressable style={styles.reset} onPress={() => { if (!disabled) change(original); }} disabled={disabled || equivalent(current, original)} accessibilityRole="button" accessibilityLabel="Reset adjustments" accessibilityHint="Restores the original photo and clears cropping, rotation, and positioning." testID="photo-editor-reset">
+                <Text style={[styles.resetText, (disabled || equivalent(current, original)) && styles.muted]}>Reset adjustments</Text>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        </SafeAreaProvider>
       </GestureHandlerRootView>
     </Modal>
   );

@@ -85,7 +85,7 @@ function component(file, name, props = {}, overrides = {}) {
       Platform: { OS: 'ios' }, Keyboard: { dismiss() {} }, Alert: { alert() {} },
       useWindowDimensions: () => ({ width: 390, height: 844 }),
     },
-    'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ bottom: 34 }) },
+    'react-native-safe-area-context': { SafeAreaProvider: 'SafeAreaProvider', SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ bottom: 34 }) },
     'react-native-gesture-handler': { GestureHandlerRootView: 'GestureRoot' },
     'react-native-reanimated': {
       __esModule: true, default: { View: 'AnimatedView', ScrollView: 'ScrollView', createAnimatedComponent: type => type },
@@ -357,6 +357,19 @@ function editorHarness(initialPhoto = photo(), transform) {
   });
   return Object.assign(h, { applied, deleted, transforms, closed: () => closed });
 }
+
+test('the photo editor uses the full-screen modal’s own safe area for its header and bottom controls', () => {
+  const h = editorHarness();
+  const modal = h.byType('Modal');
+  const provider = nodes(modal.props.children).find(node => node.type === 'SafeAreaProvider');
+  assert.ok(provider);
+  const safeArea = nodes(provider.props.children).find(node => node.type === 'SafeAreaView');
+  assert.ok(safeArea);
+  assert.deepEqual(Array.from(safeArea.props.edges), ['top', 'bottom']);
+  const controls = nodes(safeArea.props.children);
+  assert.ok(controls.some(node => node.props?.accessibilityLabel === 'Done editing photo'));
+  assert.ok(controls.some(node => node.props?.testID === 'photo-editor-reset'));
+});
 
 test('one canvas shares framing, crop, and rotation with one Done and no intermediate encodes', async () => {
   const h = editorHarness();
