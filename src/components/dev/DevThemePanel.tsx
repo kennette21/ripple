@@ -22,11 +22,11 @@ import {
   type DevThemePreset,
 } from '@lib/devTheme';
 
-const COLOR_FIELDS: Array<{
+const COLOR_FIELDS: {
   key: keyof DevThemeColors;
   label: string;
   description: string;
-}> = [
+}[] = [
   { key: 'primary', label: 'Brand', description: 'Buttons, links, and active states' },
   { key: 'success', label: 'Success', description: 'Positive feedback' },
   { key: 'warning', label: 'Warning', description: 'Cautionary feedback' },

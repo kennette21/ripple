@@ -4,13 +4,13 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   Pressable,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { HeaderIconButton, ScreenHeader } from '@/components/ui/ScreenHeader';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -201,12 +201,16 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
-        <TouchableOpacity onPress={() => router.push('/(main)/(profile)/settings')}>
-          <Ionicons name="settings-outline" size={24} color={colors.gray[600]} />
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title="Profile"
+        trailing={(
+          <HeaderIconButton
+            icon="settings-outline"
+            label="Settings"
+            onPress={() => router.push('/(main)/(profile)/settings')}
+          />
+        )}
+      />
 
       <KeyboardAvoidingView
         style={styles.content}
@@ -266,20 +270,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  title: {
-    fontSize: typography.fontSizes.xl,
-    fontWeight: typography.fontWeights.bold,
-    color: colors.gray[900],
   },
   listContent: {
     flexGrow: 1,

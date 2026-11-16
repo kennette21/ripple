@@ -7,7 +7,6 @@ import { Button } from '@components/ui';
 import { supabase } from '@lib/supabase';
 import { useAuth } from '@providers/AuthProvider';
 import { colors, spacing, typography, borderRadius } from '@constants/theme';
-import { LIMITS } from '@constants/config';
 
 const GOAL_OPTIONS = [
   { minutes: 15, label: '15 min', description: 'Quick check-ins' },

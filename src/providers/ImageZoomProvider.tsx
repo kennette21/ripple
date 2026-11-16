@@ -8,7 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { Image } from 'expo-image';
+import { Image, type ImageContentFit } from 'expo-image';
 import { FullWindowOverlay } from 'react-native-screens';
 import Animated, {
   type SharedValue,
@@ -28,6 +28,8 @@ interface ImageZoomRequest {
   instanceId: number;
   session: number;
   uri: string;
+  previewUri?: string;
+  contentFit: ImageContentFit;
   borderRadius: number;
   frame: ImageZoomFrame;
 }
@@ -63,34 +65,35 @@ function ImageZoomOverlay({ zoom }: { zoom: ImageZoomRequest }) {
   } =
     useImageZoomControls();
   const imageSource = useMemo(() => ({ uri: zoom.uri }), [zoom.uri]);
+  const [originalReady, setOriginalReady] = useState(false);
 
   useEffect(() => () => {
-    if (liftedInstance.value === zoom.instanceId) {
-      liftedInstance.value = 0;
+    if (liftedInstance.get() === zoom.instanceId) {
+      liftedInstance.set(0);
     }
-    if (readyInstance.value === zoom.instanceId) {
-      readyInstance.value = 0;
+    if (readyInstance.get() === zoom.instanceId) {
+      readyInstance.set(0);
     }
   }, [liftedInstance, readyInstance, zoom.instanceId]);
 
   const handleImageDisplay = useCallback(() => {
-    if (activeInstance.value === zoom.instanceId) {
-      readyInstance.value = zoom.instanceId;
-      liftedInstance.value = zoom.instanceId;
+    if (activeInstance.get() === zoom.instanceId) {
+      readyInstance.set(zoom.instanceId);
+      liftedInstance.set(zoom.instanceId);
     }
   }, [activeInstance, liftedInstance, readyInstance, zoom.instanceId]);
 
   const backdropStyle = useAnimatedStyle(() => ({
-    opacity: liftedInstance.value === zoom.instanceId
-      ? backdropOpacity.value
+    opacity: liftedInstance.get() === zoom.instanceId
+      ? backdropOpacity.get()
       : 0,
   }));
   const imageStyle = useAnimatedStyle(() => ({
-    opacity: liftedInstance.value === zoom.instanceId ? 1 : 0,
+    opacity: liftedInstance.get() === zoom.instanceId ? 1 : 0,
     transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: scale.value },
+      { translateX: translateX.get() },
+      { translateY: translateY.get() },
+      { scale: scale.get() },
     ],
   }));
 
@@ -120,14 +123,27 @@ function ImageZoomOverlay({ zoom }: { zoom: ImageZoomRequest }) {
             { borderRadius: zoom.borderRadius },
           ]}
         >
+          {zoom.previewUri && !originalReady && (
+            <Image
+              source={{ uri: zoom.previewUri }}
+              style={styles.image}
+              contentFit={zoom.contentFit}
+              cachePolicy="memory-disk"
+              transition={0}
+              onDisplay={handleImageDisplay}
+            />
+          )}
           <Image
             source={imageSource}
-            style={styles.image}
-            contentFit="cover"
+            style={[styles.image, zoom.previewUri && StyleSheet.absoluteFill]}
+            contentFit={zoom.contentFit}
             cachePolicy="memory-disk"
             priority="high"
             transition={0}
-            onDisplay={handleImageDisplay}
+            onDisplay={() => {
+              setOriginalReady(true);
+              handleImageDisplay();
+            }}
           />
         </View>
       </Animated.View>
@@ -153,7 +169,7 @@ export function ImageZoomProvider({ children }: PropsWithChildren) {
   const backdropOpacity = useSharedValue(0);
 
   const beginZoom = useCallback((request: ImageZoomRequest) => {
-    if (activeInstance.value !== request.instanceId) return;
+    if (activeInstance.get() !== request.instanceId) return;
     setActiveZoom(request);
   }, [activeInstance]);
 
@@ -247,11 +263,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 9999,
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: colors.black,
   },
   liftedImage: {

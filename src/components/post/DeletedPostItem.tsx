@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Pressable,
   StyleSheet,
   Text,
@@ -31,6 +32,7 @@ export function DeletedPostItem({
   onRestore,
   onDeletePermanently,
 }: DeletedPostItemProps) {
+  const [now, setNow] = useState(Date.now);
   const firstImage = useMemo(
     () => [...post.images].sort((a, b) => a.position - b.position)[0],
     [post.images]
@@ -39,8 +41,26 @@ export function DeletedPostItem({
   const expiresAt = deletedAt.getTime() + RETENTION_DAYS * DAY_IN_MS;
   const daysRemaining = Math.max(
     0,
-    Math.ceil((expiresAt - Date.now()) / DAY_IN_MS)
+    Math.ceil((expiresAt - now) / DAY_IN_MS)
   );
+  useEffect(() => {
+    const updateNow = () => setNow(Date.now());
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') updateNow();
+    });
+    // Update exactly when the displayed day count changes, even without a refetch.
+    const timer = daysRemaining > 0
+      ? setTimeout(updateNow, Math.max(
+          1,
+          expiresAt - (daysRemaining - 1) * DAY_IN_MS - Date.now() + 1
+        ))
+      : undefined;
+
+    return () => {
+      if (timer !== undefined) clearTimeout(timer);
+      subscription.remove();
+    };
+  }, [daysRemaining, expiresAt]);
   const title = post.caption || 'Reflection';
   const preview = post.reflection || post.caption || 'Untitled post';
   const isBusy = isRestoring || isDeleting;

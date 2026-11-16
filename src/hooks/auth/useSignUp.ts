@@ -25,7 +25,7 @@ export function useSignUp(): UseSignUpResult {
       }
 
       return !!user;
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred. Please try again.');
       return false;
     } finally {

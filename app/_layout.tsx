@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -16,6 +15,7 @@ import { supabase } from '@lib/supabase';
 import {
   configureForegroundNotifications,
   getNotificationDestination,
+  supportsDeviceNotifications,
   syncPushDeviceRegistration,
 } from '@/lib/notifications/deviceNotifications';
 
@@ -53,7 +53,7 @@ function RootLayoutNav() {
   const hasHiddenSplash = useRef(false);
 
   useEffect(() => {
-    if (Platform.OS === 'web') return;
+    if (!supportsDeviceNotifications) return;
 
     configureForegroundNotifications();
 
@@ -84,7 +84,7 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (
-      Platform.OS === 'web' ||
+      !supportsDeviceNotifications ||
       !isAuthenticated ||
       needsOnboarding
     ) {
@@ -155,6 +155,7 @@ function RootLayoutNav() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(main)" />
         <Stack.Screen name="friends" />
+        <Stack.Screen name="notifications" />
         <Stack.Screen name="post/[id]" />
         <Stack.Screen
           name="edit-post"

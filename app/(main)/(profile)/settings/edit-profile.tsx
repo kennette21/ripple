@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,17 +22,19 @@ import { colors, spacing, typography, borderRadius } from '@constants/theme';
 
 export default function EditProfileScreen() {
   const { user, profile, refreshProfile } = useAuth();
-  const [displayName, setDisplayName] = useState('');
-  const [bio, setBio] = useState('');
+  const [previousProfile, setPreviousProfile] = useState(profile);
+  const [displayName, setDisplayName] = useState(profile?.display_name || '');
+  const [bio, setBio] = useState(profile?.bio || '');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
+  if (profile !== previousProfile) {
+    setPreviousProfile(profile);
     if (profile) {
       setDisplayName(profile.display_name || '');
       setBio(profile.bio || '');
     }
-  }, [profile]);
+  }
 
   const pickImage = async () => {
     const permissionResult =
@@ -46,7 +49,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -133,13 +136,7 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.gray[600]} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Edit Profile</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <ScreenHeader title="Edit Profile" onBack={() => router.back()} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -218,20 +215,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  title: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[900],
   },
   keyboardView: {
     flex: 1,

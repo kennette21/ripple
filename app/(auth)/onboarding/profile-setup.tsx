@@ -35,7 +35,7 @@ export default function ProfileSetupScreen() {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('username')
         .eq('username', value.toLowerCase())

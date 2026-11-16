@@ -26,16 +26,6 @@ export default function SignupScreen() {
   const passwordsMatch = password === confirmPassword;
   const canSubmit = isValidEmail && isValidPassword && passwordsMatch;
 
-  const getPasswordError = () => {
-    if (password.length > 0 && password.length < 6) {
-      return 'Password must be at least 6 characters';
-    }
-    if (confirmPassword.length > 0 && !passwordsMatch) {
-      return 'Passwords do not match';
-    }
-    return undefined;
-  };
-
   const handleSignup = async () => {
     if (!canSubmit) return;
 

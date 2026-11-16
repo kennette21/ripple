@@ -1,5 +1,5 @@
 appId: com.proxy.ripple
-name: Search follow state
+name: Community search follow state
 ---
 - launchApp:
     clearState: true
@@ -19,30 +19,23 @@ name: Search follow state
       id: "feed-list"
     timeout: 15000
 
-- openLink: "ripple:///(main)/(search)"
-- tapOn:
-    text: "Open"
-    optional: true
+- tapOn: "Find friends"
 - extendedWaitUntil:
-    visible: "Search"
+    visible: "Search All People"
     timeout: 10000
-- tapOn: "Search users..."
+- tapOn: "Search All People"
 - inputText: "Marcus Aurelius"
 - hideKeyboard
 - extendedWaitUntil:
-    visible: ".*@marcus_aurelius.*Follow$"
+    visible: "Follow Marcus Aurelius"
     timeout: 10000
 
 # The result-scoped follow state must refresh after both mutation directions.
-- tapOn:
-    text: ".*@marcus_aurelius.*Follow$"
-    point: "90%,50%"
+- tapOn: "Follow Marcus Aurelius"
 - extendedWaitUntil:
-    visible: ".*@marcus_aurelius.*Following$"
+    visible: "Unfollow Marcus Aurelius"
     timeout: 10000
-- tapOn:
-    text: ".*@marcus_aurelius.*Following$"
-    point: "90%,50%"
+- tapOn: "Unfollow Marcus Aurelius"
 - extendedWaitUntil:
-    visible: ".*@marcus_aurelius.*Follow$"
+    visible: "Follow Marcus Aurelius"
     timeout: 10000

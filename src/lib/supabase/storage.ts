@@ -16,7 +16,8 @@ export async function uploadImage(
   bucket: string,
   path: string,
   uri: string,
-  contentType: string = 'image/jpeg'
+  contentType: string = 'image/jpeg',
+  upsert: boolean = true
 ): Promise<{ path: string | null; error: Error | null }> {
   try {
     const arrayBuffer = await uriToArrayBuffer(uri);
@@ -25,7 +26,7 @@ export async function uploadImage(
       .from(bucket)
       .upload(path, arrayBuffer, {
         contentType,
-        upsert: true,
+        upsert,
       });
 
     if (error) {
@@ -41,6 +42,14 @@ export async function uploadImage(
 // Get public URL for an image
 export function getPublicUrl(bucket: string, path: string): string {
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// Keep one cacheable feed size; full-screen viewers continue to use the original.
+export function getPostPreviewUrl(path: string): string {
+  const { data } = supabase.storage.from(BUCKETS.POST_IMAGES).getPublicUrl(path, {
+    transform: { width: 1200, height: 1200, resize: 'contain', quality: 75 },
+  });
   return data.publicUrl;
 }
 

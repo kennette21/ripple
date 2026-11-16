@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { queryKeys } from '@/lib/query/keys';
 import type { Post, Profile, PostImage } from '@/types/database';
@@ -19,21 +19,27 @@ interface FeedPage {
   nextCursor: string | null;
 }
 
-async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
+async function fetchAudience(userId: string, signal: AbortSignal) {
   // Get friends (accepted friend requests in either direction)
-  const [sentResult, receivedResult] = await Promise.all([
+  const [sentResult, receivedResult, followsResult, blocksResult] = await Promise.all([
     supabase.from('friend_requests')
       .select('receiver_id')
       .eq('sender_id', userId)
-      .eq('status', 'accepted'),
+      .eq('status', 'accepted').abortSignal(signal),
     supabase.from('friend_requests')
       .select('sender_id')
       .eq('receiver_id', userId)
-      .eq('status', 'accepted'),
+      .eq('status', 'accepted').abortSignal(signal),
+    supabase.from('follows').select('following_id')
+      .eq('follower_id', userId).abortSignal(signal),
+    supabase.from('blocks').select('blocked_id')
+      .eq('blocker_id', userId).abortSignal(signal),
   ]);
 
   if (sentResult.error) throw sentResult.error;
   if (receivedResult.error) throw receivedResult.error;
+  if (followsResult.error) throw followsResult.error;
+  if (blocksResult.error) throw blocksResult.error;
 
   const sentAccepted = sentResult.data;
   const receivedAccepted = receivedResult.data;
@@ -46,27 +52,25 @@ async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
   friendIds.push(userId);
 
   // Also include follows for backwards compatibility during transition
-  const { data: follows, error: followsError } = await supabase
-    .from('follows')
-    .select('following_id')
-    .eq('follower_id', userId);
-
-  if (followsError) throw followsError;
-
-  const followingIds = follows?.map((f) => f.following_id) || [];
+  const followingIds = followsResult.data?.map((f) => f.following_id) || [];
 
   // Merge friends and follows, dedupe
   const allIds = [...new Set([...friendIds, ...followingIds])];
 
   // Get blocked users to exclude
-  const { data: blocks, error: blocksError } = await supabase
-    .from('blocks')
-    .select('blocked_id')
-    .eq('blocker_id', userId);
+  const blockedIds = blocksResult.data?.map((b) => b.blocked_id) || [];
+  return { allIds, blockedIds };
+}
 
-  if (blocksError) throw blocksError;
-
-  const blockedIds = blocks?.map((b) => b.blocked_id) || [];
+async function fetchFeed(
+  client: QueryClient, userId: string, signal: AbortSignal, cursor?: string
+): Promise<FeedPage> {
+  // Existing feed invalidations also invalidate this cache after social changes.
+  const { allIds, blockedIds } = await client.fetchQuery({
+    queryKey: queryKeys.feed.audience(userId),
+    queryFn: ({ signal: audienceSignal }) => fetchAudience(userId, audienceSignal),
+    staleTime: 60_000,
+  });
 
   // Build query
   let query = supabase
@@ -83,7 +87,8 @@ async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
     .is('deleted_at', null)
     .or(`is_private.eq.false,author_id.eq.${userId}`)
     .order('created_at', { ascending: false })
-    .limit(POSTS_PER_PAGE);
+    .limit(POSTS_PER_PAGE)
+    .abortSignal(signal);
 
   // Filter out blocked users
   if (blockedIds.length > 0) {
@@ -119,11 +124,27 @@ async function fetchFeed(userId: string, cursor?: string): Promise<FeedPage> {
 }
 
 export function useFeed(userId: string | undefined) {
+  const client = useQueryClient();
   return useInfiniteQuery({
     queryKey: queryKeys.feed.list(userId || ''),
-    queryFn: ({ pageParam }) => fetchFeed(userId!, pageParam),
+    queryFn: ({ pageParam, signal }) => fetchFeed(client, userId!, signal, pageParam),
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialPageParam: undefined as string | undefined,
     enabled: !!userId,
   });
+}
+
+export async function refreshFeed(client: QueryClient, userId: string) {
+  const queryKey = queryKeys.feed.list(userId);
+  await client.cancelQueries({ queryKey, exact: true });
+  // Pull-to-refresh starts at the top instead of replaying every visited page.
+  client.setQueryData<InfiniteData<FeedPage>>(queryKey, (data) => data ? {
+    ...data,
+    pages: data.pages.slice(0, 1),
+    pageParams: data.pageParams.slice(0, 1),
+  } : data);
+  await client.invalidateQueries({
+    queryKey: queryKeys.feed.audience(userId), exact: true, refetchType: 'none',
+  });
+  await client.refetchQueries({ queryKey, exact: true }, { throwOnError: true });
 }

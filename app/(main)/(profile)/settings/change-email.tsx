@@ -4,14 +4,13 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Button, Input } from '@components/ui';
 import { updateEmail } from '@lib/supabase';
 import { useAuth } from '@providers/AuthProvider';
@@ -53,13 +52,7 @@ export default function ChangeEmailScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.gray[600]} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Change Email</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <ScreenHeader title="Change Email" onBack={() => router.back()} />
 
       <KeyboardAvoidingView
         behavior="padding"
@@ -121,20 +114,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  headerTitle: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[900],
   },
   keyboardView: {
     flex: 1,

@@ -6,18 +6,26 @@ import {
   FlatList,
   Pressable,
   ActivityIndicator,
-  TouchableOpacity,
   Alert,
   SectionList,
+  ScrollView,
+  Linking,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
-import { Avatar, Button } from '@components/ui';
+import { Avatar, Button, Input } from '@components/ui';
+import { FollowButton } from '@/components/ui/FollowButton';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { EmptyState } from '@components/common';
 import { useAuth } from '@providers/AuthProvider';
-import { supabase } from '@/lib/supabase/client';
-import { queryKeys } from '@/lib/query/keys';
+import { useFollow } from '@/hooks/social/useFollow';
+import {
+  normalizePeopleSearch,
+  useCommunityPeople,
+  type CommunityPerson,
+} from '@/hooks/social/useCommunityPeople';
 import { useContactsOnRipple, useRequestContactsPermission, type ContactMatch } from '@/hooks/social/useContacts';
 import {
   useFriends,
@@ -39,14 +47,89 @@ type SectionData = {
   type: 'requests' | 'contacts' | 'friends';
 };
 
+function CommunityPersonRow({ person, userId }: { person: CommunityPerson; userId: string }) {
+  const follow = useFollow();
+  const name = person.display_name || person.username;
+
+  return (
+    <View style={styles.userRow}>
+      <Pressable
+        style={styles.personProfile}
+        onPress={() => router.push(`/user/${person.id}`)}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${name}'s profile`}
+      >
+        <Avatar uri={person.avatar_url} name={name} size="md" />
+        <View style={styles.userInfo}>
+          <Text style={styles.displayName} numberOfLines={1}>{name}</Text>
+          <Text style={styles.username} numberOfLines={1}>@{person.username}</Text>
+        </View>
+      </Pressable>
+      <FollowButton
+        name={name}
+        following={person.isFollowing}
+        loading={follow.isPending}
+        onPress={() => follow.mutate({
+          followerId: userId,
+          followingId: person.id,
+          isFollowing: person.isFollowing,
+        }, {
+          onError: (error) => Alert.alert('Could not update follow', getErrorMessage(error, 'Please try again.')),
+        })}
+      />
+    </View>
+  );
+}
+
+function ContactsPrompt({
+  icon, title, description, actionLabel, onAction, onSearch, onSettings, loading, privacyNote,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  title: string;
+  description: string;
+  actionLabel: string;
+  onAction: () => void;
+  onSearch?: () => void;
+  onSettings?: () => void;
+  loading?: boolean;
+  privacyNote?: boolean;
+}) {
+  return (
+    <ScrollView contentContainerStyle={styles.contactsPrompt}>
+      <View style={styles.contactsIcon}>
+        <Ionicons name={icon} size={26} color={colors.primary[500]} />
+      </View>
+      <Text style={styles.contactsTitle} accessibilityRole="header">{title}</Text>
+      <Text style={styles.contactsDescription}>{description}</Text>
+      <View style={styles.contactsActions}>
+        <Button title={actionLabel} onPress={onAction} loading={loading} />
+        {onSettings ? (
+          <Button title="Open Settings" variant="ghost" onPress={onSettings} />
+        ) : onSearch ? (
+          <Button title="Use search instead" variant="ghost" onPress={onSearch} />
+        ) : null}
+        {privacyNote && (
+          <Text style={styles.contactsNote}>
+            Matching happens on your device.{'\n'}You choose who to connect with.
+          </Text>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 export default function FriendsScreen() {
   const { user, profile } = useAuth();
-  const queryClient = useQueryClient();
+  const userId = user?.id;
   const [activeTab, setActiveTab] = useState<Tab>('all');
 
   // --- Contacts tab state ---
-  const { hasPermission, requestPermission, checkPermission } = useRequestContactsPermission();
-  const { data: contactMatches, isLoading: contactsLoading, refetch: refetchContacts } = useContactsOnRipple(user?.id);
+  const { permission, isChecking, isRequesting, error: permissionError, requestPermission, checkPermission } = useRequestContactsPermission();
+  const contactsQuery = useContactsOnRipple(
+    userId,
+    activeTab === 'contacts' && !!profile?.phone_number && permission?.status === 'granted'
+  );
+  const { data: contactMatches, isLoading: contactsLoading } = contactsQuery;
   const { data: friends, isLoading: friendsLoading } = useFriends(user?.id);
   const { data: incomingRequests, isLoading: requestsLoading } = useIncomingFriendRequests(user?.id);
   const sendRequest = useSendFriendRequest();
@@ -54,77 +137,17 @@ export default function FriendsScreen() {
   const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
 
   // --- All People tab state ---
-  const [allUsers, setAllUsers] = useState<(Profile & { isFollowing: boolean })[]>([]);
-  const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
-  const [allUsersLoading, setAllUsersLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const normalizedQuery = normalizePeopleSearch(searchQuery);
+  const isSearchPending = normalizedQuery !== debouncedQuery;
+  const peopleQuery = useCommunityPeople(debouncedQuery, userId, activeTab === 'all');
+  const allUsers = peopleQuery.data?.pages.flatMap((page) => page.people) ?? [];
 
   useEffect(() => {
-    checkPermission();
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'all') loadAllUsers();
-  }, [activeTab, user?.id]);
-
-  const loadAllUsers = async () => {
-    if (!user?.id) return;
-    setAllUsersLoading(true);
-    try {
-      const [{ data: profiles }, { data: follows }] = await Promise.all([
-        supabase.from('profiles')
-          .select('*')
-          .neq('id', user.id)
-          .order('created_at', { ascending: false }),
-        supabase.from('follows')
-          .select('following_id')
-          .eq('follower_id', user.id),
-      ]);
-
-      const followingSet = new Set<string>(follows?.map((follow) => follow.following_id) || []);
-      setFollowingIds(followingSet);
-      setAllUsers(
-        (profiles || []).map((p: Profile) => ({ ...p, isFollowing: followingSet.has(p.id) }))
-      );
-    } catch (error) {
-      console.error('Error loading users:', error);
-    } finally {
-      setAllUsersLoading(false);
-    }
-  };
-
-  const handleToggleFollow = async (targetUserId: string) => {
-    if (!user?.id) return;
-    const isCurrentlyFollowing = followingIds.has(targetUserId);
-
-    // Optimistic update
-    setFollowingIds((prev) => {
-      const next = new Set(prev);
-      if (isCurrentlyFollowing) {
-        next.delete(targetUserId);
-      } else {
-        next.add(targetUserId);
-      }
-      return next;
-    });
-    setAllUsers((prev) =>
-      prev.map((u) => u.id === targetUserId ? { ...u, isFollowing: !isCurrentlyFollowing } : u)
-    );
-
-    try {
-      if (isCurrentlyFollowing) {
-        await supabase.from('follows')
-          .delete()
-          .eq('follower_id', user.id)
-          .eq('following_id', targetUserId);
-      } else {
-        await supabase.from('follows')
-          .insert({ follower_id: user.id, following_id: targetUserId });
-      }
-      queryClient.invalidateQueries({ queryKey: queryKeys.feed.all });
-    } catch {
-      loadAllUsers();
-    }
-  };
+    const timeout = setTimeout(() => setDebouncedQuery(normalizedQuery), 250);
+    return () => clearTimeout(timeout);
+  }, [normalizedQuery]);
 
   // --- Contacts tab helpers ---
   const friendIds = new Set(friends?.map((f) => f.id) || []);
@@ -224,86 +247,86 @@ export default function FriendsScreen() {
     return renderFriend(item);
   };
 
-  const renderAllUser = ({ item }: { item: Profile & { isFollowing: boolean } }) => {
-    const isFollowing = followingIds.has(item.id);
-    return (
-      <View style={styles.userRow}>
-        <Avatar uri={item.avatar_url} name={item.display_name || item.username} size="md" />
-        <View style={styles.userInfo}>
-          <Text style={styles.displayName}>{item.display_name || item.username}</Text>
-          <Text style={styles.username}>@{item.username}</Text>
-        </View>
-        <Pressable
-          style={[styles.addButton, isFollowing && styles.sentButton]}
-          onPress={() => handleToggleFollow(item.id)}
-        >
-          <Text style={[styles.addButtonText, isFollowing && styles.sentButtonText]}>
-            {isFollowing ? 'Following' : 'Follow'}
-          </Text>
-        </Pressable>
-      </View>
-    );
-  };
-
   // --- Contacts tab content ---
   const renderContactsTab = () => {
-    if (contactsTabLoading) {
-      return (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" color={colors.primary[500]} />
-        </View>
-      );
-    }
-
     if (!profile?.phone_number) {
       return (
-        <View style={styles.promptContainer}>
-          <Ionicons name="call-outline" size={48} color={colors.gray[300]} />
-          <Text style={styles.promptTitle}>Add your phone number</Text>
-          <Text style={styles.promptText}>
-            Add your phone number so your friends can find you on Ripple.
-          </Text>
-          <Button
-            title="Add Phone Number"
-            onPress={() => {
-              router.back();
-              setTimeout(() => router.push('/(main)/(profile)/settings/phone-number'), 100);
-            }}
-            style={styles.promptButton}
-          />
-        </View>
+        <ContactsPrompt
+          icon="call-outline"
+          title="Add your phone number"
+          description="Add your number so friends can find you on Ripple."
+          actionLabel="Add Phone Number"
+          onAction={() => router.push('/(main)/(profile)/settings/phone-number')}
+          onSearch={() => setActiveTab('all')}
+        />
       );
     }
 
-    if (hasPermission === false) {
+    if (isChecking) {
+      return <View style={styles.loading}><ActivityIndicator color={colors.primary[500]} /></View>;
+    }
+
+    if (permissionError) {
       return (
-        <View style={styles.promptContainer}>
-          <Ionicons name="people-outline" size={48} color={colors.gray[300]} />
-          <Text style={styles.promptTitle}>Find your friends</Text>
-          <Text style={styles.promptText}>
-            Allow access to your contacts to see which of your friends are already on Ripple.
-          </Text>
-          <Button
-            title="Allow Contacts Access"
-            onPress={async () => {
-              const granted = await requestPermission();
-              if (granted) refetchContacts();
-            }}
-            style={styles.promptButton}
-          />
-        </View>
+        <ContactsPrompt
+          icon="alert-circle-outline"
+          title="Couldn't check contacts access"
+          description={getErrorMessage(permissionError, 'Please try again.')}
+          actionLabel="Try Again"
+          onAction={() => void checkPermission()}
+          onSearch={() => setActiveTab('all')}
+        />
+      );
+    }
+
+    if (permission?.status !== 'granted') {
+      const declined = permission?.status === 'denied';
+      return (
+        <ContactsPrompt
+          icon="people-outline"
+          title={declined ? 'Contacts are off' : 'Find people you know'}
+          description={declined
+            ? 'You can still find people by name or username. Contacts can be enabled later in Settings.'
+            : 'Look for friends who are already on Ripple using the contacts you choose to share.'}
+          actionLabel={declined ? 'Search All People' : 'Continue with Contacts'}
+          onAction={declined ? () => setActiveTab('all') : () => void requestPermission()}
+          loading={isRequesting}
+          onSearch={() => setActiveTab('all')}
+          onSettings={declined ? () => {
+            void Linking.openSettings().catch((error) => {
+              Alert.alert('Could not open Settings', getErrorMessage(error, 'Please try again.'));
+            });
+          } : undefined}
+          privacyNote={!declined}
+        />
+      );
+    }
+
+    if (contactsTabLoading) {
+      return <View style={styles.loading}><ActivityIndicator size="large" color={colors.primary[500]} /></View>;
+    }
+
+    if (contactsQuery.isError) {
+      return (
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Couldn't load contacts"
+          description="Please try again."
+          actionLabel="Try Again"
+          onAction={() => void contactsQuery.refetch()}
+        />
       );
     }
 
     if (sections.length === 0) {
       return (
-        <View style={styles.promptContainer}>
-          <Ionicons name="search-outline" size={48} color={colors.gray[300]} />
-          <Text style={styles.promptTitle}>No contacts found on Ripple</Text>
-          <Text style={styles.promptText}>
-            Invite your friends to join Ripple so you can connect!
-          </Text>
-        </View>
+        <ContactsPrompt
+          icon="search-outline"
+          title="No matches yet"
+          description="None of the contacts you shared are on Ripple yet. You can still find people in the community."
+          actionLabel="Search All People"
+          onAction={() => setActiveTab('all')}
+        />
       );
     }
 
@@ -331,7 +354,7 @@ export default function FriendsScreen() {
 
   // --- All People tab content ---
   const renderAllPeopleTab = () => {
-    if (allUsersLoading) {
+    if (peopleQuery.isLoading || isSearchPending) {
       return (
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={colors.primary[500]} />
@@ -339,67 +362,87 @@ export default function FriendsScreen() {
       );
     }
 
+    if (peopleQuery.isError && allUsers.length === 0) {
+      return (
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Couldn't load people"
+          description="Please try again."
+          actionLabel="Try Again"
+          onAction={() => void peopleQuery.refetch()}
+        />
+      );
+    }
+
     if (allUsers.length === 0) {
       return (
         <View style={styles.promptContainer}>
           <Ionicons name="people-outline" size={48} color={colors.gray[300]} />
-          <Text style={styles.promptTitle}>No other users yet</Text>
-          <Text style={styles.promptText}>Invite your friends to join Ripple!</Text>
+          <Text style={styles.promptTitle}>{debouncedQuery ? 'No people found' : 'No other users yet'}</Text>
+          <Text style={styles.promptText}>
+            {debouncedQuery
+              ? `No names or usernames match “${debouncedQuery}”.`
+              : 'Invite your friends to join Ripple!'}
+          </Text>
         </View>
       );
     }
 
     return (
       <FlatList
+        key={debouncedQuery}
         data={allUsers}
-        renderItem={renderAllUser}
+        renderItem={({ item }) => <CommunityPersonRow person={item} userId={userId!} />}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        onEndReached={() => {
+          if (peopleQuery.hasNextPage && !peopleQuery.isFetching && !peopleQuery.isError) {
+            void peopleQuery.fetchNextPage();
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={peopleQuery.isFetchingNextPage
+          ? <ActivityIndicator style={styles.listFooter} color={colors.primary[500]} />
+          : peopleQuery.isError
+            ? <Button title="Try Again" variant="ghost" onPress={() => void peopleQuery.fetchNextPage()} />
+            : undefined}
       />
     );
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.gray[600]} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Find Friends</Text>
-        <View style={{ width: 24 }} />
-      </View>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <ScreenHeader title="Find Friends" onBack={() => router.back()} />
+      <SegmentedControl<Tab>
+        variant="tabs"
+        label="Find Friends sections"
+        value={activeTab}
+        onChange={setActiveTab}
+        options={[
+          { value: 'contacts', label: 'Contacts', icon: 'call-outline' },
+          { value: 'all', label: 'All People', icon: 'globe-outline' },
+        ]}
+      />
 
-      {/* Tab toggle */}
-      <View style={styles.tabBar}>
-        <Pressable
-          style={[styles.tab, activeTab === 'contacts' && styles.tabActive]}
-          onPress={() => setActiveTab('contacts')}
-        >
-          <Ionicons
-            name="call-outline"
-            size={16}
-            color={activeTab === 'contacts' ? colors.primary[500] : colors.gray[500]}
+      {activeTab === 'all' && (
+        <View style={styles.searchContainer}>
+          <Input
+            placeholder="Search by name or username"
+            accessibilityLabel="Search All People"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            leftIcon="search-outline"
+            autoCapitalize="none"
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+            containerStyle={styles.searchInput}
           />
-          <Text style={[styles.tabText, activeTab === 'contacts' && styles.tabTextActive]}>
-            Contacts
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, activeTab === 'all' && styles.tabActive]}
-          onPress={() => setActiveTab('all')}
-        >
-          <Ionicons
-            name="globe-outline"
-            size={16}
-            color={activeTab === 'all' ? colors.primary[500] : colors.gray[500]}
-          />
-          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
-            All People
-          </Text>
-        </Pressable>
-      </View>
-
+        </View>
+      )}
       {activeTab === 'contacts' ? renderContactsTab() : renderAllPeopleTab()}
     </SafeAreaView>
   );
@@ -410,45 +453,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+  searchContainer: {
+    padding: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
   },
-  title: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.semibold,
-    color: colors.gray[900],
+  searchInput: {
+    marginBottom: 0,
   },
-  tabBar: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  tab: {
+  personProfile: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    marginRight: spacing.sm,
   },
-  tabActive: {
-    borderBottomColor: colors.primary[500],
-  },
-  tabText: {
-    fontSize: typography.fontSizes.sm,
-    fontWeight: typography.fontWeights.medium,
-    color: colors.gray[500],
-  },
-  tabTextActive: {
-    color: colors.primary[500],
+  listFooter: {
+    padding: spacing.md,
   },
   loading: {
     flex: 1,
@@ -572,5 +592,40 @@ const styles = StyleSheet.create({
   promptButton: {
     marginTop: spacing.md,
     minWidth: 200,
+  },
+  contactsPrompt: {
+    flexGrow: 1,
+    padding: spacing.lg,
+  },
+  contactsIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  contactsTitle: {
+    fontSize: typography.fontSizes.xxl,
+    fontWeight: typography.fontWeights.bold,
+    color: colors.gray[900],
+  },
+  contactsDescription: {
+    fontSize: typography.fontSizes.sm,
+    color: colors.gray[500],
+    lineHeight: 22,
+    marginTop: spacing.sm,
+  },
+  contactsActions: {
+    marginTop: 'auto',
+    paddingTop: spacing.xl,
+  },
+  contactsNote: {
+    fontSize: typography.fontSizes.xs,
+    color: colors.gray[500],
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: spacing.sm,
   },
 });

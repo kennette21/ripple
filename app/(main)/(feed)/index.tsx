@@ -8,16 +8,16 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@providers/AuthProvider';
-import { useFeed, type FeedPost } from '@/hooks/feed/useFeed';
+import { refreshFeed, useFeed, type FeedPost } from '@/hooks/feed/useFeed';
 import { useCommentThreadController } from '@/hooks/comments/useCommentThreadController';
 import { useImageZoomActive } from '@/providers/ImageZoomProvider';
 import { PostCard } from '@/components/post/PostCard';
+import { HeaderIconButton, ScreenHeader } from '@/components/ui/ScreenHeader';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/lib/query/keys';
 import { EmptyState } from '@components/common';
@@ -29,37 +29,19 @@ function FeedHeader({ userId }: { userId: string | undefined }) {
   const { data: unseenNotificationCount = 0 } = useUnseenNotificationCount(userId);
 
   return (
-    <View style={styles.header}>
-      <View style={styles.headerSpacer} />
-      <Text style={styles.logo}>Ripple</Text>
-      <View style={styles.headerActions}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => router.push('/(main)/(notifications)')}
-          accessibilityRole="button"
-          accessibilityLabel="Notifications"
-        >
-          <Ionicons
-            name="notifications-outline"
-            size={24}
-            color={colors.gray[600]}
-          />
-          <DotBadge
-            visible={unseenNotificationCount > 0}
-            variant="primary"
-            style={styles.notificationDot}
-          />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => router.push('/friends')}
-          accessibilityRole="button"
-          accessibilityLabel="Find friends"
-        >
-          <Ionicons name="people-outline" size={24} color={colors.gray[600]} />
-        </TouchableOpacity>
-      </View>
-    </View>
+    <ScreenHeader
+      title="Ripple"
+      titleStyle={styles.logo}
+      sideWidth={88}
+      trailing={(
+        <View style={styles.headerActions}>
+          <HeaderIconButton icon="notifications-outline" label="Notifications" onPress={() => router.push('/notifications')}>
+            <DotBadge visible={unseenNotificationCount > 0} variant="primary" style={styles.notificationDot} />
+          </HeaderIconButton>
+          <HeaderIconButton icon="people-outline" label="Find friends" onPress={() => router.push('/friends')} />
+        </View>
+      )}
+    />
   );
 }
 
@@ -81,7 +63,6 @@ export default function FeedScreen() {
     isFetchingNextPage,
     isLoading,
     isRefetching,
-    refetch,
   } = useFeed(user?.id);
 
   const posts = useMemo(
@@ -138,10 +119,11 @@ export default function FeedScreen() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleRefresh = useCallback(async () => {
+    if (!user?.id) return;
     setIsRefreshingComments(true);
     try {
       await Promise.all([
-        refetch(),
+        refreshFeed(queryClient, user.id),
         queryClient.invalidateQueries({
           queryKey: queryKeys.comments.all,
           refetchType: 'active',
@@ -150,7 +132,7 @@ export default function FeedScreen() {
     } finally {
       setIsRefreshingComments(false);
     }
-  }, [refetch]);
+  }, [user?.id]);
 
   if (isLoading) {
     return (
@@ -230,38 +212,18 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  headerSpacer: {
-    width: 72,
-  },
   headerActions: {
-    width: 72,
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
   },
   logo: {
     fontSize: typography.fontSizes.xl,
     fontWeight: typography.fontWeights.bold,
     color: colors.primary[500],
   },
-  headerButton: {
-    padding: spacing.xs,
-    position: 'relative',
-  },
   notificationDot: {
     position: 'absolute',
-    top: 2,
-    right: 2,
+    top: spacing.sm,
+    right: spacing.sm,
   },
   loadingContainer: {
     padding: spacing.md,

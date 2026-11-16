@@ -684,6 +684,17 @@ export type Database = {
         Args: { p_expo_push_token: string }
         Returns: undefined
       }
+      update_post_composition: {
+        Args: {
+          p_post_id: string
+          p_caption: string
+          p_reflection: string
+          p_content_type: Database["public"]["Enums"]["post_content_type"]
+          p_is_private: boolean
+          p_images: Json
+        }
+        Returns: Json
+      }
       update_post: {
         Args: {
           p_caption: string

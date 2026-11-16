@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,7 @@ import {
   FlatList,
   Dimensions,
   Pressable,
-  type ViewToken,
+  type ListViewToken,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { Button } from '@components/ui';
 import { colors, spacing, typography } from '@constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 50 };
 
 interface SlideData {
   id: string;
@@ -354,15 +355,11 @@ export default function ManifestoScreen() {
     }
   };
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+  const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ListViewToken[] }) => {
     if (viewableItems.length > 0) {
       setCurrentIndex(viewableItems[0].index || 0);
     }
-  }).current;
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-  }).current;
+  }, []);
 
   const isLastSlide = currentIndex === SLIDES.length - 1;
 
@@ -375,7 +372,7 @@ export default function ManifestoScreen() {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
+        viewabilityConfig={VIEWABILITY_CONFIG}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <View style={styles.slideContainer}>

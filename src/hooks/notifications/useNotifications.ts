@@ -10,7 +10,7 @@ import type {
 } from '@/types/database';
 
 const NOTIFICATION_LIMIT = 100;
-const NOTIFICATION_REFRESH_INTERVAL_MS = 10_000;
+const NOTIFICATION_REFRESH_INTERVAL_MS = 30_000;
 
 type NotificationActor = Pick<
   Profile,
@@ -322,11 +322,11 @@ export function groupNotificationsByStory(
     .sort((left, right) => right.latestAt.localeCompare(left.latestAt));
 }
 
-export function useNotifications(userId: string | undefined) {
+export function useNotifications(userId: string | undefined, isFocused = true) {
   return useQuery({
     queryKey: queryKeys.notifications.list(userId ?? ''),
     queryFn: () => fetchNotifications(userId!),
-    enabled: !!userId,
+    enabled: !!userId && isFocused,
     staleTime: 0,
     refetchInterval: NOTIFICATION_REFRESH_INTERVAL_MS,
   });
